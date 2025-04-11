@@ -17,7 +17,7 @@ export default defineConfig((config) => {
             target: "esnext",
             minify: false,
             rollupOptions: {
-                external: ["three", "js-sdsl", "fraction.js", "antlr4", /three/],
+                external: ["three", "js-sdsl", "fraction.js", "antlr4", /^three/],
                 output: {
                     globals: {
                         three: "THREE",
