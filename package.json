@@ -1,0 +1,78 @@
+{
+  "name": "musical-juggling-siteswap-mjs",
+  "description": "Parse, visualise and simulate (musical) juggling patterns.",
+  "private": true,
+  "version": "0.0.0",
+  "main": "./dist/MusicalJuggling.js",
+  "module": "./dist/MusicalJuggling.js",
+  "types": "./dist/MusicalJuggling.d.ts",
+  "exports": {
+    "import": "./dist/MusicalJuggling.js",
+    "types": "./dist/MusicalJuggling.d.ts"
+  },
+  "author": {
+    "name": "Léo Kulinski",
+    "email": "leo.kulinski@universite-paris-saclay.fr"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github+https://github.com/kunchtler/mj-petite-fleur"
+  },
+  "bugs": {
+    "url": "https://github.com/kunchtler/mj-petite-fleur/issues"
+  },
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "juggling",
+    "juggle",
+    "juggler",
+    "simulator",
+    "siteswap",
+    "music",
+    "musical",
+    "three",
+    "javascript",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=16.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "vite --port 8080",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier . --write",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@laynezh/vite-plugin-lib-assets": "^1.1.0",
+    "@types/three": "^0.163.0",
+    "eslint": "^9.19.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1",
+    "vite": "^5.4.11",
+    "vite-plugin-dts": "^4.5.3",
+    "vitest": "^3.0.5"
+  },
+  "dependencies": {
+    "antlr4": "^4.13.2",
+    "fraction.js": "^5.2.1",
+    "js-sdsl": "^4.4.2",
+    "three": "^0.163.0"
+  },
+  "prettier": {
+    "semi": true,
+    "trailingComma": "none",
+    "singleQuote": false,
+    "printWidth": 100,
+    "tabWidth": 4,
+    "useTabs": false
+  }
+}

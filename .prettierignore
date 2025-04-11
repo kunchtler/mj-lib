@@ -1,0 +1,2 @@
+# Ignore ANTLR4 Outputs
+src/parser/**/output

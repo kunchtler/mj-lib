@@ -1,0 +1,12 @@
+#video_player_div {
+    display: flex;
+    max-width: 50%;
+    background-color: black;
+    height: 100%;
+    /* align-items: center; */
+}
+
+#video_player_div video {
+    max-height: 100%;
+    max-width: 100%;
+}
