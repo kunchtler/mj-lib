@@ -1,5 +1,5 @@
 {
-  "name": "musical-juggling-siteswap-mjs",
+  "name": "musicaljuggling",
   "description": "Parse, visualise and simulate (musical) juggling patterns.",
   "private": true,
   "version": "0.0.0",
