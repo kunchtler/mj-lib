@@ -1,0 +1,31 @@
+///////Header////////
+
+Jugglers :
+    Vincent
+        ShortName : V
+        Balls : Do1 Reb1 Re1 Mib1 Mi1 Fa1 Solb1 Sol1 Lab1 La1 Sib1 Si1 Do2
+    Martin
+        ShortName : M
+        Balls : Do1 Reb1 Re1 Mib1 Mi1 Fa1 Solb1 Sol1 Lab1 La1 Sib1 Si1 Do2
+    Nina
+        ShortName : N   
+        Balls : Do1 Reb1 Re1 Mib1 Mi1 Fa1 Solb1 Sol1 Lab1 La1 Sib1 Si1 Do2
+    Laurent
+        ShortName : L
+        Balls : Do1 Reb1 Re1 Mib1 Mi1 Fa1 Solb1 Sol1 Lab1 La1 Sib1 Si1 Do2
+
+///////Juggling///////
+
+Order of assumptions :
+1. Throw to self
+Can specify juggler (assumes catching hand), or also hand (self or other), 
+2. First ball thrown if multiple is the first in the list. Else, specify.
+
+SiteswapBPM : 225
+
+Vincent :
+-3 : Hands [Do Mi] [Sol]
+-3 : Starting Hand : R
+-3 : 40441001 
+
+Florent :
