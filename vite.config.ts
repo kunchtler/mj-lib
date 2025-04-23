@@ -2,8 +2,15 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import libAssetsPlugin from "@laynezh/vite-plugin-lib-assets";
 import path from "node:path";
+import react from "@vitejs/plugin-react";
+import { PluginOptions } from "babel-plugin-react-compiler";
 
 const assetsDir = "src/assets/";
+const ReactCompilerConfig: Partial<PluginOptions> = {
+    // sources: (filename) => {
+    //     return filename.indexOf("src/path/to/dir") !== -1;
+    // },
+};
 export default defineConfig((config) => {
     // console.log(config);
     return {
@@ -29,6 +36,13 @@ export default defineConfig((config) => {
             }
         },
         plugins: [
+            react({
+                babel: {
+                    plugins: [
+                        ["babel-plugin-react-compiler", ReactCompilerConfig] /*must run first!*/
+                    ]
+                }
+            }),
             dts({ include: "src/" /*, rollupTypes: true*/ }),
             libAssetsPlugin({
                 name: "[name].[ext]",
