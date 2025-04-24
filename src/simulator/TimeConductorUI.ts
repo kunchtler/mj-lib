@@ -15,12 +15,12 @@ export function createControls(
     timeConductor: TimeConductor,
     bounds: [number, number] = [0, 20]
 ): void {
-    if (!injectedCss) {
-        injectedCss = true;
-        const style = document.createElement("style");
-        style.textContent = UICss;
-        document.head.appendChild(style);
-    }
+    // if (!injectedCss) {
+    //     injectedCss = true;
+    //     const style = document.createElement("style");
+    //     style.textContent = UICss;
+    //     document.head.appendChild(style);
+    // }
     const controlElem = document.createElement("div");
     controlElem.className = "controls";
     const playPauseButton = document.createElement("button");

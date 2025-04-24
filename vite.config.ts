@@ -51,6 +51,11 @@ export default defineConfig((config) => {
                     return resourcePath.split("src" + path.sep)[1].split(path.sep + url)[0];
                 }
             })
-        ]
+        ],
+        resolve: {
+            alias: {
+                "@tabler/icons-react": "@tabler/icons-react/dist/esm/icons/index.mjs"
+            }
+        }
     };
 });

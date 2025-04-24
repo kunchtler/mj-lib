@@ -49,7 +49,7 @@ export class DefaultTimeController implements TimeController {
 }
 
 interface SimulatorConstructorParams {
-    canvasID: string;
+    canvas: HTMLCanvasElement;
     timeController?: TimeController;
     enableAudio: boolean;
     controls?: OrbitControls; //TODO : Change to control when updating Threejs.
@@ -78,7 +78,7 @@ export class Simulator {
     // paused: boolean;
 
     constructor({
-        canvasID,
+        canvas,
         timeController,
         enableAudio,
         controls,
@@ -92,16 +92,12 @@ export class Simulator {
     }: SimulatorConstructorParams) {
         // Scene setup
         //TODO : HMTLCanvasElement as param instead of string ?
-        if (!injectedCss) {
-            injectedCss = true;
-            const style = document.createElement("style");
-            style.textContent = simulatorCss;
-            document.head.appendChild(style);
-        }
-        const canvas = document.querySelector(canvasID);
-        if (!(canvas instanceof HTMLCanvasElement)) {
-            throw new Error("The provided canvas_id is not of type HTMLCanvasElement.");
-        }
+        // if (!injectedCss) {
+        //     injectedCss = true;
+        //     const style = document.createElement("style");
+        //     style.textContent = simulatorCss;
+        //     document.head.appendChild(style);
+        // }
         this.renderer = renderer ?? new THREE.WebGLRenderer({ antialias: true, canvas });
         this.scene = scene instanceof THREE.Scene ? scene : new THREE.Scene();
         if (camera === undefined) {

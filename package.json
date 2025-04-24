@@ -76,9 +76,9 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@mantine/core": "^7.17.4",
-    "@mantine/hooks": "^7.17.4",
-    "@phosphor-icons/react": "^2.1.7",
+    "@mantine/core": "^7.17.5",
+    "@mantine/hooks": "^7.17.5",
+    "@tabler/icons-react": "^3.31.0",
     "antlr4": "^4.13.2",
     "fraction.js": "^5.2.1",
     "js-sdsl": "^4.4.2",
