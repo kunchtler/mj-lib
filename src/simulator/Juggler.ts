@@ -57,6 +57,7 @@ export interface JugglerParamConstructor {
     hands?: [Hand, Hand] | [HandConstructorParams, HandConstructorParams];
     defaultTable?: Table;
     debug?: boolean;
+    allowAudio?: boolean;
     // height?: number;
     // width?: number;
     // depth?: number;
@@ -67,10 +68,12 @@ export interface JugglerParamConstructor {
 const defaultJugglerParam = { height: 1.8, width: 0.5, depth: 0.3, armLength: 0.4 };
 
 //TODO : Optional elbows (but only if defined) ?
+//TODO : Allow to toggle the audio on/off.
 export class Juggler {
     mesh: THREE.Mesh;
     readonly hands: [Hand, Hand];
     defaultTable?: Table;
+    gainNode?: GainNode;
     // height: number;
     // geometry: THREE.BufferGeometry;
     // material: THREE.Material;
@@ -80,7 +83,7 @@ export class Juggler {
     // arm_length: number;
     // target: THREE.Object3D;
 
-    constructor({ defaultTable, hands, mesh, debug }: JugglerParamConstructor = {}) {
+    constructor({ defaultTable, hands, mesh, debug, allowAudio }: JugglerParamConstructor = {}) {
         if (mesh === undefined) {
             mesh = createJugglerMesh(
                 createJugglerCubeGeometry(
@@ -136,6 +139,11 @@ export class Juggler {
         }
 
         this.defaultTable = defaultTable;
+
+        allowAudio ??= true;
+        if (allowAudio) {
+            this.gainNode = new GainNode(THREE.AudioContext.getContext());
+        }
 
         // this.jugglingOrigin.add(new Object3DHelper(false, undefined, false));
         // this.jugglingOrigin.position.set(arm_length, height - 0.4 - arm_length, 0);

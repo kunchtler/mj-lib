@@ -1,8 +1,34 @@
-import { Player } from "./react/Player";
-import { SimulatorApp } from "./react/Simulator";
+import { AppShell, Burger, Container, Flex, Group, Image } from "@mantine/core";
+import { BasicAppShell } from "./Example";
+import { Player } from "./Player";
+import { SimulatorApp } from "./SimulatorApp";
+import { SoundSettings } from "./SoundSettings";
+import image from "../assets/screen.png";
+import style from "../react/simulator.module.css";
 
 function App() {
-    return <SimulatorApp />;
+    return (
+        <Group /*style={{ height: "100%", display: "flex" }}*/>
+            <img src={image} style={{ width: "100px", display: "block", objectFit: "contain" }} />
+            <canvas style={{ height: "100%", width: "100%", display: "block", flex: 1 }} />
+        </Group>
+    );
+    // return (
+    //     <div style={{ height: "100%", display: "flex" }}>
+    //         <img src={image} style={{ width: "100px", display: "block", objectFit: "contain" }} />
+    //         <canvas style={{ height: "100%", width: "100%", display: "block", flex: 1 }} />
+    //     </div>
+    // );
+    // return (
+    //     <AppShell navbar={{ width: 300, breakpoint: 300 }}>
+    //         <AppShell.Navbar>
+    //             <SoundSettings />
+    //         </AppShell.Navbar>
+    //         <AppShell.Main>
+    //             <SimulatorApp />
+    //         </AppShell.Main>
+    //     </AppShell>
+    // );
 }
 
 export default App;

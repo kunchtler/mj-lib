@@ -1,7 +1,6 @@
 import { Button, Group, MarkProps, Slider, Text } from "@mantine/core";
 import { useRef, useState } from "react";
 import { IconPlayerPlayFilled, IconPlayerPauseFilled } from "@tabler/icons-react";
-import { TimeController } from "../../src/MusicalJuggling";
 
 type SliderMark = {
     value: number;

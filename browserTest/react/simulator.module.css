@@ -1,0 +1,6 @@
+.simulator {
+    height: 100%;
+    width: 100%;
+    display:block;
+    object-fit: fill;
+}
