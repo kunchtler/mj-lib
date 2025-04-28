@@ -32,6 +32,8 @@ export class XrInput {
         this._rightPointer = new Pointer() ;
         this.context.scene.add(this._rightPointer) ;
 
+        this._isFlying = false;
+
         this._origin = this.context.renderer.xr.getReferenceSpace();
     }
 
@@ -47,6 +49,7 @@ export class XrInput {
         this.jumpPlayer();
         this.updateJump();
         this.rotatePlayer();
+        this.movePlayerY();
     }
 
     updateDebugPointers(pointer, controller) {
@@ -185,22 +188,68 @@ export class XrInput {
     }
 
     /**
-     * Entry point of a a jump, this method init a jump which will be handle by updateJump()
+     * Make the player move y axe by applying translation on referenceSpace. This function handle the flying mode. 
      * 
      * @returns void
      */
-    jumpPlayer() {
-        if (!this._rightHandController || !(this._rightHandController._gamePad.buttons.length > 4)) {
+    movePlayerY() {
+        if (!this._isFlying || !this._rightHandController || !(this._rightHandController._gamePad.buttons.length > 5) 
+            || !(this._rightHandController.buttonA || this._rightHandController.buttonB)) {
             return;
         }
         
-        if (this._rightHandController.buttonA && !this._isJumping) {
+        const referenceSpace = this.context.renderer.xr.getReferenceSpace();
+        if (!referenceSpace) {
+            return;
+        }
+
+        let speed = 0.03; //meter or unite by frame
+
+        if(this._rightHandController.buttonA){
+            speed = -speed;
+        }
+
+        const offsetTransform = new XRRigidTransform(
+            {
+                x: 0,
+                y: speed,
+                z: 0
+            },
+            {x: 0, y: 0, z: 0, w: 1}
+        );
+        try {
+            const newReferenceSpace = referenceSpace.getOffsetReferenceSpace(offsetTransform);
+                        this.context.renderer.xr.setReferenceSpace(newReferenceSpace);
+        } catch (e) {
+            console.error("Error during referenceSpace modification", e);
+        }
+    }
+
+    /**
+     * Entry point of a a jump, this method init a jump which will be handle by updateJump()
+     * If a double press on button A is detected, it toggle the flying mode.
+     * @returns void
+     */
+    jumpPlayer() {
+        if (!this._rightHandController || !(this._rightHandController._gamePad.buttons.length > 4) || !this._rightHandController.buttonA) {
+            return;
+        }
+        
+        if (!this._isJumping && !this._isFlying) {
             this._isJumping = true;
             this._jumpStartTime = Date.now();
             this._jumpHeight = 0.5; //in meter or unit
             this._jumpDuration = 0.8; // second
             this._currentJumpHeight = 0;
+            this._isFlying = false;
+        }else{
+            if(this._lastButtonATrigger && 50 < (Date.now() - this._lastButtonATrigger) && (Date.now() - this._lastButtonATrigger) < 400){
+                this._isFlying = !this._isFlying;
+                this._isJumping = false;
+            }
         }
+
+        this._lastButtonATrigger = Date.now();
     }
 
     /**
