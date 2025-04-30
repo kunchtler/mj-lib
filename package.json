@@ -81,10 +81,12 @@
     "@tabler/icons-react": "^3.31.0",
     "antlr4": "^4.13.2",
     "fraction.js": "^5.2.1",
+    "immer": "^10.1.1",
     "js-sdsl": "^4.4.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "three": "^0.163.0"
+    "three": "^0.163.0",
+    "use-immer": "^0.11.0"
   },
   "prettier": {
     "semi": true,
