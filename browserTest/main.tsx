@@ -5,6 +5,9 @@ import { createRoot } from "react-dom/client";
 import App from "./react/App.tsx";
 import { Button, createTheme, MantineProvider } from "@mantine/core";
 import { theme } from "./theme.ts";
+import { enableMapSet } from "immer";
+
+enableMapSet();
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

@@ -1,51 +1,21 @@
-import {
-    Affix,
-    alpha,
-    AppShell,
-    Burger,
-    Container,
-    Flex,
-    Group,
-    Image,
-    Overlay,
-    Paper,
-    Select
-} from "@mantine/core";
+import { AppShell, Box, Burger, Container, Flex, Group, Image, Tabs } from "@mantine/core";
 import { BasicAppShell } from "./Example";
 import { Player } from "./Player";
 import { SimulatorApp } from "./SimulatorApp";
 import { SoundSettings } from "./SoundSettings";
 import image from "../assets/screen.png";
 import style from "../react/simulator.module.css";
+import { IconPhoto, IconMessageCircle, IconSettings } from "@tabler/icons-react";
+import { TimeConductor } from "../../src/MusicalJuggling";
+import { TimeControls } from "./TimeControls";
 
 function App() {
-    return (
-        <>
-            <Affix position={{ top: 0, left: 0 }} p="md">
-                {/* <Paper
-                    p="sm"
-                    color=""
-                    styles={{
-                        root: {
-                            backgroundColor: alpha("var(--mantine-color-white)", 0.2),
-                            backdropFilter: "blur(5px)"
-                        }
-                    }}
-                > */}
-                <Select
-                    // label="Section"
-                    data={["1", "2", "3"]}
-                    defaultValue="1"
-                    allowDeselect={false}
-                    withCheckIcon={false}
-                    onChange={(value, option) => console.log(value, option)}
-                    styles={{}}
-                />
-                {/* </Paper> */}
-            </Affix>
-            {/* <SimulatorApp sceneBackgroundColor="#444444" /> */}
-        </>
-    );
+    // return (
+    //     <Group /*style={{ height: "100%", display: "flex" }}*/>
+    //         <img src={image} style={{ width: "100px", display: "block", objectFit: "contain" }} />
+    //         <canvas style={{ height: "100%", width: "100%", display: "block", flex: 1 }} />
+    //     </Group>
+    // );
     // return (
     //     <div style={{ height: "100%", display: "flex" }}>
     //         <img src={image} style={{ width: "100px", display: "block", objectFit: "contain" }} />
@@ -53,15 +23,46 @@ function App() {
     //     </div>
     // );
     // return (
-    //     <AppShell navbar={{ width: 300, breakpoint: 300 }}>
-    //         <AppShell.Navbar>
-    //             <SoundSettings />
-    //         </AppShell.Navbar>
-    //         <AppShell.Main>
-    //             <SimulatorApp />
-    //         </AppShell.Main>
-    //     </AppShell>
+    //     <Box w={"30%"}>
+    //         <Tabs defaultValue="gallery" keepMounted={false}>
+    //             <Tabs.List grow={true}>
+    //                 <Tabs.Tab value="gallery" leftSection={<IconPhoto size={12} />}>
+    //                     Gallery
+    //                 </Tabs.Tab>
+    //                 <Tabs.Tab value="messages" leftSection={<IconMessageCircle size={12} />}>
+    //                     Messages
+    //                 </Tabs.Tab>
+    //                 <Tabs.Tab value="settings" leftSection={<IconSettings size={12} />}>
+    //                     Settings
+    //                 </Tabs.Tab>
+    //             </Tabs.List>
+
+    //             <Tabs.Panel value="gallery">Gallery tab content</Tabs.Panel>
+
+    //             <Tabs.Panel value="messages">Messages tab content</Tabs.Panel>
+
+    //             <Tabs.Panel value="settings">Settings tab content</Tabs.Panel>
+    //         </Tabs>
+    //     </Box>
     // );
+    const timeConductor = new TimeConductor({
+        bounds: [-10, 3671],
+        autoplay: false,
+        playbackRate: 2,
+        startTime: -5
+    });
+
+    return (
+        <TimeControls timeConductor={timeConductor} />
+        // <AppShell navbar={{ width: 300, breakpoint: 300 }}>
+        //     <AppShell.Navbar>
+        //         <SoundSettings />
+        //     </AppShell.Navbar>
+        //     <AppShell.Main>
+        //         <SimulatorApp />
+        //     </AppShell.Main>
+        // </AppShell>
+    );
 }
 
 export default App;
