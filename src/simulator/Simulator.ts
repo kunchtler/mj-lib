@@ -1,10 +1,26 @@
 import * as THREE from "three";
-import { Ball } from "./Ball";
-import { Juggler } from "./Juggler";
+import { Ball, createBallGeometry, createBallMaterial } from "./Ball";
+import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "./Juggler";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/Addons.js";
-import { Table } from "./Table";
+import { createTableGeometry, createTableMaterial, createTableObject, Table } from "./Table";
 import simulatorCss from "../assets/styleSheets/simulator.css?raw";
+import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "../inference/JugglingApp";
+import { FracSortedList, Scheduler } from "../inference/Scheduler";
+import {
+    bindTimeConductorAndSimulator,
+    createControls,
+    EventSound,
+    getNoteBuffer,
+    MusicBeatConverter,
+    MusicTempo,
+    ParserToSchedulerParams,
+    simulateEvents,
+    TimeConductor,
+    transformParserParamsToSchedulerParams
+} from "../MusicalJuggling";
+import Fraction from "fraction.js";
+import { V3SCA } from "../utils/three/StaticOp";
 
 //TODO : Handle sounds pausing when simulator pauses.
 //TODO : Handle gentle implementation of sounds (do not make them mandatory).
@@ -33,20 +49,21 @@ import simulatorCss from "../assets/styleSheets/simulator.css?raw";
 // - the requestRenderIfNotRequested method of the simulator to render a single frame when paused.
 export interface TimeController {
     getTime: () => number;
+    setTime: (time: number) => void;
     isPaused: () => boolean;
-    // play?: () => void;
-    // pause?: () => void;
-    // playbackRate?: number;
+    play: () => Promise<void>;
+    pause: () => void;
+    playbackRate: number;
 }
 
-export class DefaultTimeController implements TimeController {
-    getTime(): number {
-        return performance.now();
-    }
-    isPaused(): boolean {
-        return true;
-    }
-}
+// export class DefaultTimeController implements TimeController {
+//     getTime(): number {
+//         return performance.now();
+//     }
+//     isPaused(): boolean {
+//         return true;
+//     }
+// }
 
 interface SimulatorConstructorParams {
     canvas: HTMLCanvasElement;
@@ -74,6 +91,7 @@ export class Simulator {
     timeController: TimeController;
     private _paused: boolean;
     listener?: THREE.AudioListener;
+    // readonly audioEnabled: boolean;
     // playBackRate: number;
     // paused: boolean;
 
@@ -151,7 +169,13 @@ export class Simulator {
         this.jugglers = jugglers ?? new Map<string, Juggler>();
         this.tables = tables ?? new Map<string, Table>();
 
-        this.timeController = timeController ?? new DefaultTimeController();
+        if (timeController === undefined) {
+            const timeConductor = new TimeConductor();
+            bindTimeConductorAndSimulator(timeConductor, this);
+            createControls(document.body, timeConductor, [-1, 20]);
+            timeController = timeConductor;
+        }
+        this.timeController = timeController;
         this._paused = this.timeController.isPaused();
 
         if (enableAudio) {
@@ -291,11 +315,200 @@ export class Simulator {
             this.removeJuggler(name);
         }
         for (const name of this.balls.keys()) {
-            this.removeJuggler(name);
+            this.removeBall(name);
         }
         for (const name of this.tables.keys()) {
-            this.removeJuggler(name);
+            this.removeTable(name);
         }
+        this.timeController.pause();
+        this.timeController.setTime(0);
+        // this.timeController.playbackRate = 1;
+    }
+
+    setupPattern({
+        jugglers: rawJugglers,
+        musicConverter: rawMusicConverter,
+        table: rawTable
+    }: JugglingAppParams): void {
+        //TODO : Separate in own function.
+        //TODO : Sanitize here too ! (different juggler names, etc)
+        //TODO : In MusicBeatConverter (and here before), Sort tempo and signature changes !!
+        // 1. Create parser parameters.
+
+        // 1a. rawMusicConverter
+        const signatureChanges: [number, Fraction][] = [];
+        const tempoChanges: [number, MusicTempo][] = [];
+        for (const [number, { signature, tempo }] of rawMusicConverter) {
+            if (signature !== undefined) {
+                signatureChanges.push([number, new Fraction(signature)]);
+            }
+            if (tempo !== undefined) {
+                tempoChanges.push([number, { note: new Fraction(tempo.note), bpm: tempo.bpm }]);
+            }
+        }
+        const musicConverter = new MusicBeatConverter(signatureChanges, tempoChanges);
+
+        // 1b. rawJugglers
+        const preParserJugglers = new Map<
+            string,
+            { balls: { id: string; name: string }[]; events: FracSortedList<PreParserEvent> }
+        >();
+        for (const [jugglerName, { balls, events: rawEvents }] of rawJugglers) {
+            preParserJugglers.set(jugglerName, {
+                balls: balls,
+                events: formatRawEventInput(rawEvents, musicConverter)
+            });
+        }
+        if (preParserJugglers.size !== rawJugglers.length) {
+            throw Error("TODO : Duplicate juggler name");
+        }
+
+        // 1c. Gather ball info from jugglers.
+        //TODO : Fuse ballIDs and BallIDSounds ?
+        //TODO : Sound on toss / catch.
+        const ballIDs = new Map<
+            string,
+            { name: string; sound?: string; juggler: string; color?: string | number }
+        >();
+        const ballNames = new Set<string>();
+        const ballSounds = new Set<string>();
+        for (const [jugglerName, { balls }] of rawJugglers) {
+            for (const ball of balls) {
+                if (ballIDs.has(ball.id)) {
+                    throw Error("TODO : Duplicate ball ID");
+                }
+                ballIDs.set(ball.id, {
+                    name: ball.name,
+                    sound: ball.sound,
+                    juggler: jugglerName,
+                    color: ball.color
+                });
+                ballNames.add(ball.name);
+                if (ball.sound !== undefined) {
+                    ballSounds.add(ball.sound);
+                }
+            }
+        }
+
+        // 1d. Compile the parameters for the parser.
+        const parserParams: ParserToSchedulerParams = {
+            ballNames: ballNames,
+            ballIDs: ballIDs,
+            jugglers: preParserJugglers,
+            musicConverter: musicConverter
+        };
+
+        //TODO : Rename to parser only ? Name of method a bit convoluted.
+        const schedulerParams = transformParserParamsToSchedulerParams(parserParams);
+        const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
+
+        const jugglerGeometry = createJugglerCubeGeometry();
+        const jugglerMaterial = createJugglerMaterial();
+        const tableMaterial = createTableMaterial();
+        for (let i = 0; i < rawJugglers.length; i++) {
+            const jugglerName = rawJugglers[i][0];
+            let table: Table | undefined;
+            if (rawTable === undefined) {
+                table = undefined;
+            } else {
+                const tableObject =
+                    rawTable.realDimensions === undefined
+                        ? undefined
+                        : createTableObject(
+                              createTableGeometry(
+                                  rawTable.realDimensions.height,
+                                  rawTable.realDimensions.width,
+                                  rawTable.realDimensions.depth
+                              ),
+                              tableMaterial
+                          );
+                const ballsPlacement = new Map<string, [number, number]>(rawTable.ballsPlacement);
+                table = new Table({
+                    tableObject: tableObject,
+                    ballsPlacement: ballsPlacement,
+                    surfaceInternalSize: rawTable.internalDimensions,
+                    unkownBallPosition: rawTable.unknownBallPosition
+                });
+            }
+            const juggler = new Juggler({
+                mesh: new THREE.Mesh(jugglerGeometry, jugglerMaterial),
+                defaultTable: table
+            });
+            const angleBtwJugglers = Math.PI / 8;
+            const angle1 = Math.PI - (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
+            const angle2 = Math.PI + (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
+            const ratio = rawJugglers.length === 1 ? 0.5 : i / (rawJugglers.length - 1);
+            const angle = angle1 + ratio * (angle2 - angle1);
+            const positionNormalized = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+            this.addJuggler(jugglerName, juggler, V3SCA(2.0, positionNormalized));
+
+            //TODO : Handle table position based on juggler.
+            if (table !== undefined) {
+                this.addTable(jugglerName, table);
+                table.mesh.position.copy(V3SCA(1.5, positionNormalized));
+            }
+        }
+
+        const soundBuffers = new Map<string, AudioBuffer>();
+        for (const sound of ballSounds) {
+            getNoteBuffer(sound, this.listener!.context)
+                .then((buffer) => {
+                    if (buffer !== undefined) {
+                        soundBuffers.set(sound, buffer);
+                    }
+                })
+                .catch(() => {
+                    console.log("Something went wrong");
+                });
+        }
+
+        const ballRadius = 0.1;
+        const ballGeometry = createBallGeometry(ballRadius);
+        //TODO : Color as part of the spec possibly ?
+
+        for (const [ID, { sound, juggler, color }] of ballIDs) {
+            const ballMaterial = createBallMaterial(color ?? "pink");
+            //TODO : Change sound.node ? (only specify positional or non-positional).
+            //TODO : How to not have to specify the listener ?
+            const ball = new Ball({
+                mesh: new THREE.Mesh(ballGeometry, ballMaterial),
+                defaultJuggler: this.jugglers.get(juggler)!,
+                id: ID,
+                radius: ballRadius,
+                sound:
+                    sound === undefined
+                        ? undefined
+                        : {
+                              buffers: soundBuffers,
+                              node: new THREE.PositionalAudio(this.listener!)
+                          }
+            });
+            this.addBall(ID, ball);
+        }
+
+        // x. Creating the params for the simulation
+        const ballIDSounds2 = new Map<
+            string,
+            {
+                onToss?: string | EventSound;
+                onCatch?: string | EventSound;
+            }
+        >();
+        for (const [name, sound] of ballIDs) {
+            ballIDSounds2.set(name, { onCatch: sound });
+        }
+        simulateEvents({
+            simulator: this,
+            jugglers: postSchedulerParams,
+            ballIDSounds: ballIDSounds2,
+            musicConverter: musicConverter
+        });
+
+        // document.body.appendChild(VRButton.createButton(simulator.renderer));
+        // simulator.renderer.xr.enabled = true;
+        // simulator.renderer.setAnimationLoop(function () {
+        //     simulator.renderer.render(simulator.scene, simulator.camera);
+        // });
     }
 
     // soft_reset(): void {
