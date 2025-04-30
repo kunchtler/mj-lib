@@ -6,8 +6,8 @@ export type CallbackFunction = (...args: any[]) => void;
 /**
  * Implements the Observer pattern to add and remove event listeners (akin to the DOM events but for JS scripts).
  */
-export class EventDispatcher {
-    _listeners: Map<string, CallbackFunction[]> = new Map();
+export class EventDispatcher<T extends string = string> {
+    _listeners: Map<T, CallbackFunction[]> = new Map();
 
     /**
      * Adds a function to be callbacked when the event will be dispatched.
@@ -15,7 +15,7 @@ export class EventDispatcher {
      * @param callback The callback function.
      * @returns A function to later remove this event listener.
      */
-    addEventListener(eventName: string, callback: CallbackFunction): () => void {
+    addEventListener(eventName: T, callback: CallbackFunction): () => void {
         let callbacks = this._listeners.get(eventName);
         if (callbacks === undefined) {
             callbacks = [];
@@ -32,7 +32,7 @@ export class EventDispatcher {
      * @param eventName The name of the event to be removed from.
      * @param callback The callback function to remove (must be the same callback that was added with addEventListener)
      */
-    private removeEventListener(eventName: string, callback: CallbackFunction): void {
+    private removeEventListener(eventName: T, callback: CallbackFunction): void {
         let callbacks = this._listeners.get(eventName);
         if (callbacks === undefined) {
             return;
@@ -49,7 +49,7 @@ export class EventDispatcher {
      * @param eventName The name of the event to dispatch.
      * @param args The arguments to pass to each callback.
      */
-    dispatchEvent(eventName: string, ...args: any[]): void {
+    dispatchEvent(eventName: T, ...args: any[]): void {
         this._listeners.get(eventName)?.forEach((callback) => {
             callback(...args);
         });
