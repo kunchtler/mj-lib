@@ -10,21 +10,34 @@ export interface TimeConductorParam {
     startTime?: number;
     playbackRate?: number;
     autoplay?: boolean;
+    bounds?: [number | undefined, number | undefined];
 }
 
-export class TimeConductor extends EventDispatcher implements TimeController {
+type TimeConductorEvents =
+    | "play"
+    | "pause"
+    | "reachedEnd"
+    | "timeUpdate"
+    | "playbackRateChange"
+    | "boundsChange";
+// | "manualUpdate";
+
+//TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
+export class TimeConductor extends EventDispatcher<TimeConductorEvents> implements TimeController {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
     private _paused: boolean;
     private _timeupdateInterval?: number;
+    private _bounds: [number | undefined, number | undefined];
 
-    constructor({ startTime, playbackRate, autoplay }: TimeConductorParam = {}) {
+    constructor({ startTime, playbackRate, autoplay, bounds }: TimeConductorParam = {}) {
         super();
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
         this._playbackRate = playbackRate ?? 1.0;
         this._paused = true;
+        this._bounds = bounds ?? [undefined, undefined];
 
         if (autoplay === true) {
             this.play().catch(() => {
@@ -38,22 +51,38 @@ export class TimeConductor extends EventDispatcher implements TimeController {
         this._paused = false;
         this.dispatchEvent("play");
         this._timeupdateInterval = window.setInterval(() => {
-            this.dispatchEvent("timeupdate");
+            if (this._bounds[1] !== undefined && this.currentTime >= this._bounds[1]) {
+                this.stopOnEnd();
+            }
+            this.dispatchEvent("timeUpdate");
         }, 100);
         return Promise.resolve();
     }
 
+    private stopOnEnd(): void {
+        clearInterval(this._timeupdateInterval);
+        if (this._bounds[1] !== undefined) {
+            this.currentTime = this._bounds[1];
+        } else {
+            this.dispatchEvent("timeUpdate");
+        }
+        this._lastKnownTime = this.currentTime;
+        this._paused = true;
+        this.dispatchEvent("reachedEnd");
+    }
+
     pause(): void {
+        clearInterval(this._timeupdateInterval);
         this._lastKnownTime = this.currentTime;
         this._paused = true;
         this.dispatchEvent("pause");
-        clearInterval(this._timeupdateInterval);
+        this.dispatchEvent("timeUpdate"); //TODO : Yes ? No ?
     }
 
     set currentTime(time: number) {
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = time;
-        this.dispatchEvent("manualupdate");
+        this.dispatchEvent("timeUpdate"); //TODO : timeUpdate ?
     }
 
     get currentTime(): number {
@@ -73,6 +102,7 @@ export class TimeConductor extends EventDispatcher implements TimeController {
         this._lastKnownTime = this.currentTime;
         this._lastUpdateTime = performance.now() / 1000;
         this._playbackRate = value;
+        this.dispatchEvent("playbackRateChange");
     }
 
     get playbackRate(): number {
@@ -98,6 +128,15 @@ export class TimeConductor extends EventDispatcher implements TimeController {
     isPaused(): boolean {
         return this.paused;
     }
+
+    getBounds(): [number | undefined, number | undefined] {
+        return this._bounds;
+    }
+
+    setBounds(bounds: [number | undefined, number | undefined]) {
+        this._bounds = bounds;
+        this.dispatchEvent("boundsChange");
+    }
 }
 
 // TODO : For simulator, rather use the div containing the simulator + add clock as div ?
@@ -106,7 +145,7 @@ export class TimeConductor extends EventDispatcher implements TimeController {
 export function bindTimeConductorAndSimulator(timeconductor: TimeConductor, simulator: Simulator) {
     timeconductor.addEventListener("pause", simulator.requestPause.bind(simulator));
     timeconductor.addEventListener("play", simulator.requestPlay.bind(simulator));
-    timeconductor.addEventListener("manualupdate", simulator.requestRenderIfNotRequested);
+    // timeconductor.addEventListener("manualUpdate", simulator.requestRenderIfNotRequested);
 }
 
 export class MediaPlayer implements TimeController {

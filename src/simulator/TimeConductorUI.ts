@@ -70,7 +70,7 @@ export function createControls(
     //     play_icon.src = "icons/loop.svg";
     // });
 
-    timeConductor.addEventListener("timeupdate", () => {
+    timeConductor.addEventListener("timeUpdate", () => {
         const duration = parseInt(seekBar.max);
         const current_time = timeConductor.currentTime;
         seekBar.value = (current_time < duration ? current_time : duration).toString();
