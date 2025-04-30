@@ -58,7 +58,7 @@ export class EventDispatcher {
     /**
      * Remove all event listeners.
      */
-    destroy(): void {
+    removeAllEventListeners(): void {
         this._listeners = new Map();
     }
 }
