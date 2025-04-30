@@ -1,6 +1,7 @@
 export type CallbackFunction = (...args: any[]) => void;
 
 // TODO : Use callback or eventListener as variable names / in doc ?
+// TODO : Allow typing of signal names ?
 
 /**
  * Implements the Observer pattern to add and remove event listeners (akin to the DOM events but for JS scripts).

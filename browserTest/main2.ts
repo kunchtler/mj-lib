@@ -48,7 +48,10 @@ const params: JugglingAppParams = {
 };
 const { jugglers: rawJugglers, musicConverter: rawMusicConverter } = params;
 
-jugglingApp("#simulator_canvas", params);
+const canvas = document.createElement("canvas");
+document.body.append(canvas);
+
+jugglingApp(canvas, params);
 //TODO : Separate in own function.
 //TODO : Sanitize here too ! (different juggler names, etc)
 //TODO : In MusicBeatConverter (and here before), Sort tempo and signature changes !!

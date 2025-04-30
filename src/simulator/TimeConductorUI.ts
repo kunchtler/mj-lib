@@ -15,12 +15,12 @@ export function createControls(
     timeConductor: TimeConductor,
     bounds: [number, number] = [0, 20]
 ): void {
-    // if (!injectedCss) {
-    //     injectedCss = true;
-    //     const style = document.createElement("style");
-    //     style.textContent = UICss;
-    //     document.head.appendChild(style);
-    // }
+    if (!injectedCss) {
+        injectedCss = true;
+        const style = document.createElement("style");
+        style.textContent = UICss;
+        document.head.appendChild(style);
+    }
     const controlElem = document.createElement("div");
     controlElem.className = "controls";
     const playPauseButton = document.createElement("button");
@@ -55,12 +55,12 @@ export function createControls(
         }
     });
 
-    timeConductor._eventTarget.addEventListener("play", () => {
+    timeConductor.addEventListener("play", () => {
         hadEnded = false;
         playIcon.src = pauseImg;
     });
 
-    timeConductor._eventTarget.addEventListener("pause", () => {
+    timeConductor.addEventListener("pause", () => {
         hadEnded = false;
         playIcon.src = playImg;
     });
@@ -70,7 +70,7 @@ export function createControls(
     //     play_icon.src = "icons/loop.svg";
     // });
 
-    timeConductor._eventTarget.addEventListener("timeupdate", () => {
+    timeConductor.addEventListener("timeupdate", () => {
         const duration = parseInt(seekBar.max);
         const current_time = timeConductor.currentTime;
         seekBar.value = (current_time < duration ? current_time : duration).toString();

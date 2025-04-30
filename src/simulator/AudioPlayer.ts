@@ -3,6 +3,7 @@
 //TODO : Streamline TimeController / TimeConductor / AudioPalyer names ?
 //TODO : Rename as Clock ?
 
+import { EventDispatcher } from "../utils/EventDispatcher";
 import { Simulator, TimeController } from "./Simulator";
 
 export interface TimeConductorParam {
@@ -11,19 +12,18 @@ export interface TimeConductorParam {
     autoplay?: boolean;
 }
 
-export class TimeConductor implements TimeController {
+export class TimeConductor extends EventDispatcher implements TimeController {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
     private _paused: boolean;
-    _eventTarget: EventTarget;
     private _timeupdateInterval?: number;
 
     constructor({ startTime, playbackRate, autoplay }: TimeConductorParam = {}) {
+        super();
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
         this._playbackRate = playbackRate ?? 1.0;
-        this._eventTarget = new EventTarget();
         this._paused = true;
 
         if (autoplay === true) {
@@ -36,9 +36,9 @@ export class TimeConductor implements TimeController {
     play(): Promise<void> {
         this._lastUpdateTime = performance.now() / 1000;
         this._paused = false;
-        this._eventTarget.dispatchEvent(new CustomEvent("play"));
+        this.dispatchEvent("play");
         this._timeupdateInterval = window.setInterval(() => {
-            this._eventTarget.dispatchEvent(new CustomEvent("timeupdate"));
+            this.dispatchEvent("timeupdate");
         }, 100);
         return Promise.resolve();
     }
@@ -46,14 +46,14 @@ export class TimeConductor implements TimeController {
     pause(): void {
         this._lastKnownTime = this.currentTime;
         this._paused = true;
-        this._eventTarget.dispatchEvent(new CustomEvent("pause"));
+        this.dispatchEvent("pause");
         clearInterval(this._timeupdateInterval);
     }
 
     set currentTime(time: number) {
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = time;
-        this._eventTarget.dispatchEvent(new CustomEvent("manualupdate"));
+        this.dispatchEvent("manualupdate");
     }
 
     get currentTime(): number {
@@ -91,6 +91,10 @@ export class TimeConductor implements TimeController {
         return this.currentTime;
     }
 
+    setTime(time: number): void {
+        this.currentTime = time;
+    }
+
     isPaused(): boolean {
         return this.paused;
     }
@@ -100,12 +104,9 @@ export class TimeConductor implements TimeController {
 // So that events can propagate through the DOM ?
 // TODO : Once react, use parent that will bind this elems together.
 export function bindTimeConductorAndSimulator(timeconductor: TimeConductor, simulator: Simulator) {
-    timeconductor._eventTarget.addEventListener("pause", simulator.requestPause.bind(simulator));
-    timeconductor._eventTarget.addEventListener("play", simulator.requestPlay.bind(simulator));
-    timeconductor._eventTarget.addEventListener(
-        "manualupdate",
-        simulator.requestRenderIfNotRequested
-    );
+    timeconductor.addEventListener("pause", simulator.requestPause.bind(simulator));
+    timeconductor.addEventListener("play", simulator.requestPlay.bind(simulator));
+    timeconductor.addEventListener("manualupdate", simulator.requestRenderIfNotRequested);
 }
 
 export class MediaPlayer implements TimeController {
@@ -176,6 +177,10 @@ export class MediaPlayer implements TimeController {
 
     getTime(): number {
         return this.currentTime;
+    }
+
+    setTime(time: number): void {
+        this.currentTime = time;
     }
 
     isPaused(): boolean {

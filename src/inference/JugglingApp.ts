@@ -88,7 +88,7 @@ interface TableObject {
 }
 
 export function jugglingApp(
-    canvasName: string,
+    canvas: HTMLCanvasElement,
     { jugglers: rawJugglers, musicConverter: rawMusicConverter, table: rawTable }: JugglingAppParams
 ): void {
     //TODO : Separate in own function.
@@ -166,7 +166,7 @@ export function jugglingApp(
     const timeConductor = new TimeConductor();
     // timeConductor.playbackRate = 0.1;
     const simulator = new Simulator({
-        canvasID: canvasName,
+        canvas: canvas,
         enableAudio: ballSounds.size !== 0,
         timeController: timeConductor,
         debug: { showFloorGrid: true, showFloorAxis: true }
@@ -255,8 +255,8 @@ export function jugglingApp(
                       }
         });
         simulator.addBall(ID, ball);
-        timeConductor.playbackRate = 1.0;
     }
+    timeConductor.playbackRate = 1.0;
 
     // x. Creating the params for the simulation
     const ballIDSounds2 = new Map<
@@ -284,10 +284,10 @@ export function jugglingApp(
     );
 
     // document.body.appendChild(VRButton.createButton(simulator.renderer));
-    simulator.renderer.xr.enabled = true;
-    simulator.renderer.setAnimationLoop(function () {
-        simulator.renderer.render(simulator.scene, simulator.camera);
-    });
+    // simulator.renderer.xr.enabled = true;
+    // simulator.renderer.setAnimationLoop(function () {
+    //     simulator.renderer.render(simulator.scene, simulator.camera);
+    // });
 }
 
 // export function formatJugglerBalls(
