@@ -46,10 +46,8 @@ export class XrInput {
         this.updateDebugPointers(this._rightPointer, this._rightHandController);
 
         this.movePlayer();
-        this.jumpPlayer();
-        this.updateJump();
         this.rotatePlayer();
-        this.movePlayerY();
+        this.movePlayerY(true);
     }
 
     updateDebugPointers(pointer, controller) {
@@ -190,10 +188,12 @@ export class XrInput {
     /**
      * Make the player move y axe by applying translation on referenceSpace. This function handle the flying mode. 
      * 
+     * @param always true if flying mode is always on (jump should be disable)
+     * 
      * @returns void
      */
-    movePlayerY() {
-        if (!this._isFlying || !this._rightHandController || !(this._rightHandController._gamePad.buttons.length > 5) 
+    movePlayerY(always = false) {
+        if (!(this._isFlying || always) || !this._rightHandController || !(this._rightHandController._gamePad.buttons.length > 5) 
             || !(this._rightHandController.buttonA || this._rightHandController.buttonB)) {
             return;
         }
@@ -300,13 +300,15 @@ export class XrInput {
             this._isJumping = false;
         }
     }
-
+    
     /**
-     * Make a 30 degrees rotation when left or right joystick is pushed
+     * Make rotation when left or right joystick is pushed
+     * 
+     * @param discrete true if discrete rotation mode is enabled (30 degrees rotation)
      * 
      * @returns void
      */
-    rotatePlayer() {
+    rotatePlayer(discrete = false) {
         if (!this._rightHandController || !this._rightHandController.thumbStick) {
             return;
         }
@@ -318,31 +320,65 @@ export class XrInput {
         
         const joystickX = this._rightHandController.thumbStick.x;
         
-        const threshold = 0.7;
-        const rotationAngle = Math.PI / 6; // 30 deg
-        
         if (!this._rotationState) {
             this._rotationState = {
                 isLeftTriggered: false,
                 isRightTriggered: false,
-                lastRotationTime: 0
+                lastRotationTime: 0,
+                lastJoystickValue: 0,
+                currentRotationSpeed: 0,
+                targetRotationSpeed: 0,
+                rotationDirection: 0,
+                rotationInProgress: false
             };
         }
-        
-        // delay before next rotation
-        const currentTime = Date.now();
-        const rotationDelay = 250; // ms
-        
-        if (currentTime - this._rotationState.lastRotationTime < rotationDelay) {
-            return;
+        let rotationAngle = 0;
+
+        if (discrete) {
+            const threshold = 0.7;
+            rotationAngle = Math.PI / 6; // 30 degrees
+            const rotationDelay = 250; // 250 ms
+            
+            const currentTime = Date.now();
+            if (currentTime - this._rotationState.lastRotationTime < rotationDelay) {
+                return;
+            }
+            
+            if (Math.abs(joystickX) < threshold) {
+                return;
+            }
+
+            rotationAngle = Math.sign(joystickX) * rotationAngle;
+
+        }else{
+            
+            const accelerationFactor = 0.02;  // small = slow
+            const decelerationFactor = 0.1;   // small = slow
+            const maxRotationSpeed = Math.PI / 180;  
+            
+            if (Math.abs(joystickX) > 0.1) {
+                this._rotationState.rotationDirection = Math.sign(joystickX);
+                this._rotationState.targetRotationSpeed = Math.pow(Math.abs(joystickX), 2) * maxRotationSpeed;
+                this._rotationState.rotationInProgress = true;
+            } else {
+                this._rotationState.targetRotationSpeed = 0;
+            }
+            
+            if (this._rotationState.currentRotationSpeed < this._rotationState.targetRotationSpeed) {
+                // acceleration
+                this._rotationState.currentRotationSpeed += (this._rotationState.targetRotationSpeed - this._rotationState.currentRotationSpeed) * accelerationFactor;
+            } else if (this._rotationState.currentRotationSpeed > this._rotationState.targetRotationSpeed) {
+                // deceleration
+                this._rotationState.currentRotationSpeed -= (this._rotationState.currentRotationSpeed - this._rotationState.targetRotationSpeed) * decelerationFactor;
+            }
+            
+            rotationAngle = this._rotationState.currentRotationSpeed * this._rotationState.rotationDirection;
         }
-        
-        // actual position
+
         const viewerPose = this.context.renderer.xr.getFrame().getViewerPose(referenceSpace);
         const position = viewerPose.transform.position;
-        
-        const applyRotation = (angle) => {
 
+        const applyRotation = (angle) => {
             const rotationQuaternion = {
                 x: 0,
                 y: Math.sin(angle / 2),
@@ -378,20 +414,8 @@ export class XrInput {
             }
         };
         
-        if (joystickX < -threshold && !this._rotationState.isLeftTriggered) {
-            this._rotationState.isLeftTriggered = true;
-            this._rotationState.lastRotationTime = currentTime;
-            applyRotation(-rotationAngle);
-        } else if (joystickX >= -threshold + 0.1 && this._rotationState.isLeftTriggered) {
-            this._rotationState.isLeftTriggered = false;
-        }
-        
-        if (joystickX > threshold && !this._rotationState.isRightTriggered) {
-            this._rotationState.isRightTriggered = true;
-            this._rotationState.lastRotationTime = currentTime;
-            applyRotation(rotationAngle);
-        } else if (joystickX <= threshold - 0.1 && this._rotationState.isRightTriggered) {
-            this._rotationState.isRightTriggered = false;
-        }
+        applyRotation(rotationAngle);
+        this._rotationState.lastRotationTime = Date.now();
+        this._rotationState.lastJoystickValue = joystickX;
     }
 }

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import libAssetsPlugin from "@laynezh/vite-plugin-lib-assets";
+import path from 'node:path';
 
 const assetsDir = "src/assets/";
 export default defineConfig((config) => {
@@ -32,7 +33,8 @@ export default defineConfig((config) => {
             libAssetsPlugin({
                 name: "[name].[ext]",
                 outputPath: (url, resourcePath) => {
-                    return "assets/" + resourcePath.split(assetsDir)[1].split("/" + url)[0];
+                    console.log(resourcePath);
+                    return resourcePath.split("src" + path.sep)[1].split(path.sep + url)[0];
                 }
             })
         ]
