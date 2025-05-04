@@ -594,6 +594,9 @@ export function resizeRendererToDisplaySize(
     const width = Math.floor(canvas.clientWidth * pixelRatio);
     const height = Math.floor(canvas.clientHeight * pixelRatio);
     if (canvas.width !== width || canvas.height !== height) {
+        console.log(
+            `Modified. Canvas dim ${canvas.width} x ${canvas.height}. Asked dim ${width} x ${height}`
+        );
         renderer.setSize(width, height, false);
         camera.aspect = canvas.clientWidth / canvas.clientHeight;
         // camera.fov =
