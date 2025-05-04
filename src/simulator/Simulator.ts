@@ -4,7 +4,6 @@ import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "./Jug
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/Addons.js";
 import { createTableGeometry, createTableMaterial, createTableObject, Table } from "./Table";
-import simulatorCss from "../assets/styleSheets/simulator.css?raw";
 import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "../inference/JugglingApp";
 import { FracSortedList, Scheduler } from "../inference/Scheduler";
 import {

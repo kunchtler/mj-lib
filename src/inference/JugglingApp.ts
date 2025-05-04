@@ -6,8 +6,6 @@ import {
     transformParserParamsToSchedulerParams
 } from "./ParserToScheduler";
 import { Simulator } from "../simulator/Simulator";
-import { bindTimeConductorAndSimulator, TimeConductor } from "../simulator/AudioPlayer";
-import { createControls } from "../simulator/TimeConductorUI";
 import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "../simulator/Juggler";
 import * as THREE from "three";
 import {
