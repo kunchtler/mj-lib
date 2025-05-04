@@ -1,7 +1,11 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { TimeConductor } from "../../src/MusicalJuggling";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";
-import { IconPlayerPause, IconPlayerPlay, IconPlayerTrackPrev } from "@tabler/icons-react";
+import {
+    IconPlayerPauseFilled,
+    IconPlayerPlayFilled,
+    IconPlayerTrackPrevFilled
+} from "@tabler/icons-react";
 
 //TODO : Handle loading state ?
 //TODO : Bounds in UI or in COnductor ?
@@ -31,8 +35,20 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         timeConductor.getBounds()[1] ?? DEFAULT_BOUNDS[1]
     ]);
     const [time, setTime] = useState(timeConductor.getTime());
+    const [playbackRate, setPlaybackRate] = useState(timeConductor.getPlaybackRate());
 
     useEffect(() => {
+        // Sets the various states in case the timeConductor has changed.
+        setStatus(timeConductor.isPaused() ? "paused" : "playing");
+        setStatusBeforeSliderChange(undefined);
+        setBounds([
+            timeConductor.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+            timeConductor.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+        ]);
+        setTime(timeConductor.getTime());
+        setPlaybackRate(timeConductor.getPlaybackRate());
+
+        // Adds event listeners, and store their removal method in an array.
         const removeEventListeners: (() => void)[] = [];
         removeEventListeners.push(
             timeConductor.addEventListener("play", () => setStatus("playing"))
@@ -48,7 +64,11 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
                 setTime(timeConductor.getTime());
             })
         );
-        //TODO : playbackCHange
+        removeEventListeners.push(
+            timeConductor.addEventListener("playbackRateChange", () => {
+                setPlaybackRate(timeConductor.getPlaybackRate());
+            })
+        );
         removeEventListeners.push(
             timeConductor.addEventListener("boundsChange", () => {
                 setBounds([
@@ -57,6 +77,8 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
                 ]);
             })
         );
+
+        // Return a function to remove all event listeners.
         return () => removeEventListeners.forEach((callback) => callback());
     }, [timeConductor]);
 
@@ -93,29 +115,28 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
 
     let icon: ReactNode;
     if (status === "playing") {
-        icon = <IconPlayerPause />;
+        icon = <IconPlayerPauseFilled />;
     } else if (status === "paused") {
-        icon = <IconPlayerPlay />;
+        icon = <IconPlayerPlayFilled />;
     } else {
-        icon = <IconPlayerTrackPrev />;
+        icon = <IconPlayerTrackPrevFilled />;
     }
 
     return (
-        <>
-            <Group>
-                <ActionIcon onClick={onButtonClick}>{icon}</ActionIcon>
-                <Slider
-                    flex="1"
-                    min={bounds[0]}
-                    max={bounds[1]}
-                    step={0.01}
-                    value={time}
-                    onChange={onSliderChange}
-                    onChangeEnd={onSliderChangeEnd}
-                ></Slider>
-                <Text>{`${formatTime(time)} / ${formatTime(bounds[1])}`}</Text>
-            </Group>
-        </>
+        <Group p={"xs"}>
+            <ActionIcon onClick={onButtonClick}>{icon}</ActionIcon>
+            <Slider
+                flex="1"
+                min={bounds[0]}
+                max={bounds[1]}
+                step={0.01}
+                value={time}
+                onChange={onSliderChange}
+                onChangeEnd={onSliderChangeEnd}
+                label={formatTime(time)}
+            ></Slider>
+            <Text>{`${formatTime(time)} / ${formatTime(bounds[1])}`}</Text>
+        </Group>
     );
 }
 
