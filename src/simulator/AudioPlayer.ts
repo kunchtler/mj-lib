@@ -1,10 +1,8 @@
-// Si on fait des play/pause constamment, this.media.currentTime n'aura pas forcément le temps de bien s'update.
-//TODO : At some point, rather than CustomEvents, use Signals/Observer library ?
 //TODO : Streamline TimeController / TimeConductor / AudioPalyer names ?
 //TODO : Rename as Clock ?
+//TODO : Change filename.
 
 import { EventDispatcher } from "../utils/EventDispatcher";
-import { Simulator, TimeController } from "./Simulator";
 
 export interface TimeConductorParam {
     startTime?: number;
@@ -28,16 +26,16 @@ type TimeConductorEvents =
 
 /**
  * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
- * 
+ *
  * TODO : MediaPlayer, to put up to date, allows to use that clock with an HTMLMediaElement.
- * 
+ *
  * **Events fired:**
  * - play: Whenever the clock starts.
  * - pause: Whenever the clock pauses.
  * - reachedEnd: Whenever the clock reached its upper bound (max time).
  * - timeUpdate: A convenience signals that fires whenever the time changes via setTime, or every 100 ms while the clock is ticking. TODO CHANGE that second one, should be handled bu UI ?
  * - playbackRateChange: Whenever the playback rate changes.
- * - boundsChange: Whevenever the bounds (start and end time) change. 
+ * - boundsChange: Whevenever the bounds (start and end time) change.
  */
 export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implements TimeController*/ {
     private _lastUpdateTime: number;
@@ -198,90 +196,81 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
     }
 }
 
-// TODO : For simulator, rather use the div containing the simulator + add clock as div ?
-// So that events can propagate through the DOM ?
-// TODO : Once react, use parent that will bind this elems together.
-export function bindTimeConductorAndSimulator(timeconductor: TimeConductor, simulator: Simulator) {
-    timeconductor.addEventListener("pause", simulator.requestPause.bind(simulator));
-    timeconductor.addEventListener("play", simulator.requestPlay.bind(simulator));
-    // timeconductor.addEventListener("manualUpdate", simulator.requestRenderIfNotRequested);
-}
+// export class MediaPlayer implements TimeController {
+//     media: HTMLMediaElement;
+//     _lastUpdateTime: number;
+//     _lastKnownTime: number;
 
-export class MediaPlayer implements TimeController {
-    media: HTMLMediaElement;
-    _lastUpdateTime: number;
-    _lastKnownTime: number;
+//     constructor(media: HTMLMediaElement) {
+//         this.media = media;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = this.media.currentTime;
+//     }
 
-    constructor(media: HTMLMediaElement) {
-        this.media = media;
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = this.media.currentTime;
-    }
+//     play(): Promise<void> {
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = this.media.currentTime;
+//         return this.media.play();
+//     }
 
-    play(): Promise<void> {
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = this.media.currentTime;
-        return this.media.play();
-    }
+//     pause(): void {
+//         this.media.pause();
+//     }
 
-    pause(): void {
-        this.media.pause();
-    }
+//     set currentTime(time: number) {
+//         this.media.currentTime = time;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = time;
+//     }
 
-    set currentTime(time: number) {
-        this.media.currentTime = time;
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = time;
-    }
+//     get currentTime(): number {
+//         if (this.paused) {
+//             return this.media.currentTime;
+//         } else {
+//             return (
+//                 this._lastKnownTime +
+//                 (performance.now() / 1000 - this._lastUpdateTime) * this.media.playbackRate
+//             );
+//         }
+//     }
 
-    get currentTime(): number {
-        if (this.paused) {
-            return this.media.currentTime;
-        } else {
-            return (
-                this._lastKnownTime +
-                (performance.now() / 1000 - this._lastUpdateTime) * this.media.playbackRate
-            );
-        }
-    }
+//     set playbackRate(value: number) {
+//         //Compute last known time *before* setting playbackrate
+//         //as playbackrate is used in currentTime calculation.
+//         this._lastKnownTime = this.currentTime;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this.media.playbackRate = value;
+//     }
 
-    set playbackRate(value: number) {
-        //Compute last known time *before* setting playbackrate
-        //as playbackrate is used in currentTime calculation.
-        this._lastKnownTime = this.currentTime;
-        this._lastUpdateTime = performance.now() / 1000;
-        this.media.playbackRate = value;
-    }
+//     get playbackRate(): number {
+//         return this.media.playbackRate;
+//     }
 
-    get playbackRate(): number {
-        return this.media.playbackRate;
-    }
+//     get paused(): boolean {
+//         return this.media.paused;
+//     }
 
-    get paused(): boolean {
-        return this.media.paused;
-    }
+//     get playing(): boolean {
+//         return !this.media.paused;
+//     }
 
-    get playing(): boolean {
-        return !this.media.paused;
-    }
+//     get duration(): number {
+//         return this.media.duration;
+//     }
 
-    get duration(): number {
-        return this.media.duration;
-    }
+//     get readyState(): number {
+//         return this.media.readyState;
+//     }
 
-    get readyState(): number {
-        return this.media.readyState;
-    }
+//     getTime(): number {
+//         return this.currentTime;
+//     }
 
-    getTime(): number {
-        return this.currentTime;
-    }
+//     setTime(time: number): void {
+//         this.currentTime = time;
+//     }
 
-    setTime(time: number): void {
-        this.currentTime = time;
-    }
-
-    isPaused(): boolean {
-        return this.paused;
-    }
-}
+//     isPaused(): boolean {
+//         return this.paused;
+//     }
+// }

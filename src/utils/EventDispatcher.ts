@@ -7,7 +7,7 @@ export type CallbackFunction = (...args: any[]) => void;
  * Implements the Observer pattern to add and remove event listeners (akin to the DOM events but for JS scripts).
  */
 export class EventDispatcher<T extends string = string> {
-    _listeners: Map<T, CallbackFunction[]> = new Map();
+    private _listeners: Map<T, CallbackFunction[]> = new Map();
 
     /**
      * Adds a function to be callbacked when the event will be dispatched.

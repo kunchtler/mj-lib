@@ -8,8 +8,6 @@ import simulatorCss from "../assets/styleSheets/simulator.css?raw";
 import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "../inference/JugglingApp";
 import { FracSortedList, Scheduler } from "../inference/Scheduler";
 import {
-    bindTimeConductorAndSimulator,
-    createControls,
     EventSound,
     getNoteBuffer,
     MusicBeatConverter,
