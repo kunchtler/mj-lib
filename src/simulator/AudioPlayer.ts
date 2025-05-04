@@ -23,7 +23,23 @@ type TimeConductorEvents =
 // | "manualUpdate";
 
 //TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
-export class TimeConductor extends EventDispatcher<TimeConductorEvents> implements TimeController {
+//TODO : clean TimeController interface.
+//TODO : Try playbackrate of 0 + negative.
+
+/**
+ * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
+ * 
+ * TODO : MediaPlayer, to put up to date, allows to use that clock with an HTMLMediaElement.
+ * 
+ * **Events fired:**
+ * - play: Whenever the clock starts.
+ * - pause: Whenever the clock pauses.
+ * - reachedEnd: Whenever the clock reached its upper bound (max time).
+ * - timeUpdate: A convenience signals that fires every 100 ms while the clock is ticking. TODO CHANGE
+ * - playbackRateChange: Whenever the playback rate changes.
+ * - boundsChange: Whevenever the bounds (start and end time) change. 
+ */
+export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implements TimeController*/ {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
@@ -31,6 +47,10 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> implemen
     private _timeupdateInterval?: number;
     private _bounds: [number | undefined, number | undefined];
 
+    /**
+     * TODOSignals
+     * @param param0
+     */
     constructor({ startTime, playbackRate, autoplay, bounds }: TimeConductorParam = {}) {
         super();
         this._lastUpdateTime = performance.now() / 1000;
@@ -46,47 +66,93 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> implemen
         }
     }
 
+    private _stopOnEnd(): void {
+        clearInterval(this._timeupdateInterval);
+        if (this._bounds[1] !== undefined) {
+            this.setTime(this._bounds[1]);
+        } else {
+            this.dispatchEvent("timeUpdate");
+        }
+        this._lastKnownTime = this.getTime();
+        this._paused = true;
+        this.dispatchEvent("reachedEnd");
+    }
+
+    /**
+     * Starts the clock whenever
+     * @returns a void promise. TODO: Change ?
+     */
     play(): Promise<void> {
         this._lastUpdateTime = performance.now() / 1000;
         this._paused = false;
         this.dispatchEvent("play");
         this._timeupdateInterval = window.setInterval(() => {
-            if (this._bounds[1] !== undefined && this.currentTime >= this._bounds[1]) {
-                this.stopOnEnd();
+            if (this._bounds[1] !== undefined && this.getTime() >= this._bounds[1]) {
+                this._stopOnEnd();
             }
             this.dispatchEvent("timeUpdate");
         }, 100);
         return Promise.resolve();
     }
 
-    private stopOnEnd(): void {
-        clearInterval(this._timeupdateInterval);
-        if (this._bounds[1] !== undefined) {
-            this.currentTime = this._bounds[1];
-        } else {
-            this.dispatchEvent("timeUpdate");
-        }
-        this._lastKnownTime = this.currentTime;
-        this._paused = true;
-        this.dispatchEvent("reachedEnd");
-    }
-
+    /**
+     * Pauses the clock.
+     */
     pause(): void {
+        if (this.isPaused()) {
+            return;
+        }
         clearInterval(this._timeupdateInterval);
-        this._lastKnownTime = this.currentTime;
+        this._lastKnownTime = this.getTime();
         this._paused = true;
         this.dispatchEvent("pause");
-        this.dispatchEvent("timeUpdate"); //TODO : Yes ? No ?
+        this.dispatchEvent("timeUpdate");
     }
 
-    set currentTime(time: number) {
+    /**
+     * Stops the clock (restarts the clock and pauses it).
+     */
+    stop(): void {
+        this.pause();
+        this.restart();
+    }
+
+    /**
+     * Restarts the clock.
+     */
+    restart(): void {
+        if (this.getBounds()[0] === null) {
+            console.warn("No start time is specified in TimeConductor. Will go back to 0.");
+        }
+        this.setTime(this.getBounds()[0] ?? 0);
+    }
+
+    /**
+     * Returns the playback rate of the clock, ie how fast it goes. Default speed is 1.
+     */
+    getPlaybackRate(): number {
+        return this._playbackRate;
+    }
+
+    /**
+     * Sets the playback rate of the clock, ie how fast it will go. Default speed is 1.
+     * @param value the playback rate.
+     */
+    setPlaybackRate(value: number) {
+        //Compute last known time *before* setting playbackrate
+        //as playbackrate is used in currentTime calculation.
+        this._lastKnownTime = this.getTime();
         this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = time;
-        this.dispatchEvent("timeUpdate"); //TODO : timeUpdate ?
+        this._playbackRate = value;
+        this.dispatchEvent("playbackRateChange");
     }
 
-    get currentTime(): number {
-        if (this.paused) {
+    /**
+     * Gets the current time of the clock.
+     * @returns the time in seconds.
+     */
+    getTime(): number {
+        if (this.isPaused()) {
             return this._lastKnownTime;
         } else {
             return (
@@ -96,43 +162,36 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> implemen
         }
     }
 
-    set playbackRate(value: number) {
-        //Compute last known time *before* setting playbackrate
-        //as playbackrate is used in currentTime calculation.
-        this._lastKnownTime = this.currentTime;
+    /**
+     * Sets the time of the clock.
+     * @param time the time in seconds.
+     */
+    setTime(time: number): void {
         this._lastUpdateTime = performance.now() / 1000;
-        this._playbackRate = value;
-        this.dispatchEvent("playbackRateChange");
+        this._lastKnownTime = time;
+        this.dispatchEvent("timeUpdate");
     }
 
-    get playbackRate(): number {
-        return this._playbackRate;
-    }
-
-    get paused(): boolean {
+    /**
+     *
+     * @returns whether the clock is not ticking.
+     */
+    isPaused(): boolean {
         return this._paused;
     }
 
-    get playing(): boolean {
-        return !this._paused;
-    }
-
-    getTime(): number {
-        return this.currentTime;
-    }
-
-    setTime(time: number): void {
-        this.currentTime = time;
-    }
-
-    isPaused(): boolean {
-        return this.paused;
-    }
-
+    /**
+     * Gets the bounds of the clock.
+     * @returns a 2 element array with the start time and the end time in seconds if they are defined, undefined if not.
+     */
     getBounds(): [number | undefined, number | undefined] {
         return this._bounds;
     }
 
+    /**
+     * Sets the bounds of the clock.
+     * @param bounds a 2-element array with the start time and the end time in seconds. They may be undefined.
+     */
     setBounds(bounds: [number | undefined, number | undefined]) {
         this._bounds = bounds;
         this.dispatchEvent("boundsChange");
