@@ -168,7 +168,7 @@ export function jugglingApp(
     const simulator = new Simulator({
         canvas: canvas,
         enableAudio: ballSounds.size !== 0,
-        timeController: timeConductor,
+        timeConductor: timeConductor,
         debug: { showFloorGrid: true, showFloorAxis: true }
     });
     bindTimeConductorAndSimulator(timeConductor, simulator);
