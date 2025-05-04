@@ -100,7 +100,7 @@ export class Simulator {
     balls: Map<string, Ball>;
     jugglers: Map<string, Juggler>;
     tables: Map<string, Table>;
-    timeConductor: TimeConductor;
+    private timeConductor!: TimeConductor;
     listener?: THREE.AudioListener;
     private _timeConductorEventListeners: (() => void)[] = [];
     // readonly audioEnabled: boolean;
@@ -170,11 +170,12 @@ export class Simulator {
             this.scene.add(grid_helper);
         }
 
+        //TODO : CHANGE TO CALL ADDXXX FOR EACH ELEM !
         this.balls = balls ?? new Map<string, Ball>();
         this.jugglers = jugglers ?? new Map<string, Juggler>();
         this.tables = tables ?? new Map<string, Table>();
 
-        this.timeConductor = timeConductor ?? new TimeConductor();
+        this.setTimeConductor(timeConductor ?? new TimeConductor());
 
         if (enableAudio) {
             this.listener = new THREE.AudioListener();
@@ -280,16 +281,27 @@ export class Simulator {
 
         // 2. Add the new timeConductor and event listeners.
         this.timeConductor = newTimeConductor;
+        // Event listener when play is pressed.
         const removeEventListenerPlay = this.timeConductor.addEventListener("play", () => {
-            this.requestRenderIfNotRequested;
+            this.requestRenderIfNotRequested();
         });
+        // Event listener when pause is pressed.
         const removeEventListenerPause = this.timeConductor.addEventListener("pause", () => {
             for (const ball of this.balls.values()) {
                 //TODO : Make proper pause ?
                 ball.sound?.node.stop();
             }
+            this.requestRenderIfNotRequested(); // TODO : Needed ?
         });
-        this._timeConductorEventListeners = [removeEventListenerPlay, removeEventListenerPause];
+        // Event listener when time changes manually. (Also gets called additionnaly when timer is ticking, TODO fix with either manualUpdate event, or by offsetting to UI the periodic checks (better).)
+        const updateEventListenerPlay = this.timeConductor.addEventListener("timeUpdate", () => {
+            this.requestRenderIfNotRequested();
+        });
+        this._timeConductorEventListeners = [
+            removeEventListenerPlay,
+            removeEventListenerPause,
+            updateEventListenerPlay
+        ];
     }
 
     /**
@@ -328,8 +340,9 @@ export class Simulator {
                 endTime = handEndTime;
             }
         }
+        // TODO : FIX HAND MOVEMENT AT THE END HAPPENING AFTER THE END.
         // @ts-expect-error startTime is null if and only if endTime is null too.
-        return [startTime, endTime];
+        return [startTime, endTime === null ? endTime : endTime + 2];
     }
 
     setMasterVolume(gain: number): void {

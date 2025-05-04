@@ -35,7 +35,7 @@ type TimeConductorEvents =
  * - play: Whenever the clock starts.
  * - pause: Whenever the clock pauses.
  * - reachedEnd: Whenever the clock reached its upper bound (max time).
- * - timeUpdate: A convenience signals that fires every 100 ms while the clock is ticking. TODO CHANGE
+ * - timeUpdate: A convenience signals that fires whenever the time changes via setTime, or every 100 ms while the clock is ticking. TODO CHANGE that second one, should be handled bu UI ?
  * - playbackRateChange: Whenever the playback rate changes.
  * - boundsChange: Whevenever the bounds (start and end time) change. 
  */
@@ -68,13 +68,13 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
 
     private _stopOnEnd(): void {
         clearInterval(this._timeupdateInterval);
+        this._lastKnownTime = this.getTime();
+        this._paused = true;
         if (this._bounds[1] !== undefined) {
             this.setTime(this._bounds[1]);
         } else {
             this.dispatchEvent("timeUpdate");
         }
-        this._lastKnownTime = this.getTime();
-        this._paused = true;
         this.dispatchEvent("reachedEnd");
     }
 
