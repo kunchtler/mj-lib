@@ -49,7 +49,11 @@ const params: JugglingAppParams = {
 const { jugglers: rawJugglers, musicConverter: rawMusicConverter } = params;
 
 const canvas = document.createElement("canvas");
-document.body.append(canvas);
+// canvas.classList.add("simulator_canvas");
+canvas.id = "simulator_canvas"
+const root = document.getElementById("root");
+root?.appendChild(canvas)
+// document.body.append(canvas);
 
 jugglingApp(canvas, params);
 //TODO : Separate in own function.

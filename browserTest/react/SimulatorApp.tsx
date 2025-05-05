@@ -43,9 +43,9 @@ export function SimulatorApp({ sceneBackgroundColor, pattern, playbackRate }: Si
         }
     }, [pattern]);
 
-    useEffect(() => {
-        simulatorRef.current!.timeConductor.playbackRate = playbackRate ?? 1;
-    }, [playbackRate]);
+    // useEffect(() => {
+    //     simulatorRef.current!.timeConductor.playbackRate = playbackRate ?? 1;
+    // }, [playbackRate]);
 
     return (
         <>
