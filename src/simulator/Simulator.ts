@@ -100,6 +100,7 @@ export class Simulator {
     private timeConductor!: TimeConductor;
     listener?: THREE.AudioListener;
     private _timeConductorEventListeners: (() => void)[] = [];
+    private _needsRendererResize = false;
     // readonly audioEnabled: boolean;
     // playBackRate: number;
     // paused: boolean;
@@ -179,10 +180,22 @@ export class Simulator {
             this.camera.add(this.listener);
         }
 
-        // To make it so we render if the window is resized.
-        window.addEventListener("resize", () => this.requestRenderIfNotRequested());
-        // To render the scene at least once if paused.
+        // Request render if the canvas size is changed.
+        const resizeObserver = new ResizeObserver((entries) => {
+            // Instead of directly calling a method to resize the canvas,
+            // we wait for the next frame to do so (else it causes white flicker).
+            this._needsRendererResize = true;
+            this.requestRenderIfNotRequested();
+        });
+        // window.addEventListener("resize", () => this.requestRenderIfNotRequested());
+        resizeObserver.observe(canvas);
+
+        // Render the scene at least once if paused.
         this.requestRenderIfNotRequested();
+        // setInterval(() => {
+        //     console.log("A");
+        //     canvas.parentElement!.style.width = `${500 + 100 * Math.sin(performance.now() / 1000)}px`;
+        // }, 10);
     }
 
     //TODO method to facilitate not having to add balls to the scene
@@ -306,8 +319,10 @@ export class Simulator {
      * trigger multiple renders. You should instead use the public method requestRenderIfNotRequested.
      */
     private render(): void {
-        resizeRendererToDisplaySize(this.renderer, this.camera);
-
+        if (this._needsRendererResize) {
+            resizeRendererToDisplaySize(this.renderer, this.camera);
+            this._needsRendererResize = false;
+        }
         const simulatorTime = this.timeConductor.getTime();
         for (const ball of this.balls.values()) {
             ball.render(simulatorTime);
@@ -590,36 +605,22 @@ export function resizeRendererToDisplaySize(
     // init_window_height: number
 ) {
     const canvas = renderer.domElement;
+    // const pixelRatio = 1;
     const pixelRatio = window.devicePixelRatio;
-    const width = Math.floor(canvas.clientWidth * pixelRatio);
-    const height = Math.floor(canvas.clientHeight * pixelRatio);
-    if (canvas.width !== width || canvas.height !== height) {
-        console.log(
-            `Modified. Canvas dim ${canvas.width} x ${canvas.height}. Asked dim ${width} x ${height}`
-        );
-        renderer.setSize(width, height, false);
-        camera.aspect = canvas.clientWidth / canvas.clientHeight;
-        // camera.fov =
-        //     (360 / Math.PI) * Math.atan(init_tan_fov * (window.innerHeight / init_window_height));
-        camera.updateProjectionMatrix();
-    }
-}
-
-export function resizeRendererComposerToDisplaySize(
-    renderer: THREE.Renderer,
-    composer: EffectComposer,
-    camera: THREE.PerspectiveCamera
-) {
-    const canvas = renderer.domElement;
-    const pixelRatio = window.devicePixelRatio;
-    const width = Math.floor(canvas.clientWidth * pixelRatio);
-    const height = Math.floor(canvas.clientHeight * pixelRatio);
-    if (canvas.width !== width || canvas.height !== height) {
-        renderer.setSize(width, height, false);
-        composer.setSize(width, height);
-        camera.aspect = canvas.clientWidth / canvas.clientHeight;
-        camera.updateProjectionMatrix();
-    }
+    const width = Math.floor(canvas.parentElement!.clientWidth * pixelRatio);
+    const height = Math.floor(canvas.parentElement!.clientHeight * pixelRatio);
+    // Normally, without react, we could do :
+    // canvas.width !== width || canvas.height !== height
+    // to detect if we should resize the screen.
+    // However, react seems to induce some delay that cause stretching when resizing screen
+    // the above condition will be false, and yet the camera aspect should be changed,
+    // but wierdly enough not renderer.setSize...
+    // This is why we call this function more sparingly, using a ResizeObserver from Simulator.
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    // camera.aspect = width / canvas.clientHeight;
+    // camera.fov = (360 / Math.PI) * Math.atan(1 * (window.innerHeight / 1000));
+    camera.updateProjectionMatrix();
 }
 
 function createRequestRenderIfNotRequestedFunction(callback: FrameRequestCallback) {
