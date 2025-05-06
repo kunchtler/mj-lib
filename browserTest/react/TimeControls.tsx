@@ -1,11 +1,10 @@
+/* eslint-disable react-hooks-extra/no-direct-set-state-in-use-effect */
+/* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+/* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { TimeConductor } from "../../src/MusicalJuggling";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";
-import {
-    IconPlayerPauseFilled,
-    IconPlayerPlayFilled,
-    IconPlayerTrackPrevFilled
-} from "@tabler/icons-react";
+import { IconPlayerPauseFilled, IconPlayerPlayFilled, IconRotate } from "@tabler/icons-react";
 
 //TODO : Handle loading state ?
 //TODO : Bounds in UI or in COnductor ?
@@ -51,13 +50,19 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         // Adds event listeners, and store their removal method in an array.
         const removeEventListeners: (() => void)[] = [];
         removeEventListeners.push(
-            timeConductor.addEventListener("play", () => setStatus("playing"))
+            timeConductor.addEventListener("play", () => {
+                setStatus("playing");
+            })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("pause", () => setStatus("paused"))
+            timeConductor.addEventListener("pause", () => {
+                setStatus("paused");
+            })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("reachedEnd", () => setStatus("reachedEnd"))
+            timeConductor.addEventListener("reachedEnd", () => {
+                setStatus("reachedEnd");
+            })
         );
         removeEventListeners.push(
             timeConductor.addEventListener("timeUpdate", () => {
@@ -79,7 +84,11 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         );
 
         // Return a function to remove all event listeners.
-        return () => removeEventListeners.forEach((callback) => callback());
+        return () => {
+            removeEventListeners.forEach((callback) => {
+                callback();
+            });
+        };
     }, [timeConductor]);
 
     async function onButtonClick() {
@@ -105,10 +114,10 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         timeConductor.setTime(value);
     }
 
-    async function onSliderChangeEnd(value: number) {
+    function onSliderChangeEnd(value: number) {
         timeConductor.setTime(value);
         if (statusBeforeSliderChange === "reachedEnd" || statusBeforeSliderChange === "playing") {
-            await timeConductor.play();
+            timeConductor.play().catch(() => {});
         }
         setStatusBeforeSliderChange(undefined);
     }
@@ -119,7 +128,7 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
     } else if (status === "paused") {
         icon = <IconPlayerPlayFilled />;
     } else {
-        icon = <IconPlayerTrackPrevFilled />;
+        icon = <IconRotate />;
     }
 
     return (
@@ -146,7 +155,7 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
  * @param time The time in seconds.
  * @return The formatted string.
  */
-export function formatTime(time: number): string {
+export function formatTime(time: number, showMilliseconds = false): string {
     let text = "";
     if (time < 0) {
         time = -time;
@@ -164,9 +173,13 @@ export function formatTime(time: number): string {
     }
     text += `${nbMinutes}:`;
     const nbSeconds = Math.floor(time % 60);
+    // time = time % 60
     if (nbSeconds < 10) {
         text += "0";
     }
     text += nbSeconds;
+    // if (showMilliseconds) {
+    //     text +=
+    // }
     return text;
 }
