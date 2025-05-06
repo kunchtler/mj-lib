@@ -12,7 +12,7 @@ import globals from "globals";
 // Use "pnpm eslint --inspect-config" to more easily see rules.
 
 export default tseslint.config({
-    files: ["src/**/*.{ts,tsx,js,jsx}, browserTest/**/*.{ts,tsx,js,jsx}"],
+    files: ["src/**/*.{ts,tsx,js,jsx}", "browserTest/**/*.{ts,tsx,js,jsx}"],
     ignores: ["src/parser/**/output/*.ts"],
     extends: [
         js.configs.recommended,
