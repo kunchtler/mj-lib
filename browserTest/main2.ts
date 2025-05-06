@@ -1,4 +1,5 @@
-import { JugglingAppParams, jugglingApp } from "../src/MusicalJuggling";
+import { JugglingAppParams, Simulator, jugglingApp } from "../src/MusicalJuggling";
+import { VRButton } from "three/examples/jsm/Addons.js";
 
 // const params: JugglingAppParams = {
 //     jugglers: [
@@ -50,10 +51,12 @@ const { jugglers: rawJugglers, musicConverter: rawMusicConverter } = params;
 
 const canvas = document.createElement("canvas");
 // canvas.classList.add("simulator_canvas");
-canvas.id = "simulator_canvas"
+canvas.id = "simulator_canvas";
 const root = document.getElementById("root");
-root?.appendChild(canvas)
+root?.appendChild(canvas);
+const simulator = new Simulator({ canvas: canvas, enableAudio: true });
 // document.body.append(canvas);
+root?.appendChild(VRButton.createButton(simulator.renderer));
 
 jugglingApp(canvas, params);
 //TODO : Separate in own function.

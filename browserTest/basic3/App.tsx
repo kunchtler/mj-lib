@@ -38,29 +38,10 @@ class Test {
         const width = Math.floor(canvas.clientWidth * pixelRatio);
         const height = Math.floor(canvas.clientHeight * pixelRatio);
 
-        if (canvas.width !== width || canvas.height !== height) {
-            // this.renderer.setSize(width, height, false);
-            // this.camera.aspect = width / height;
-            // camera.aspect = width / canvas.clientHeight;
-            // camera.fov = (360 / Math.PI) * Math.atan(1 * (window.innerHeight / 1000));
-            // this.camera.updateProjectionMatrix();
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height, false);
-        } else {
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height, false);
-
-            console.log(canvas.width, width);
-        }
-        // resizeRendererToDisplaySize(this.renderer, this.camera);
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height, false);
         // if (canvas.width !== width || canvas.height !== height) {
-        //     renderer.setSize(width, height, false);
-        //     camera.aspect = width / height;
-        //     // camera.aspect = width / canvas.clientHeight;
-        //     // camera.fov = (360 / Math.PI) * Math.atan(1 * (window.innerHeight / 1000));
-        //     camera.updateProjectionMatrix();
         // }
     }
 

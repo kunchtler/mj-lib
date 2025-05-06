@@ -1,9 +1,10 @@
-import { Affix, Center, Container } from "@mantine/core";
 import { JugglingAppParams, Simulator, TimeConductor } from "../../src/MusicalJuggling";
 import { TimeControls } from "./TimeControls";
 import styles from "./simulator.module.css";
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { pattern as pattern1 } from "./jugglingPattern";
+import { Affix } from "@mantine/core";
+import { VRButton } from "./VRButton";
 
 //TODO : Handle timecontrol styles better ?
 
@@ -26,6 +27,7 @@ function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const simulatorRef = useRef<Simulator>(null);
     const timeConductorRef = useRef<TimeConductor>(new TimeConductor());
+    const [showVRButton, setShowVRButton] = useState(false); //TODO : Find better solution to this.
 
     useEffect(() => {
         simulatorRef.current = new Simulator({
@@ -34,6 +36,7 @@ function App() {
             scene: { backgroundColor: "#444444" },
             timeConductor: timeConductorRef.current
         });
+        setShowVRButton(true);
     }, []);
 
     // useEffect(() => {
@@ -43,14 +46,23 @@ function App() {
 
     useEffect(() => {
         simulatorRef.current!.reset();
-        if (pattern !== undefined) {
-            simulatorRef.current!.setupPattern(pattern);
-        }
+        simulatorRef.current!.setupPattern(pattern);
     }, [pattern]);
 
     // useEffect(() => {
     //     simulatorRef.current!.timeController.playbackRate = playbackRate ?? 1;
     // }, [playbackRate]);
+
+    let vrButton: ReactNode;
+    if (showVRButton) {
+        vrButton = (
+            <Affix position={{ bottom: "md", right: "md" }}>
+                <VRButton renderer={simulatorRef.current!.renderer} />
+            </Affix>
+        );
+    } else {
+        vrButton = <></>;
+    }
 
     return (
         <>
@@ -58,6 +70,7 @@ function App() {
             <div className={styles.timecontrols}>
                 <TimeControls timeConductor={timeConductorRef.current} />
             </div>
+            {vrButton}
             {/* <ColorPicker onChange={handleBackgroundColorChange}></ColorPicker> */}
         </>
     );

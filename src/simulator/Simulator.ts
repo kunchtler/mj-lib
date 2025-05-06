@@ -19,6 +19,8 @@ import {
 import Fraction from "fraction.js";
 import { V3SCA } from "../utils/three/StaticOp";
 
+// Découpage en petits bouts spécialisés qui communique par des API.
+
 /* TODO : juggling model / simulator / canvas refactor
 The model handles :
  - the timeline of events
