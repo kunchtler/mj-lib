@@ -91,14 +91,18 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         };
     }, [timeConductor]);
 
-    async function onButtonClick() {
+    function onButtonClick() {
         if (status === "playing") {
             timeConductor.pause();
         } else if (status === "paused") {
-            await timeConductor.play();
+            timeConductor.play().catch((error: unknown) => {
+                console.warn(error);
+            });
         } else {
             timeConductor.setTime(bounds[0]);
-            await timeConductor.play();
+            timeConductor.play().catch((error: unknown) => {
+                console.warn(error);
+            });
         }
     }
 
@@ -117,7 +121,9 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
     function onSliderChangeEnd(value: number) {
         timeConductor.setTime(value);
         if (statusBeforeSliderChange === "reachedEnd" || statusBeforeSliderChange === "playing") {
-            timeConductor.play().catch(() => {});
+            timeConductor.play().catch((error: unknown) => {
+                console.warn(error);
+            });
         }
         setStatusBeforeSliderChange(undefined);
     }
@@ -155,7 +161,7 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
  * @param time The time in seconds.
  * @return The formatted string.
  */
-export function formatTime(time: number, showMilliseconds = false): string {
+function formatTime(time: number, showMilliseconds = false): string {
     let text = "";
     if (time < 0) {
         time = -time;
@@ -177,7 +183,7 @@ export function formatTime(time: number, showMilliseconds = false): string {
     if (nbSeconds < 10) {
         text += "0";
     }
-    text += nbSeconds;
+    // text += nbSeconds;
     // if (showMilliseconds) {
     //     text +=
     // }
