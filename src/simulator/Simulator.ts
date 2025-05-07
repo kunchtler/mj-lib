@@ -349,7 +349,7 @@ export class Simulator {
      * The render loop of the simulator. It is private as calling it multiple times would
      * trigger multiple renders. You should instead use the public method requestRenderIfNotRequested.
      */
-    render = () => {
+    private render = () => {
         if (this._needsRendererResize) {
             resizeRendererToDisplaySize(this.renderer, this.camera);
             this._needsRendererResize = false;
@@ -376,7 +376,7 @@ export class Simulator {
     requestRenderIfNotRequested = createRequestRenderIfNotRequestedFunction(this.render.bind(this));
 
     /**
-     * This function should be called whenever a VR session is started.
+     * This function should be called just before a VR session is started.
      * It correctly configures the VR animation loop and controls, and starts autoplay.
      */
     onVRstart = () => {
@@ -386,10 +386,14 @@ export class Simulator {
             this.controls.enabled = false;
         }
         this._resizeObserver.unobserve(this.canvas);
+        this.timeConductor.setLoop(true);
+        this.timeConductor.play().catch((error: unknown) => {
+            console.log(error);
+        });
     };
 
     /**
-     * This function should be called whenever a VR session has ended.
+     * This function should be called just after a VR session has ended.
      * It correctly goes back to non-VR controls and animation loop.
      */
     onVRend = () => {
@@ -400,6 +404,9 @@ export class Simulator {
             this.controls.enabled = true;
             this.controls.update();
         }
+        //TODO : Should revert back to the previous loop state.
+        this.timeConductor.setLoop(false);
+        // this.timeConductor.pause();
     };
 
     getPatternDuration(): [number, number] | [null, null] {
