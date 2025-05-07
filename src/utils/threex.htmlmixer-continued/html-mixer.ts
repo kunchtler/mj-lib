@@ -3,7 +3,7 @@ import { CSS3DObject, CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRe
 
 export class HtmlMixerContext {
     public rendererCss: CSS3DRenderer;
-    public rendererWebgl: THREE.WebGLRenderer | THREE.WebGL1Renderer;
+    public rendererWebgl: THREE.WebGLRenderer;
     public cssFactor: number;
     public cssCamera: THREE.PerspectiveCamera;
     public cssScene: THREE.Scene;
@@ -14,10 +14,7 @@ export class HtmlMixerContext {
      * @param rendererWebgl The renderer in front.
      * @param camera The camera used.
      */
-    constructor(
-        rendererWebgl: THREE.WebGLRenderer | THREE.WebGL1Renderer,
-        camera: THREE.PerspectiveCamera
-    ) {
+    constructor(rendererWebgl: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera) {
         // Build cssFactor to workaround bug due to no display.
         this.cssFactor = 1000;
 
@@ -45,10 +42,10 @@ export class HtmlMixerContext {
         // Auto update objects
         this.autoUpdateObjects = true;
         this.updateFcts.push(() => {
-            if (this.autoUpdateObjects !== true) return;
+            if (!this.autoUpdateObjects) return;
             this.cssScene.traverse((cssObject) => {
                 if (cssObject instanceof THREE.Scene) return;
-                const mixerPlane = cssObject.userData.mixerPlane as HtmlMixerPlane;
+                const mixerPlane = cssObject.userData.mixerPlane as HtmlMixerPlane | undefined;
                 if (mixerPlane === undefined) return;
                 mixerPlane.update();
             });
@@ -95,10 +92,10 @@ export class HtmlMixerPlane {
         opts?: HtmlMixerPlaneOpts
     ) {
         this.mixerContext = mixerContext;
-        this.opts = opts || {};
-        this.opts.elementW = this.opts.elementW !== undefined ? this.opts.elementW : 768;
-        this.opts.planeW = this.opts.planeW !== undefined ? this.opts.planeW : 1;
-        this.opts.planeH = this.opts.planeH !== undefined ? this.opts.planeH : 3 / 4;
+        this.opts = opts ?? {};
+        this.opts.elementW ??= 768;
+        this.opts.planeW ??= 1;
+        this.opts.planeH ??= 3 / 4;
         this.domElement = domElement;
 
         if (!this.opts.object3d) {
