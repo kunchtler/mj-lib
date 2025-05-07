@@ -83,7 +83,7 @@ export interface TimeController {
 interface SimulatorConstructorParams {
     canvas: HTMLCanvasElement;
     timeConductor?: TimeConductor;
-    enableAudio: boolean;
+    enableAudio?: boolean;
     controls?: OrbitControls; //TODO : Change to control when updating Threejs.
     camera?: THREE.PerspectiveCamera;
     renderer?: THREE.WebGLRenderer;
@@ -185,7 +185,7 @@ export class Simulator {
 
         this.setTimeConductor(timeConductor ?? new TimeConductor());
 
-        if (enableAudio) {
+        if (enableAudio ?? true) {
             this.listener = new THREE.AudioListener();
             this.camera.add(this.listener);
         }
@@ -199,8 +199,8 @@ export class Simulator {
         });
         // window.addEventListener("resize", () => this.requestRenderIfNotRequested());
         this._resizeObserver.observe(canvas);
-        
-      // XR
+
+        // XR
         this.xrInput = new XrInput(this);
         this.frame = 0;
 
@@ -362,6 +362,7 @@ export class Simulator {
             resizeRendererToDisplaySize(this.renderer, this.camera);
             this._needsRendererResize = false;
         }
+
         const simulatorTime = this.timeConductor.getTime();
         for (const ball of this.balls.values()) {
             ball.render(simulatorTime);
@@ -371,6 +372,11 @@ export class Simulator {
             juggler.render(simulatorTime);
         });
         this.renderer.render(this.scene, this.camera);
+
+        if (this.renderer.xr.isPresenting) {
+            this.frame++;
+            this.xrInput.onAnimate();
+        }
 
         // We don't want to request a redraw next frame if :
         // - The timeConductor is paused (and the camera isn't moving).
@@ -637,7 +643,7 @@ export class Simulator {
         // Updating the timeconductor
         this.timeConductor.pause();
 
-        let bounds = this.getPatternDuration();
+        const bounds = this.getPatternDuration();
         this.timeConductor.setBounds([bounds[0] ?? undefined, bounds[1] ?? undefined]);
         this.timeConductor.restart();
         // document.body.appendChild(VRButton.createButton(simulator.renderer));
