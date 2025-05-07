@@ -1,0 +1,1 @@
+The base code is taken from the VR ME UP repository https://github.com/vrmeup/threejs-webxr-hands-example. Many thanks to him for his work.

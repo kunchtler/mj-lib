@@ -5,6 +5,8 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/Addons.js";
 import { Table } from "./Table";
 import simulatorCss from "../assets/styleSheets/simulator.css?raw";
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { XrInput } from './XRControls/xrInput.js';
 
 //TODO : Handle sounds pausing when simulator pauses.
 //TODO : Handle gentle implementation of sounds (do not make them mandatory).
@@ -74,6 +76,8 @@ export class Simulator {
     timeController: TimeController;
     private _paused: boolean;
     listener?: THREE.AudioListener;
+    xrInput: XrInput;
+    frame: number;
     // playBackRate: number;
     // paused: boolean;
 
@@ -162,6 +166,12 @@ export class Simulator {
             this.listener = new THREE.AudioListener();
             this.camera.add(this.listener);
         }
+
+        // XR
+        document.body.appendChild(VRButton.createButton(this.renderer));
+        this.xrInput = new XrInput(this) ;
+        this.renderer.xr.enabled = true;
+        this.frame = 0;
 
         // To make it so we render if the window is resized.
         window.addEventListener("resize", () => this.requestRenderIfNotRequested());
