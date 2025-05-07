@@ -183,7 +183,7 @@ function formatTime(time: number, showMilliseconds = false): string {
     if (nbSeconds < 10) {
         text += "0";
     }
-    // text += nbSeconds;
+    text += `${nbSeconds}`;
     // if (showMilliseconds) {
     //     text +=
     // }

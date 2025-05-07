@@ -10,6 +10,7 @@ import { WebGLRenderer } from "three";
 import * as THREE from "three";
 
 //TODO : Handle timecontrol styles better ?
+// TODO : When separation of canvas and simulator, see where to put simulator.onVRstart/end.
 
 function App() {
     // const [pattern, setPattern] = useState<JugglingAppParams>(pattern1);
@@ -28,24 +29,18 @@ function App() {
             scene: { backgroundColor: "#444444" },
             timeConductor: timeConductorRef.current
         });
-        const cubeGeometry = new THREE.BoxGeometry();
-        const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        cube.position.y = 1; // lift cube above ground
-        simulator.scene.add(cube);
-        // simulator.addJuggler("A", new Juggler());
         simulator.setupPattern(pattern1);
-        const renderer = simulator.renderer;
+        // const renderer = simulator.renderer;
         // rendererRef.current = renderer;
         simulatorRef.current = simulator;
         // const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
         // renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
+        // renderer.xr.enabled = true;
 
         // Add VRButton to the DOM
-        document.body.appendChild(VRButtonThree.createButton(renderer));
+        // document.body.appendChild(VRButtonThree.createButton(renderer));
 
-        renderer.setAnimationLoop(simulator.render);
+        // renderer.setAnimationLoop(simulator.render);
 
         setShowVRButton(true);
 
@@ -90,7 +85,11 @@ function App() {
     if (showVRButton) {
         vrButton = (
             <Affix position={{ bottom: "md", right: "md" }}>
-                <VRButton renderer={simulatorRef.current!.renderer} />
+                <VRButton
+                    renderer={simulatorRef.current!.renderer}
+                    onVRStart={simulatorRef.current!.onVRstart}
+                    onVREnd={simulatorRef.current!.onVRend}
+                />
             </Affix>
         );
     } else {

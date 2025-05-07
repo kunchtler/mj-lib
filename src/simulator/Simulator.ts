@@ -92,10 +92,11 @@ interface SimulatorConstructorParams {
 }
 
 export class Simulator {
+    canvas: HTMLCanvasElement;
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
-    controls: OrbitControls;
+    controls?: OrbitControls;
     balls: Map<string, Ball>;
     jugglers: Map<string, Juggler>;
     tables: Map<string, Table>;
@@ -103,6 +104,7 @@ export class Simulator {
     listener?: THREE.AudioListener;
     private _timeConductorEventListeners: (() => void)[] = [];
     private _needsRendererResize = false;
+    private _resizeObserver: ResizeObserver;
     // readonly audioEnabled: boolean;
     // playBackRate: number;
     // paused: boolean;
@@ -121,6 +123,7 @@ export class Simulator {
         tables
     }: SimulatorConstructorParams) {
         // Scene setup
+        this.canvas = canvas;
         this.renderer = renderer ?? new THREE.WebGLRenderer({ antialias: true, canvas });
         this.scene = scene instanceof THREE.Scene ? scene : new THREE.Scene();
         if (camera === undefined) {
@@ -183,14 +186,14 @@ export class Simulator {
         }
 
         // Request render if the canvas size is changed.
-        const resizeObserver = new ResizeObserver((entries) => {
+        this._resizeObserver = new ResizeObserver((entries) => {
             // Instead of directly calling a method to resize the canvas,
             // we wait for the next frame to do so (else it causes white flicker).
             this._needsRendererResize = true;
             this.requestRenderIfNotRequested();
         });
         // window.addEventListener("resize", () => this.requestRenderIfNotRequested());
-        resizeObserver.observe(canvas);
+        this._resizeObserver.observe(canvas);
 
         // Render the scene at least once if paused.
         this.requestRenderIfNotRequested();
@@ -281,15 +284,41 @@ export class Simulator {
         }
     }
 
+    // TODO : CHeck that all is disposed
+    // TODO : For meshes created by the simulator, dispose them.
+    // Else let the creator of the meshes dispose them.
+    // TODO : dispose sounds (because they are duplicated !)
+    dispose(): void {
+        for (const name of this.jugglers.keys()) {
+            this.removeJuggler(name);
+        }
+        for (const name of this.balls.keys()) {
+            this.removeBall(name);
+        }
+        for (const name of this.tables.keys()) {
+            this.removeTable(name);
+        }
+        // this.controls?.enabled = false;
+        this.controls?.disconnect();
+        this.controls?.dispose();
+        this.renderer.dispose();
+        this._resizeObserver.disconnect();
+        this._timeConductorEventListeners.forEach((removeEventListenerFunc) => {
+            removeEventListenerFunc();
+        });
+        // this.camera.removeFromParent();
+        // this.scene.removeFromParent();
+    }
+
     getTimeConductor(): TimeConductor {
         return this.timeConductor;
     }
 
     setTimeConductor(newTimeConductor: TimeConductor) {
         // 1. Remove the old timeConductor's event listeners.
-        this._timeConductorEventListeners.forEach((removeEventListenerFunc) =>
-            removeEventListenerFunc()
-        );
+        this._timeConductorEventListeners.forEach((removeEventListenerFunc) => {
+            removeEventListenerFunc();
+        });
 
         // 2. Add the new timeConductor and event listeners.
         this.timeConductor = newTimeConductor;
@@ -320,7 +349,7 @@ export class Simulator {
      * The render loop of the simulator. It is private as calling it multiple times would
      * trigger multiple renders. You should instead use the public method requestRenderIfNotRequested.
      */
-    private render(): void {
+    render = () => {
         if (this._needsRendererResize) {
             resizeRendererToDisplaySize(this.renderer, this.camera);
             this._needsRendererResize = false;
@@ -335,12 +364,43 @@ export class Simulator {
         });
         this.renderer.render(this.scene, this.camera);
 
-        if (!this.timeConductor.isPaused()) {
+        // We don't want to request a redraw next frame if :
+        // - The timeConductor is paused (and the camera isn't moving).
+        // - Or we are in XR, since the renderer will call by itself the render function.
+        if (!this.timeConductor.isPaused() && !this.renderer.xr.isPresenting) {
             this.requestRenderIfNotRequested();
         }
-    }
+    };
 
+    //TODO : plus besoin du bind ?
     requestRenderIfNotRequested = createRequestRenderIfNotRequestedFunction(this.render.bind(this));
+
+    /**
+     * This function should be called whenever a VR session is started.
+     * It correctly configures the VR animation loop and controls, and starts autoplay.
+     */
+    onVRstart = () => {
+        this.renderer.xr.enabled = true;
+        this.renderer.setAnimationLoop(this.render);
+        if (this.controls !== undefined) {
+            this.controls.enabled = false;
+        }
+        this._resizeObserver.unobserve(this.canvas);
+    };
+
+    /**
+     * This function should be called whenever a VR session has ended.
+     * It correctly goes back to non-VR controls and animation loop.
+     */
+    onVRend = () => {
+        this.renderer.xr.enabled = false;
+        this.renderer.setAnimationLoop(null);
+        this._resizeObserver.observe(this.canvas);
+        if (this.controls !== undefined) {
+            this.controls.enabled = true;
+            this.controls.update();
+        }
+    };
 
     getPatternDuration(): [number, number] | [null, null] {
         let startTime: number | null = null;

@@ -6,10 +6,14 @@ import { IconCardboards, IconCardboardsOff } from "@tabler/icons-react";
 // TODO : Doc
 export function VRButton({
     renderer,
-    sessionInit
+    sessionInit,
+    onVRStart,
+    onVREnd
 }: {
     renderer: WebGLRenderer;
     sessionInit?: XRSessionInit;
+    onVRStart?: () => void;
+    onVREnd?: () => void;
 }) {
     const [state, setState] = useState<"on" | "off" | "error" | "loading">(() =>
         isWebXRAvailable()[0] ? "loading" : "error"
@@ -52,21 +56,29 @@ export function VRButton({
         navigator
             .xr!.requestSession("immersive-vr", sessionOptions)
             .then((session) => {
+                if (onVRStart !== undefined) {
+                    onVRStart();
+                }
                 setState("on");
                 xrSession.current = session;
                 xrSession.current.addEventListener("end", endXRSession);
                 return renderer.xr.setSession(xrSession.current);
             })
             .catch((error: unknown) => {
+                console.warn(error);
+                endXRSession();
                 setState("error");
                 setErrorMessage("Can't start VR");
-                console.warn(error);
             });
     }
 
     function endXRSession() {
+        if (onVREnd !== undefined) {
+            onVREnd();
+        }
         setState("off");
         xrSession.current?.removeEventListener("end", endXRSession);
+        xrSession.current = null;
     }
 
     let button: ReactNode;
