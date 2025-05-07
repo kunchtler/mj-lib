@@ -8,12 +8,14 @@ export function VRButton({
     renderer,
     sessionInit,
     onVRStart,
-    onVREnd
+    onVREnd,
+    mode
 }: {
     renderer: WebGLRenderer;
     sessionInit?: XRSessionInit;
     onVRStart?: () => void;
     onVREnd?: () => void;
+    mode?: "inline" | "immersive-vr";
 }) {
     const [state, setState] = useState<"on" | "off" | "error" | "loading">(() =>
         isWebXRAvailable()[0] ? "loading" : "error"
@@ -28,7 +30,7 @@ export function VRButton({
         // Check if we could start a VR session (we are on mobile, or on PC with VR gear).
         // We have already checked if xr is undefined when intializing state.
         navigator.xr
-            ?.isSessionSupported("immersive-vr")
+            ?.isSessionSupported(mode ?? "immersive-vr")
             .then((supported) => {
                 if (supported) {
                     setState("off");
@@ -42,7 +44,10 @@ export function VRButton({
                 setErrorMessage("Something went wrong");
                 console.log(error);
             });
-    }, []);
+        return () => {
+            xrSession.current = null;
+        };
+    }, [mode]);
 
     function startXRSession() {
         sessionInit ??= {};
@@ -54,7 +59,7 @@ export function VRButton({
             // domOverlay: { root: document.getElementById("#bonjour")! }
         };
         navigator
-            .xr!.requestSession("immersive-vr", sessionOptions)
+            .xr!.requestSession(mode ?? "immersive-vr", sessionOptions)
             .then((session) => {
                 if (onVRStart !== undefined) {
                     onVRStart();
