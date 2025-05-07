@@ -9,6 +9,7 @@ export interface TimeConductorParam {
     playbackRate?: number;
     autoplay?: boolean;
     bounds?: [number | undefined, number | undefined];
+    loop?: boolean;
 }
 
 type TimeConductorEvents =
@@ -17,7 +18,8 @@ type TimeConductorEvents =
     | "reachedEnd"
     | "timeUpdate"
     | "playbackRateChange"
-    | "boundsChange";
+    | "boundsChange"
+    | "loopChange";
 // | "manualUpdate";
 
 //TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
@@ -44,18 +46,20 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
     private _paused: boolean;
     private _timeupdateInterval?: number;
     private _bounds: [number | undefined, number | undefined];
+    private _loop: boolean;
 
     /**
      * TODOSignals
      * @param param0
      */
-    constructor({ startTime, playbackRate, autoplay, bounds }: TimeConductorParam = {}) {
+    constructor({ startTime, playbackRate, autoplay, bounds, loop }: TimeConductorParam = {}) {
         super();
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
         this._playbackRate = playbackRate ?? 1.0;
         this._paused = true;
         this._bounds = bounds ?? [undefined, undefined];
+        this._loop = loop ?? false;
 
         if (autoplay === true) {
             this.play().catch(() => {
@@ -65,15 +69,20 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
     }
 
     private _stopOnEnd(): void {
-        clearInterval(this._timeupdateInterval);
-        this._lastKnownTime = this.getTime();
-        this._paused = true;
-        if (this._bounds[1] !== undefined) {
-            this.setTime(this._bounds[1]);
+        if (this.getLoop()) {
+            this.restart();
+            //TODO : Should send reachedEnd here too ?
         } else {
-            this.dispatchEvent("timeUpdate");
+            clearInterval(this._timeupdateInterval);
+            this._lastKnownTime = this.getTime();
+            this._paused = true;
+            if (this._bounds[1] !== undefined) {
+                this.setTime(this._bounds[1]);
+            } else {
+                this.dispatchEvent("timeUpdate");
+            }
+            this.dispatchEvent("reachedEnd");
         }
-        this.dispatchEvent("reachedEnd");
     }
 
     /**
@@ -119,7 +128,7 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
      * Restarts the clock.
      */
     restart(): void {
-        if (this.getBounds()[0] === null) {
+        if (this.getBounds()[0] === undefined) {
             console.warn("No start time is specified in TimeConductor. Will go back to 0.");
         }
         this.setTime(this.getBounds()[0] ?? 0);
@@ -193,6 +202,31 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
     setBounds(bounds: [number | undefined, number | undefined]) {
         this._bounds = bounds;
         this.dispatchEvent("boundsChange");
+    }
+
+    /**
+     * Gets whether the time Conductors loops when reaching the end or not.
+     * @returns a boolean value.
+     */
+    getLoop(): boolean {
+        return this._loop;
+    }
+
+    /**
+     * Sets whether the time conductor should be looping when reaching the end.
+     * @param value a boolean value.
+     */
+    setLoop(value: boolean) {
+        this._loop = value;
+        this.dispatchEvent("loopChange");
+    }
+
+    /**
+     * Properly disposes of all event listeners and intervals.
+     */
+    dispose() {
+        this.removeAllEventListeners();
+        clearInterval(this._timeupdateInterval);
     }
 }
 

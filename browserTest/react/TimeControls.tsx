@@ -35,6 +35,7 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
     ]);
     const [time, setTime] = useState(timeConductor.getTime());
     const [playbackRate, setPlaybackRate] = useState(timeConductor.getPlaybackRate());
+    const [loop, setLoop] = useState(timeConductor.getLoop());
 
     useEffect(() => {
         // Sets the various states in case the timeConductor has changed.
@@ -46,6 +47,7 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
         ]);
         setTime(timeConductor.getTime());
         setPlaybackRate(timeConductor.getPlaybackRate());
+        setLoop(timeConductor.getLoop());
 
         // Adds event listeners, and store their removal method in an array.
         const removeEventListeners: (() => void)[] = [];
@@ -82,7 +84,11 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
                 ]);
             })
         );
-
+        removeEventListeners.push(
+            timeConductor.addEventListener("loopChange", () => {
+                setLoop(timeConductor.getLoop());
+            })
+        );
         // Return a function to remove all event listeners.
         return () => {
             removeEventListeners.forEach((callback) => {
