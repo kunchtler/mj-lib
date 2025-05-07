@@ -78,11 +78,11 @@ export function VRButton({
     }
 
     function endXRSession() {
+        xrSession.current?.removeEventListener("end", endXRSession);
         if (onVREnd !== undefined) {
             onVREnd();
         }
         setState("off");
-        xrSession.current?.removeEventListener("end", endXRSession);
         xrSession.current = null;
     }
 
@@ -95,7 +95,15 @@ export function VRButton({
         );
     } else if (state === "on") {
         button = (
-            <Button size={"md"} rightSection={<IconCardboardsOff />} onClick={endXRSession}>
+            <Button
+                size={"md"}
+                rightSection={<IconCardboardsOff />}
+                onClick={() => {
+                    xrSession.current?.end().catch((error: unknown) => {
+                        console.log(error);
+                    });
+                }}
+            >
                 Exit VR
             </Button>
         );

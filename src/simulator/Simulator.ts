@@ -668,7 +668,7 @@ export class MyCanvas {
 }
 
 export function resizeRendererToDisplaySize(
-    renderer: THREE.Renderer,
+    renderer: THREE.WebGLRenderer,
     camera: THREE.PerspectiveCamera
     // init_tan_fov: number,
     // init_window_height: number
