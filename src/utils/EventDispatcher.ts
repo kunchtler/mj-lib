@@ -1,4 +1,4 @@
-export type CallbackFunction = (...args: any[]) => void;
+export type CallbackFunction = (...args: unknown[]) => void;
 
 // TODO : Use callback or eventListener as variable names / in doc ?
 // TODO : Allow typing of signal names ?
@@ -7,7 +7,7 @@ export type CallbackFunction = (...args: any[]) => void;
  * Implements the Observer pattern to add and remove event listeners (akin to the DOM events but for JS scripts).
  */
 export class EventDispatcher<T extends string = string> {
-    private _listeners: Map<T, CallbackFunction[]> = new Map();
+    private _listeners = new Map<T, CallbackFunction[]>();
 
     /**
      * Adds a function to be callbacked when the event will be dispatched.
@@ -49,7 +49,7 @@ export class EventDispatcher<T extends string = string> {
      * @param eventName The name of the event to dispatch.
      * @param args The arguments to pass to each callback.
      */
-    dispatchEvent(eventName: T, ...args: any[]): void {
+    dispatchEvent(eventName: T, ...args: unknown[]): void {
         this._listeners.get(eventName)?.forEach((callback) => {
             callback(...args);
         });
