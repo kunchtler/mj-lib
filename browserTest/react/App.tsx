@@ -18,7 +18,7 @@ function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // const rendererRef = useRef<WebGLRenderer>(null);
     const simulatorRef = useRef<Simulator>(null);
-    const timeConductorRef = useRef<TimeConductor>(new TimeConductor());
+    const [timeConductor, setTimeConductor] = useState<TimeConductor>(new TimeConductor());
     const [showVRButton, setShowVRButton] = useState(false); //TODO : Find better solution to this.
 
     useEffect(() => {
@@ -27,7 +27,7 @@ function App() {
             canvas: canvasRef.current!,
             enableAudio: true,
             scene: { backgroundColor: "#444444" },
-            timeConductor: timeConductorRef.current
+            timeConductor: timeConductor
         });
         simulator.setupPattern(pattern1);
         // const renderer = simulator.renderer;
@@ -46,8 +46,9 @@ function App() {
 
         return () => {
             simulator.dispose();
+            timeConductor.dispose();
         };
-    }, []);
+    }, [timeConductor]);
 
     // useEffect(() => {
     //     const simulator = new Simulator({ canvas: canvasRef.current!, enableAudio: true });
@@ -100,7 +101,7 @@ function App() {
         <>
             <canvas ref={canvasRef} className={styles.simulator} />
             <div className={styles.timecontrols}>
-                <TimeControls timeConductor={timeConductorRef.current} />
+                <TimeControls timeConductor={timeConductor} />
             </div>
             {vrButton}
             {/* <ColorPicker onChange={handleBackgroundColorChange}></ColorPicker> */}
