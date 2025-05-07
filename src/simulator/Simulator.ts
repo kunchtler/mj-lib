@@ -358,25 +358,31 @@ export class Simulator {
      * trigger multiple renders. You should instead use the public method requestRenderIfNotRequested.
      */
     private render = () => {
+        // Resize the renderer if needed (when the canvas HTML element has changed size)
         if (this._needsRendererResize) {
             resizeRendererToDisplaySize(this.renderer, this.camera);
             this._needsRendererResize = false;
         }
 
+        // Update the position of balls and juggler.
         const simulatorTime = this.timeConductor.getTime();
         for (const ball of this.balls.values()) {
             ball.render(simulatorTime);
+            // Make balls ring if needed?
             ball.triggerSound(simulatorTime, this.timeConductor.isPaused());
         }
         this.jugglers.forEach((juggler) => {
             juggler.render(simulatorTime);
         });
-        this.renderer.render(this.scene, this.camera);
 
+        // Update VR Controls.
         if (this.renderer.xr.isPresenting) {
             this.frame++;
             this.xrInput.onAnimate();
         }
+
+        // Render the scene.
+        this.renderer.render(this.scene, this.camera);
 
         // We don't want to request a redraw next frame if :
         // - The timeConductor is paused (and the camera isn't moving).
