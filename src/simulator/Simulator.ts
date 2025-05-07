@@ -18,6 +18,7 @@ import {
 } from "../MusicalJuggling";
 import Fraction from "fraction.js";
 import { V3SCA } from "../utils/three/StaticOp";
+import { XrInput } from './XRControls/xrInput.js';
 
 // Découpage en petits bouts spécialisés qui communique par des API.
 
@@ -41,6 +42,8 @@ The model handles :
  - The render and window resizing affects the canvas only.
  - The Listener is linked to the camera
 */
+
+
 
 //TODO : Handle sounds pausing when simulator pauses.
 //TODO : Handle gentle implementation of sounds (do not make them mandatory).
@@ -102,6 +105,8 @@ export class Simulator {
     tables: Map<string, Table>;
     private timeConductor!: TimeConductor;
     listener?: THREE.AudioListener;
+    xrInput: XrInput;
+    frame: number;
     private _timeConductorEventListeners: (() => void)[] = [];
     private _needsRendererResize = false;
     private _resizeObserver: ResizeObserver;
@@ -194,8 +199,11 @@ export class Simulator {
         });
         // window.addEventListener("resize", () => this.requestRenderIfNotRequested());
         this._resizeObserver.observe(canvas);
+        
+      // XR
+        this.xrInput = new XrInput(this);
+        this.frame = 0;
 
-        // Render the scene at least once if paused.
         this.requestRenderIfNotRequested();
         // setInterval(() => {
         //     console.log("A");

@@ -1,5 +1,0 @@
-- [ ] Create proper interfaces / types with more customization options to construct the different classes (Juggler, Hand, Simulator, etc)
-- [ ] Faire une version unifiée du TimeConductor qui fonctionne avec et sans Média.
-- [ ] Dans le cas où le TimeConductor a un media, rajouter des event listeners pour "playing" (et pas play) et "waiting" (pour mettre en pause si l'audio doit être mis en pause car le buffer n'est pas assez plein).
-- [ ] Gestion de la table / du jongleur par défaut pour une table / balle.
-- [ ] Tester un lancer multiplex.
