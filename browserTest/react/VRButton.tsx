@@ -6,10 +6,10 @@ import { IconCardboards, IconCardboardsOff } from "@tabler/icons-react";
 // TODO : Doc
 export function VRButton({
     renderer,
-    sessionOptions
+    sessionInit
 }: {
     renderer: WebGLRenderer;
-    sessionOptions?: XRSessionInit;
+    sessionInit?: XRSessionInit;
 }) {
     const [state, setState] = useState<"on" | "off" | "error" | "loading">(() =>
         isWebXRAvailable()[0] ? "loading" : "error"
@@ -41,6 +41,14 @@ export function VRButton({
     }, []);
 
     function startXRSession() {
+        sessionInit ??= {};
+        //TODO : Investigate "sessionOptions.domOverlay" ?
+        const sessionOptions: XRSessionInit = {
+            ...sessionInit,
+            requiredFeatures: ["local-floor", ...(sessionInit.requiredFeatures ?? [])],
+            optionalFeatures: ["bounded-floor", "layers", ...(sessionInit.optionalFeatures ?? [])]
+            // domOverlay: { root: document.getElementById("#bonjour")! }
+        };
         navigator
             .xr!.requestSession("immersive-vr", sessionOptions)
             .then((session) => {
