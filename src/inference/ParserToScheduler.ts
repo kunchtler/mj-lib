@@ -19,6 +19,8 @@ import { TimedErrorLogger } from "../utils/ErrorLogger";
 import { formatRawEventInput, JugglingAppParams } from "./JugglingApp";
 import { stringifyEvents, stringifyFraction, stringifyHandSide } from "../utils/stringifyEvent";
 
+//TODO : Rewrite more cleanly with Immer.js ?
+
 //TODO : add beat to the object rather than have a 2-array element.
 //TODO : useHand ?
 export type RawPreParserEvent = {

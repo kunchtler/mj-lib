@@ -29,3 +29,7 @@ body {
     background-color: #444444;
     /*#430202*/
 }
+
+#root {
+    height: 100%;
+}

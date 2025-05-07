@@ -8,15 +8,16 @@ within a webpage. Further code is located in the browserTest folder.
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="icon" href="/musical_ball_48.ico" type="image/x-icon" />
-        <!-- <link rel="stylesheet" href="/src/assets/styles.css" /> -->
-        <script type="module" src="browserTest/main.ts" async></script>
-        <title>1</title>
+        <link rel="icon" href="browserTest/assets/logo_jm.svg" type="image/svg+xml" />
+        <!-- <link rel="stylesheet" href="src/assets/styleSheets/simulator.css" /> -->
+        <script type="module" src="browserTest/main.tsx" async></script>
+        <title>React simulator</title>
     </head>
     <body>
-        <div id="simulator">
+        <div id="root"></div>
+        <!-- <div id="simulator">
             <canvas id="simulator_canvas"></canvas>
-        </div>
+        </div> -->
         <!-- <div class="controls">
             <button class="play-button" id="play_button">
                 <img src="icons/play.svg" class="icon" id="play_icon" />

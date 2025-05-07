@@ -6,8 +6,6 @@ import {
     transformParserParamsToSchedulerParams
 } from "./ParserToScheduler";
 import { Simulator } from "../simulator/Simulator";
-import { bindTimeConductorAndSimulator, TimeConductor } from "../simulator/AudioPlayer";
-import { createControls } from "../simulator/TimeConductorUI";
 import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "../simulator/Juggler";
 import * as THREE from "three";
 import {
@@ -22,6 +20,7 @@ import { V3SCA } from "../utils/three/StaticOp";
 import { EventSound } from "../simulator/Timeline";
 import { simulateEvents } from "./SchedulerToSimulator";
 import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
+import { TimeConductor } from "../MusicalJuggling";
 
 export type RawPreParserEvent = {
     tempo?: string;
@@ -88,7 +87,7 @@ interface TableObject {
 }
 
 export function jugglingApp(
-    canvasName: string,
+    canvas: HTMLCanvasElement,
     { jugglers: rawJugglers, musicConverter: rawMusicConverter, table: rawTable }: JugglingAppParams
 ): void {
     //TODO : Separate in own function.
@@ -166,12 +165,12 @@ export function jugglingApp(
     const timeConductor = new TimeConductor();
     // timeConductor.playbackRate = 0.1;
     const simulator = new Simulator({
-        canvasID: canvasName,
+        canvas: canvas,
         enableAudio: ballSounds.size !== 0,
-        timeController: timeConductor,
+        timeConductor: timeConductor,
         debug: { showFloorGrid: true, showFloorAxis: true }
     });
-    bindTimeConductorAndSimulator(timeConductor, simulator);
+    // bindTimeConductorAndSimulator(timeConductor, simulator);
 
     const jugglerGeometry = createJugglerCubeGeometry();
     const jugglerMaterial = createJugglerMaterial();
@@ -255,8 +254,8 @@ export function jugglingApp(
                       }
         });
         simulator.addBall(ID, ball);
-        timeConductor.playbackRate = 1.0;
     }
+    // timeConductor.playbackRate = 1.0;
 
     // x. Creating the params for the simulation
     const ballIDSounds2 = new Map<
@@ -277,11 +276,11 @@ export function jugglingApp(
     });
 
     const timeBounds = simulator.getPatternDuration(); //TODO : FIX ! (problem sur les bords.)
-    createControls(
-        document.body,
-        timeConductor,
-        timeBounds[0] === null ? undefined : [timeBounds[0] - 0.5, timeBounds[1] + 0.5]
-    );
+    // createControls(
+    //     document.body,
+    //     timeConductor,
+    //     timeBounds[0] === null ? undefined : [timeBounds[0] - 0.5, timeBounds[1] + 0.5]
+    // );
 
     // document.body.appendChild(VRButton.createButton(simulator.renderer));
     simulator.renderer.xr.enabled = true;

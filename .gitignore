@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Certificate for HTTPS local dev
+*.pem
+*.crt
+*.key
+
 # Editor directories and files
 .vscode
 

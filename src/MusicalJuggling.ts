@@ -4,7 +4,6 @@ export * from "./simulator/Hand";
 export * from "./simulator/Juggler";
 export * from "./simulator/Simulator";
 export * from "./simulator/Table";
-export * from "./simulator/TimeConductorUI";
 export * from "./simulator/Timeline";
 export * from "./simulator/NoteBank";
 

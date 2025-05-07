@@ -389,6 +389,7 @@ export class Ball {
         this.mesh.position.copy(position);
     }
 
+    //TODO : Review how prev_time works
     triggerSound(time: number, isPaused: boolean): void {
         const prevEventInfo = this.timeline.prevEvent(time);
         if (prevEventInfo[0] !== null && !isPaused) {

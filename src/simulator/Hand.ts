@@ -118,6 +118,7 @@ export class Hand {
 
     constructor({ mesh, catchSite, restSite, throwSite, timeline, debug }: HandConstructorParams) {
         this.mesh = mesh ?? new THREE.Mesh(createHandGeometry(0.05), createHandMaterial());
+        this.mesh.visible = false;
         this.timeline = timeline ?? new HandTimeline();
         this.restSite = restSite;
         this.catchSite = catchSite;

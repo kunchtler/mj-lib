@@ -1,30 +1,65 @@
-// Si on fait des play/pause constamment, this.media.currentTime n'aura pas forcément le temps de bien s'update.
-//TODO : At some point, rather than CustomEvents, use Signals/Observer library ?
 //TODO : Streamline TimeController / TimeConductor / AudioPalyer names ?
 //TODO : Rename as Clock ?
+//TODO : Change filename.
 
-import { Simulator, TimeController } from "./Simulator";
+import { EventDispatcher } from "../utils/EventDispatcher";
 
 export interface TimeConductorParam {
     startTime?: number;
     playbackRate?: number;
     autoplay?: boolean;
+    bounds?: [number | undefined, number | undefined];
+    loop?: boolean;
 }
 
-export class TimeConductor implements TimeController {
+type TimeConductorEvents =
+    | "play"
+    | "pause"
+    | "reachedEnd"
+    | "timeUpdate"
+    | "playbackRateChange"
+    | "boundsChange"
+    | "loopChange";
+// | "manualUpdate";
+
+//TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
+//TODO : clean TimeController interface.
+//TODO : Try playbackrate of 0 + negative.
+
+/**
+ * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
+ *
+ * TODO : MediaPlayer, to put up to date, allows to use that clock with an HTMLMediaElement.
+ *
+ * **Events fired:**
+ * - play: Whenever the clock starts.
+ * - pause: Whenever the clock pauses.
+ * - reachedEnd: Whenever the clock reached its upper bound (max time).
+ * - timeUpdate: A convenience signals that fires whenever the time changes via setTime, or every 100 ms while the clock is ticking. TODO CHANGE that second one, should be handled bu UI ?
+ * - playbackRateChange: Whenever the playback rate changes.
+ * - boundsChange: Whevenever the bounds (start and end time) change.
+ */
+export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implements TimeController*/ {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
     private _paused: boolean;
-    _eventTarget: EventTarget;
     private _timeupdateInterval?: number;
+    private _bounds: [number | undefined, number | undefined];
+    private _loop: boolean;
 
-    constructor({ startTime, playbackRate, autoplay }: TimeConductorParam = {}) {
+    /**
+     * TODOSignals
+     * @param param0
+     */
+    constructor({ startTime, playbackRate, autoplay, bounds, loop }: TimeConductorParam = {}) {
+        super();
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
         this._playbackRate = playbackRate ?? 1.0;
-        this._eventTarget = new EventTarget();
         this._paused = true;
+        this._bounds = bounds ?? [undefined, undefined];
+        this._loop = loop ?? false;
 
         if (autoplay === true) {
             this.play().catch(() => {
@@ -33,31 +68,98 @@ export class TimeConductor implements TimeController {
         }
     }
 
+    private _stopOnEnd(): void {
+        if (this.getLoop()) {
+            this.restart();
+            //TODO : Should send reachedEnd here too ?
+        } else {
+            clearInterval(this._timeupdateInterval);
+            this._lastKnownTime = this.getTime();
+            this._paused = true;
+            if (this._bounds[1] !== undefined) {
+                this.setTime(this._bounds[1]);
+            } else {
+                this.dispatchEvent("timeUpdate");
+            }
+            this.dispatchEvent("reachedEnd");
+        }
+    }
+
+    /**
+     * Starts the clock whenever
+     * @returns a void promise. TODO: Change ?
+     */
     play(): Promise<void> {
         this._lastUpdateTime = performance.now() / 1000;
         this._paused = false;
-        this._eventTarget.dispatchEvent(new CustomEvent("play"));
+        this.dispatchEvent("play");
         this._timeupdateInterval = window.setInterval(() => {
-            this._eventTarget.dispatchEvent(new CustomEvent("timeupdate"));
+            if (this._bounds[1] !== undefined && this.getTime() >= this._bounds[1]) {
+                this._stopOnEnd();
+            }
+            this.dispatchEvent("timeUpdate");
         }, 100);
         return Promise.resolve();
     }
 
+    /**
+     * Pauses the clock.
+     */
     pause(): void {
-        this._lastKnownTime = this.currentTime;
-        this._paused = true;
-        this._eventTarget.dispatchEvent(new CustomEvent("pause"));
+        if (this.isPaused()) {
+            return;
+        }
         clearInterval(this._timeupdateInterval);
+        this._lastKnownTime = this.getTime();
+        this._paused = true;
+        this.dispatchEvent("pause");
+        this.dispatchEvent("timeUpdate");
     }
 
-    set currentTime(time: number) {
+    /**
+     * Stops the clock (restarts the clock and pauses it).
+     */
+    stop(): void {
+        this.pause();
+        this.restart();
+    }
+
+    /**
+     * Restarts the clock.
+     */
+    restart(): void {
+        if (this.getBounds()[0] === undefined) {
+            console.warn("No start time is specified in TimeConductor. Will go back to 0.");
+        }
+        this.setTime(this.getBounds()[0] ?? 0);
+    }
+
+    /**
+     * Returns the playback rate of the clock, ie how fast it goes. Default speed is 1.
+     */
+    getPlaybackRate(): number {
+        return this._playbackRate;
+    }
+
+    /**
+     * Sets the playback rate of the clock, ie how fast it will go. Default speed is 1.
+     * @param value the playback rate.
+     */
+    setPlaybackRate(value: number) {
+        //Compute last known time *before* setting playbackrate
+        //as playbackrate is used in currentTime calculation.
+        this._lastKnownTime = this.getTime();
         this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = time;
-        this._eventTarget.dispatchEvent(new CustomEvent("manualupdate"));
+        this._playbackRate = value;
+        this.dispatchEvent("playbackRateChange");
     }
 
-    get currentTime(): number {
-        if (this.paused) {
+    /**
+     * Gets the current time of the clock.
+     * @returns the time in seconds.
+     */
+    getTime(): number {
+        if (this.isPaused()) {
             return this._lastKnownTime;
         } else {
             return (
@@ -67,118 +169,142 @@ export class TimeConductor implements TimeController {
         }
     }
 
-    set playbackRate(value: number) {
-        //Compute last known time *before* setting playbackrate
-        //as playbackrate is used in currentTime calculation.
-        this._lastKnownTime = this.currentTime;
+    /**
+     * Sets the time of the clock.
+     * @param time the time in seconds.
+     */
+    setTime(time: number): void {
         this._lastUpdateTime = performance.now() / 1000;
-        this._playbackRate = value;
+        this._lastKnownTime = time;
+        this.dispatchEvent("timeUpdate");
     }
 
-    get playbackRate(): number {
-        return this._playbackRate;
-    }
-
-    get paused(): boolean {
+    /**
+     *
+     * @returns whether the clock is not ticking.
+     */
+    isPaused(): boolean {
         return this._paused;
     }
 
-    get playing(): boolean {
-        return !this._paused;
+    /**
+     * Gets the bounds of the clock.
+     * @returns a 2 element array with the start time and the end time in seconds if they are defined, undefined if not.
+     */
+    getBounds(): [number | undefined, number | undefined] {
+        return this._bounds;
     }
 
-    getTime(): number {
-        return this.currentTime;
+    /**
+     * Sets the bounds of the clock.
+     * @param bounds a 2-element array with the start time and the end time in seconds. They may be undefined.
+     */
+    setBounds(bounds: [number | undefined, number | undefined]) {
+        this._bounds = bounds;
+        this.dispatchEvent("boundsChange");
     }
 
-    isPaused(): boolean {
-        return this.paused;
-    }
-}
-
-// TODO : For simulator, rather use the div containing the simulator + add clock as div ?
-// So that events can propagate through the DOM ?
-// TODO : Once react, use parent that will bind this elems together.
-export function bindTimeConductorAndSimulator(timeconductor: TimeConductor, simulator: Simulator) {
-    timeconductor._eventTarget.addEventListener("pause", simulator.requestPause.bind(simulator));
-    timeconductor._eventTarget.addEventListener("play", simulator.requestPlay.bind(simulator));
-    timeconductor._eventTarget.addEventListener(
-        "manualupdate",
-        simulator.requestRenderIfNotRequested
-    );
-}
-
-export class MediaPlayer implements TimeController {
-    media: HTMLMediaElement;
-    _lastUpdateTime: number;
-    _lastKnownTime: number;
-
-    constructor(media: HTMLMediaElement) {
-        this.media = media;
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = this.media.currentTime;
+    /**
+     * Gets whether the time Conductors loops when reaching the end or not.
+     * @returns a boolean value.
+     */
+    getLoop(): boolean {
+        return this._loop;
     }
 
-    play(): Promise<void> {
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = this.media.currentTime;
-        return this.media.play();
+    /**
+     * Sets whether the time conductor should be looping when reaching the end.
+     * @param value a boolean value.
+     */
+    setLoop(value: boolean) {
+        this._loop = value;
+        this.dispatchEvent("loopChange");
     }
 
-    pause(): void {
-        this.media.pause();
-    }
-
-    set currentTime(time: number) {
-        this.media.currentTime = time;
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = time;
-    }
-
-    get currentTime(): number {
-        if (this.paused) {
-            return this.media.currentTime;
-        } else {
-            return (
-                this._lastKnownTime +
-                (performance.now() / 1000 - this._lastUpdateTime) * this.media.playbackRate
-            );
-        }
-    }
-
-    set playbackRate(value: number) {
-        //Compute last known time *before* setting playbackrate
-        //as playbackrate is used in currentTime calculation.
-        this._lastKnownTime = this.currentTime;
-        this._lastUpdateTime = performance.now() / 1000;
-        this.media.playbackRate = value;
-    }
-
-    get playbackRate(): number {
-        return this.media.playbackRate;
-    }
-
-    get paused(): boolean {
-        return this.media.paused;
-    }
-
-    get playing(): boolean {
-        return !this.media.paused;
-    }
-
-    get duration(): number {
-        return this.media.duration;
-    }
-
-    get readyState(): number {
-        return this.media.readyState;
-    }
-
-    getTime(): number {
-        return this.currentTime;
-    }
-
-    isPaused(): boolean {
-        return this.paused;
+    /**
+     * Properly disposes of all event listeners and intervals.
+     */
+    dispose() {
+        this.removeAllEventListeners();
+        clearInterval(this._timeupdateInterval);
     }
 }
+
+// export class MediaPlayer implements TimeController {
+//     media: HTMLMediaElement;
+//     _lastUpdateTime: number;
+//     _lastKnownTime: number;
+
+//     constructor(media: HTMLMediaElement) {
+//         this.media = media;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = this.media.currentTime;
+//     }
+
+//     play(): Promise<void> {
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = this.media.currentTime;
+//         return this.media.play();
+//     }
+
+//     pause(): void {
+//         this.media.pause();
+//     }
+
+//     set currentTime(time: number) {
+//         this.media.currentTime = time;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this._lastKnownTime = time;
+//     }
+
+//     get currentTime(): number {
+//         if (this.paused) {
+//             return this.media.currentTime;
+//         } else {
+//             return (
+//                 this._lastKnownTime +
+//                 (performance.now() / 1000 - this._lastUpdateTime) * this.media.playbackRate
+//             );
+//         }
+//     }
+
+//     set playbackRate(value: number) {
+//         //Compute last known time *before* setting playbackrate
+//         //as playbackrate is used in currentTime calculation.
+//         this._lastKnownTime = this.currentTime;
+//         this._lastUpdateTime = performance.now() / 1000;
+//         this.media.playbackRate = value;
+//     }
+
+//     get playbackRate(): number {
+//         return this.media.playbackRate;
+//     }
+
+//     get paused(): boolean {
+//         return this.media.paused;
+//     }
+
+//     get playing(): boolean {
+//         return !this.media.paused;
+//     }
+
+//     get duration(): number {
+//         return this.media.duration;
+//     }
+
+//     get readyState(): number {
+//         return this.media.readyState;
+//     }
+
+//     getTime(): number {
+//         return this.currentTime;
+//     }
+
+//     setTime(time: number): void {
+//         this.currentTime = time;
+//     }
+
+//     isPaused(): boolean {
+//         return this.paused;
+//     }
+// }
