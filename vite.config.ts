@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import libAssetsPlugin from "@laynezh/vite-plugin-lib-assets";
-import path from 'node:path';
+import path from "node:path";
 
 const assetsDir = "src/assets/";
 export default defineConfig((config) => {
