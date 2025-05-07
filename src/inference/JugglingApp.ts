@@ -285,10 +285,7 @@ export function jugglingApp(
     // document.body.appendChild(VRButton.createButton(simulator.renderer));
     simulator.renderer.xr.enabled = true;
     simulator.renderer.setAnimationLoop(function () {
-
         // XRControls
-        simulator.frame++;
-        simulator.xrInput.onAnimate();
 
         simulator.renderer.render(simulator.scene, simulator.camera);
     });
