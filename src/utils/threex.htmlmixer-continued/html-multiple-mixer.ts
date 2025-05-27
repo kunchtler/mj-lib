@@ -1,5 +1,5 @@
+import * as THREE from "three";
 import { HtmlMixerContext, HtmlMixerPlane, type HtmlMixerPlaneOpts } from "./html-mixer";
-
 /**
  * Multiple context handled as one, thus able to handle multi viewport
  */
@@ -7,11 +7,13 @@ export class HtmlMultipleMixerContext {
     contexts: HtmlMixerContext[] = [];
 
     update() {
-        this.contexts.forEach((context) => context.update());
+        this.contexts.forEach((context) => {
+            context.update();
+        });
     }
 }
 
-interface HtmlMultipleMixerPlaneOpts extends HtmlMixerPlaneOpts {}
+type HtmlMultipleMixerPlaneOpts = HtmlMixerPlaneOpts;
 
 export class HtmlMultipleMixerPlane {
     public opts: HtmlMultipleMixerPlaneOpts;
@@ -23,8 +25,8 @@ export class HtmlMultipleMixerPlane {
         domElement: HTMLElement,
         opts: HtmlMultipleMixerPlaneOpts
     ) {
-        this.opts = opts || {};
-        this.opts = JSON.parse(JSON.stringify(this.opts));
+        this.opts = opts;
+        // this.opts = JSON.parse(JSON.stringify(this.opts)); Why was this in the code in the first place ?
 
         const contexts = multipleMixerContext.contexts;
 
@@ -46,6 +48,8 @@ export class HtmlMultipleMixerPlane {
     }
     // update all context
     update = () => {
-        this.planes.forEach((plane) => plane.update());
+        this.planes.forEach((plane) => {
+            plane.update();
+        });
     };
 }
