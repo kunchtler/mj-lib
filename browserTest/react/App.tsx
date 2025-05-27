@@ -1,13 +1,10 @@
-import { Juggler, JugglingAppParams, Simulator, TimeConductor } from "../../src/MusicalJuggling";
+import { Simulator, TimeConductor } from "../../src/MusicalJuggling";
 import { TimeControls } from "./TimeControls";
 import styles from "./simulator.module.css";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { pattern as pattern1 } from "./jugglingPattern";
 import { Affix } from "@mantine/core";
 import { VRButton } from "./VRButton";
-import { VRButton as VRButtonThree } from "three/examples/jsm/Addons.js";
-import { WebGLRenderer } from "three";
-import * as THREE from "three";
 
 //TODO : Handle timecontrol styles better ?
 // TODO : When separation of canvas and simulator, see where to put simulator.onVRstart/end.
@@ -30,6 +27,7 @@ function App() {
             timeConductor: timeConductor
         });
         simulator.setupPattern(pattern1);
+
         // const renderer = simulator.renderer;
         // rendererRef.current = renderer;
         simulatorRef.current = simulator;
@@ -49,24 +47,6 @@ function App() {
             timeConductor.dispose();
         };
     }, [timeConductor]);
-
-    // useEffect(() => {
-    //     const simulator = new Simulator({ canvas: canvasRef.current!, enableAudio: true });
-    //     simulator.renderer.xr.enabled = true;
-    //     simulator.renderer.setAnimationLoop(simulator.render);
-    //     simulatorRef.current = simulator;
-    //     // const root = document.getElementById("root");
-    //     // root?.appendChild(VRButtonThree.createButton(simulator.renderer));
-    //     // simulatorRef.current = new Simulator({
-    //     //     canvas: canvasRef.current!,
-    //     //     enableAudio: true,
-    //     //     scene: { backgroundColor: "#444444" },
-    //     //     timeConductor: timeConductorRef.current
-    //     // });
-    //     // simulatorRef.current.renderer.xr.enabled = true;
-    //     // simulatorRef.current.renderer.setAnimationLoop(simulatorRef.current.render);
-    //     setShowVRButton(true);
-    // }, []);
 
     // useEffect(() => {
     //     simulatorRef.current!.scene.background = new THREE.Color(sceneBackgroundColor);

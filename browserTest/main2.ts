@@ -55,10 +55,12 @@ canvas.id = "simulator_canvas";
 const root = document.getElementById("root");
 root?.appendChild(canvas);
 const simulator = new Simulator({ canvas: canvas, enableAudio: true });
+simulator.renderer.xr.enabled = true;
+simulator.renderer.setAnimationLoop(simulator.render);
 // document.body.append(canvas);
 root?.appendChild(VRButton.createButton(simulator.renderer));
 
-jugglingApp(canvas, params);
+// jugglingApp(canvas, params);
 //TODO : Separate in own function.
 //TODO : Sanitize here too ! (different juggler names, etc)
 //TODO : In MusicBeatConverter (and here before), Sort tempo and signature changes !!
