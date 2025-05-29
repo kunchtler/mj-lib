@@ -138,13 +138,27 @@ export class HandModel {
         // this.catchSite.position.copy(V3SCA(centerRestDist + restSiteDist, centerHandUnitVector));
     }
 
-    sitePosition(is_thrown: boolean): THREE.Vector3 {
-        return is_thrown
+    /**
+     * Returns the position where balls are caught or thrown (such a spot is called a site).
+     * @param isThrown whether we want the position where balls are thrown (true) or caught (false).
+     * @returns the site position.
+     */
+    private sitePosition(isThrown: boolean): THREE.Vector3 {
+        return isThrown
             ? this.throwSite.getWorldPosition(new THREE.Vector3())
             : this.catchSite.getWorldPosition(new THREE.Vector3());
     }
 
-    velocityAtSingleEvent(singleEv: HandTimelineSingleEvent, isPrev?: boolean): THREE.Vector3 {
+    /**
+     * Computes the velocity of a single-event. Used internally to later compute the velocity of a multi-event (an event where multiple tosses, catches, and other) happen at the same time.
+     * @param singleEv the multi-event
+     * @param isPrev whether the event happens at a toss (true) or at a catch (false). Used to apply some scaling factor on the returned velocity.
+     * @returns its velocity.
+     */
+    private velocityAtSingleEvent(
+        singleEv: HandTimelineSingleEvent,
+        isPrev?: boolean
+    ): THREE.Vector3 {
         if (singleEv instanceof TablePutEvent || singleEv instanceof TableTakeEvent) {
             return new THREE.Vector3(0, 0, 0);
         } else {
@@ -160,7 +174,12 @@ export class HandModel {
         }
     }
 
-    velocityAtEvent(multiEv: HandTimelineEvent | null): THREE.Vector3 {
+    /**
+     * Computes the velocity at a given multi-event.
+     * @param multiEv the multi-event
+     * @returns its velocity.
+     */
+    private velocityAtEvent(multiEv: HandTimelineEvent | null): THREE.Vector3 {
         if (multiEv === null || multiEv.events.length === 0) {
             return new THREE.Vector3(0, 0, 0);
         }
@@ -174,7 +193,12 @@ export class HandModel {
         return averageVector(velocities);
     }
 
-    positionAtSingleEvent(event: HandTimelineSingleEvent | null): THREE.Vector3 {
+    /**
+     * Computes the position of a single event. Used internally to later compute the position of a multi-event (an event where multiple tosses, catches, and other) happen at the same time.
+     * @param event the single-event.
+     * @returns the position where it occurs.
+     */
+    private positionAtSingleEvent(event: HandTimelineSingleEvent | null): THREE.Vector3 {
         if (event instanceof TablePutEvent || event instanceof TableTakeEvent) {
             return event.table.handPositionOverBall(event.ball);
         } else {
@@ -182,6 +206,11 @@ export class HandModel {
         }
     }
 
+    /**
+     * Returns the hand's position at a specific multi-event from the timeline.
+     * @param multiEv the multi-event.
+     * @returns the position where that event occurs.
+     */
     positionAtEvent(multiEv: HandTimelineEvent | null): THREE.Vector3 {
         if (multiEv === null || multiEv.events.length === 0) {
             return this.restSite.getWorldPosition(new THREE.Vector3());
@@ -203,42 +232,60 @@ export class HandModel {
     //TODO : Make HandEventInterface[] have its own time ?
     // TODO : Add a little bit of impact based on speed after throw / catch. Ou quand la ball sonne et qu'on la claque dans la main.
     //Rather clamp position ?
+    /**
+     * Returns the hand's trajectory (spline) in between two consecutive events).
+     * @param prevEvent the previous event.
+     * @param nextEvent the following event.
+     * @returns the spline trajectory.
+     */
     getSpline(
-        prev_event: HandTimelineEvent | null,
-        next_event: HandTimelineEvent | null
+        prevEvent: HandTimelineEvent | null,
+        nextEvent: HandTimelineEvent | null
     ): CubicHermiteSpline<THREE.Vector3> {
         let points: THREE.Vector3[], dpoints: THREE.Vector3[], knots: number[];
 
-        if (prev_event === null && next_event === null) {
+        if (prevEvent === null && nextEvent === null) {
             points = [this.positionAtEvent(null)];
             dpoints = [this.velocityAtEvent(null)];
             knots = [0];
             return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
         }
-        points = [this.positionAtEvent(prev_event), this.positionAtEvent(next_event)];
-        dpoints = [this.velocityAtEvent(prev_event), this.velocityAtEvent(next_event)];
-        if (prev_event === null) {
-            knots = [next_event!.time - next_event!.unitTime, next_event!.time];
-        } else if (next_event === null) {
-            knots = [prev_event.time, prev_event.time + prev_event.unitTime];
+        points = [this.positionAtEvent(prevEvent), this.positionAtEvent(nextEvent)];
+        dpoints = [this.velocityAtEvent(prevEvent), this.velocityAtEvent(nextEvent)];
+        if (prevEvent === null) {
+            knots = [nextEvent!.time - nextEvent!.unitTime, nextEvent!.time];
+        } else if (nextEvent === null) {
+            knots = [prevEvent.time, prevEvent.time + prevEvent.unitTime];
         } else {
-            knots = [prev_event.time, next_event.time];
+            knots = [prevEvent.time, nextEvent.time];
             //If two much time sperate the previous from the next event, we add some rest.
             if (
-                prev_event.time + 1.2 * prev_event.unitTime <
-                next_event.time - 1.2 * next_event.unitTime
+                prevEvent.time + 1.2 * prevEvent.unitTime <
+                nextEvent.time - 1.2 * nextEvent.unitTime
             ) {
                 points.splice(1, 0, this.positionAtEvent(null), this.positionAtEvent(null));
                 dpoints.splice(1, 0, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0));
                 knots.splice(
                     1,
                     0,
-                    prev_event.time + 1.2 * prev_event.unitTime,
-                    next_event.time - 1.2 * next_event.unitTime
+                    prevEvent.time + 1.2 * prevEvent.unitTime,
+                    nextEvent.time - 1.2 * nextEvent.unitTime
                 );
             }
         }
         return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+    }
+
+    /**
+     * Returns the hand's position at a given time.
+     * @param time the time in seconds.
+     * @returns the position at that time.
+     */
+    position(time: number): THREE.Vector3 {
+        const [, prevEvent] = this.timeline.prevEvent(time);
+        const [, nextEvent] = this.timeline.nextEvent(time);
+        const spline = this.getSpline(prevEvent, nextEvent);
+        return spline.interpolate(time);
     }
 
     // hand_position_correction(pos: THREE.Vector3): THREE.Vector3 {
@@ -287,32 +334,5 @@ export class HandModel {
     // const next_event = this.timeline.gt(time).value;
     // const spline = this.get_spline(prev_event, next_event);
     // return spline.interpolate(time);
-    // }
-
-    position(time: number): THREE.Vector3 {
-        const [, prev_event] = this.timeline.prevEvent(time);
-        const [, next_event] = this.timeline.nextEvent(time);
-        const spline = this.getSpline(prev_event, next_event);
-        return spline.interpolate(time);
-    }
-
-    // local_velocity(time: number): THREE.Vector3 {
-    //     const [, prev_event] = this.timeline.prev_event(time);
-    //     const [, next_event] = this.timeline.next_event(time);
-    //     const spline = this.get_spline(prev_event, next_event);
-    //     const vel = spline.velocity(time);
-    //     return vel;
-    // const pos = spline.interpolate(time);
-    // return vel.applyMatrix3(this.hand_velocity_jacobian(pos));
-
-    // const prev_event = this.timeline.le(time).value;
-    // const next_event = this.timeline.gt(time).value;
-    // const spline = this.get_spline(prev_event, next_event);
-    // return spline.velocity(time);
-    // }
-
-    // global_velocity(time: number): THREE.Vector3 {
-    //     const vec = this.local_velocity(time);
-    //     return this.mesh.localToWorld(vec).sub(this.mesh.localToWorld(new THREE.Vector3(0, 0, 0)));
     // }
 }

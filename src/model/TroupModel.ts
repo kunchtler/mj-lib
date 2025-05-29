@@ -104,6 +104,8 @@ export class TroupModel {
         this.jugglers = jugglers ?? new Map<string, JugglerModel>();
         this.tables = tables ?? new Map<string, TableModel>();
         this.origin = origin ?? new THREE.Vector3();
+
+        this.balls.forEach((ball) => this.origin.add(ball));
     }
 
     /**
@@ -133,183 +135,183 @@ export class TroupModel {
         ];
     }
 
-    // static fromPattern({
-    //     jugglers: rawJugglers,
-    //     musicConverter: rawMusicConverter,
-    //     table: rawTable
-    // }: JugglingAppParams): TroupModel {
-    //     //TODO : Separate in own function.
-    //     //TODO : Sanitize here too ! (different juggler names, etc)
-    //     //TODO : In MusicBeatConverter (and here before), Sort tempo and signature changes !!
-    //     // 1. Create parser parameters.
+    static fromPattern({
+        jugglers: rawJugglers,
+        musicConverter: rawMusicConverter,
+        table: rawTable
+    }: JugglingAppParams): TroupModel {
+        //TODO : Separate in own function.
+        //TODO : Sanitize here too ! (different juggler names, etc)
+        //TODO : In MusicBeatConverter (and here before), Sort tempo and signature changes !!
+        // 1. Create parser parameters.
 
-    //     // 1a. rawMusicConverter
-    //     const signatureChanges: [number, Fraction][] = [];
-    //     const tempoChanges: [number, MusicTempo][] = [];
-    //     for (const [number, { signature, tempo }] of rawMusicConverter) {
-    //         if (signature !== undefined) {
-    //             signatureChanges.push([number, new Fraction(signature)]);
-    //         }
-    //         if (tempo !== undefined) {
-    //             tempoChanges.push([number, { note: new Fraction(tempo.note), bpm: tempo.bpm }]);
-    //         }
-    //     }
-    //     const musicConverter = new MusicBeatConverter(signatureChanges, tempoChanges);
+        // 1a. rawMusicConverter
+        const signatureChanges: [number, Fraction][] = [];
+        const tempoChanges: [number, MusicTempo][] = [];
+        for (const [number, { signature, tempo }] of rawMusicConverter) {
+            if (signature !== undefined) {
+                signatureChanges.push([number, new Fraction(signature)]);
+            }
+            if (tempo !== undefined) {
+                tempoChanges.push([number, { note: new Fraction(tempo.note), bpm: tempo.bpm }]);
+            }
+        }
+        const musicConverter = new MusicBeatConverter(signatureChanges, tempoChanges);
 
-    //     // 1b. rawJugglers
-    //     const preParserJugglers = new Map<
-    //         string,
-    //         { balls: { id: string; name: string }[]; events: FracSortedList<PreParserEvent> }
-    //     >();
-    //     for (const [jugglerName, { balls, events: rawEvents }] of rawJugglers) {
-    //         preParserJugglers.set(jugglerName, {
-    //             balls: balls,
-    //             events: formatRawEventInput(rawEvents, musicConverter)
-    //         });
-    //     }
-    //     if (preParserJugglers.size !== rawJugglers.length) {
-    //         throw Error("TODO : Duplicate juggler name");
-    //     }
+        // 1b. rawJugglers
+        const preParserJugglers = new Map<
+            string,
+            { balls: { id: string; name: string }[]; events: FracSortedList<PreParserEvent> }
+        >();
+        for (const [jugglerName, { balls, events: rawEvents }] of rawJugglers) {
+            preParserJugglers.set(jugglerName, {
+                balls: balls,
+                events: formatRawEventInput(rawEvents, musicConverter)
+            });
+        }
+        if (preParserJugglers.size !== rawJugglers.length) {
+            throw Error("TODO : Duplicate juggler name");
+        }
 
-    //     // 1c. Gather ball info from jugglers.
-    //     //TODO : Fuse ballIDs and BallIDSounds ?
-    //     //TODO : Sound on toss / catch.
-    //     const ballIDs = new Map<
-    //         string,
-    //         { name: string; sound?: string; juggler: string; color?: string | number }
-    //     >();
-    //     const ballNames = new Set<string>();
-    //     const ballSounds = new Set<string>();
-    //     for (const [jugglerName, { balls }] of rawJugglers) {
-    //         for (const ball of balls) {
-    //             if (ballIDs.has(ball.id)) {
-    //                 throw Error("TODO : Duplicate ball ID");
-    //             }
-    //             ballIDs.set(ball.id, {
-    //                 name: ball.name,
-    //                 sound: ball.sound,
-    //                 juggler: jugglerName,
-    //                 color: ball.color
-    //             });
-    //             ballNames.add(ball.name);
-    //             if (ball.sound !== undefined) {
-    //                 ballSounds.add(ball.sound);
-    //             }
-    //         }
-    //     }
+        // 1c. Gather ball info from jugglers.
+        //TODO : Fuse ballIDs and BallIDSounds ?
+        //TODO : Sound on toss / catch.
+        const ballIDs = new Map<
+            string,
+            { name: string; sound?: string; juggler: string; color?: string | number }
+        >();
+        const ballNames = new Set<string>();
+        const ballSounds = new Set<string>();
+        for (const [jugglerName, { balls }] of rawJugglers) {
+            for (const ball of balls) {
+                if (ballIDs.has(ball.id)) {
+                    throw Error("TODO : Duplicate ball ID");
+                }
+                ballIDs.set(ball.id, {
+                    name: ball.name,
+                    sound: ball.sound,
+                    juggler: jugglerName,
+                    color: ball.color
+                });
+                ballNames.add(ball.name);
+                if (ball.sound !== undefined) {
+                    ballSounds.add(ball.sound);
+                }
+            }
+        }
 
-    //     // 1d. Compile the parameters for the parser.
-    //     const parserParams: ParserToSchedulerParams = {
-    //         ballNames: ballNames,
-    //         ballIDs: ballIDs,
-    //         jugglers: preParserJugglers,
-    //         musicConverter: musicConverter
-    //     };
+        // 1d. Compile the parameters for the parser.
+        const parserParams: ParserToSchedulerParams = {
+            ballNames: ballNames,
+            ballIDs: ballIDs,
+            jugglers: preParserJugglers,
+            musicConverter: musicConverter
+        };
 
-    //     //TODO : Rename to parser only ? Name of method a bit convoluted.
-    //     const schedulerParams = transformParserParamsToSchedulerParams(parserParams);
-    //     const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
+        //TODO : Rename to parser only ? Name of method a bit convoluted.
+        const schedulerParams = transformParserParamsToSchedulerParams(parserParams);
+        const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
 
-    //     const jugglerGeometry = createJugglerCubeGeometry();
-    //     const jugglerMaterial = createJugglerMaterial();
-    //     const tableMaterial = createTableMaterial();
-    //     for (let i = 0; i < rawJugglers.length; i++) {
-    //         const jugglerName = rawJugglers[i][0];
-    //         let table: Table | undefined;
-    //         if (rawTable === undefined) {
-    //             table = undefined;
-    //         } else {
-    //             const tableObject =
-    //                 rawTable.realDimensions === undefined
-    //                     ? undefined
-    //                     : createTableObject(
-    //                           createTableGeometry(
-    //                               rawTable.realDimensions.height,
-    //                               rawTable.realDimensions.width,
-    //                               rawTable.realDimensions.depth
-    //                           ),
-    //                           tableMaterial
-    //                       );
-    //             const ballsPlacement = new Map<string, [number, number]>(rawTable.ballsPlacement);
-    //             table = new Table({
-    //                 tableObject: tableObject,
-    //                 ballsPlacement: ballsPlacement,
-    //                 surfaceInternalSize: rawTable.internalDimensions,
-    //                 unkownBallPosition: rawTable.unknownBallPosition
-    //             });
-    //         }
-    //         const juggler = new Juggler({
-    //             mesh: new THREE.Mesh(jugglerGeometry, jugglerMaterial),
-    //             defaultTable: table
-    //         });
-    //         const angleBtwJugglers = Math.PI / 8;
-    //         const angle1 = Math.PI - (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
-    //         const angle2 = Math.PI + (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
-    //         const ratio = rawJugglers.length === 1 ? 0.5 : i / (rawJugglers.length - 1);
-    //         const angle = angle1 + ratio * (angle2 - angle1);
-    //         const positionNormalized = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    //         this.addJuggler(jugglerName, juggler, V3SCA(2.0, positionNormalized));
+        const jugglerGeometry = createJugglerCubeGeometry();
+        const jugglerMaterial = createJugglerMaterial();
+        const tableMaterial = createTableMaterial();
+        for (let i = 0; i < rawJugglers.length; i++) {
+            const jugglerName = rawJugglers[i][0];
+            let table: Table | undefined;
+            if (rawTable === undefined) {
+                table = undefined;
+            } else {
+                const tableObject =
+                    rawTable.realDimensions === undefined
+                        ? undefined
+                        : createTableObject(
+                              createTableGeometry(
+                                  rawTable.realDimensions.height,
+                                  rawTable.realDimensions.width,
+                                  rawTable.realDimensions.depth
+                              ),
+                              tableMaterial
+                          );
+                const ballsPlacement = new Map<string, [number, number]>(rawTable.ballsPlacement);
+                table = new Table({
+                    tableObject: tableObject,
+                    ballsPlacement: ballsPlacement,
+                    surfaceInternalSize: rawTable.internalDimensions,
+                    unkownBallPosition: rawTable.unknownBallPosition
+                });
+            }
+            const juggler = new Juggler({
+                mesh: new THREE.Mesh(jugglerGeometry, jugglerMaterial),
+                defaultTable: table
+            });
+            const angleBtwJugglers = Math.PI / 8;
+            const angle1 = Math.PI - (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
+            const angle2 = Math.PI + (angleBtwJugglers * (rawJugglers.length - 1)) / 2;
+            const ratio = rawJugglers.length === 1 ? 0.5 : i / (rawJugglers.length - 1);
+            const angle = angle1 + ratio * (angle2 - angle1);
+            const positionNormalized = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+            this.addJuggler(jugglerName, juggler, V3SCA(2.0, positionNormalized));
 
-    //         //TODO : Handle table position based on juggler.
-    //         if (table !== undefined) {
-    //             this.addTable(jugglerName, table);
-    //             table.mesh.position.copy(V3SCA(1.5, positionNormalized));
-    //         }
-    //     }
+            //TODO : Handle table position based on juggler.
+            if (table !== undefined) {
+                this.addTable(jugglerName, table);
+                table.mesh.position.copy(V3SCA(1.5, positionNormalized));
+            }
+        }
 
-    //     const soundBuffers = new Map<string, AudioBuffer>();
-    //     for (const sound of ballSounds) {
-    //         getNoteBuffer(sound, this.listener!.context)
-    //             .then((buffer) => {
-    //                 if (buffer !== undefined) {
-    //                     soundBuffers.set(sound, buffer);
-    //                 }
-    //             })
-    //             .catch(() => {
-    //                 console.log("Something went wrong");
-    //             });
-    //     }
+        const soundBuffers = new Map<string, AudioBuffer>();
+        for (const sound of ballSounds) {
+            getNoteBuffer(sound, this.listener!.context)
+                .then((buffer) => {
+                    if (buffer !== undefined) {
+                        soundBuffers.set(sound, buffer);
+                    }
+                })
+                .catch(() => {
+                    console.log("Something went wrong");
+                });
+        }
 
-    //     const ballRadius = 0.1;
-    //     const ballGeometry = createBallGeometry(ballRadius);
-    //     //TODO : Color as part of the spec possibly ?
+        const ballRadius = 0.1;
+        const ballGeometry = createBallGeometry(ballRadius);
+        //TODO : Color as part of the spec possibly ?
 
-    //     for (const [ID, { sound, juggler, color }] of ballIDs) {
-    //         const ballMaterial = createBallMaterial(color ?? "pink");
-    //         //TODO : Change sound.node ? (only specify positional or non-positional).
-    //         //TODO : How to not have to specify the listener ?
-    //         const ball = new Ball({
-    //             mesh: new THREE.Mesh(ballGeometry, ballMaterial),
-    //             defaultJuggler: this.jugglers.get(juggler)!,
-    //             id: ID,
-    //             radius: ballRadius,
-    //             sound:
-    //                 sound === undefined
-    //                     ? undefined
-    //                     : {
-    //                           buffers: soundBuffers,
-    //                           node: new THREE.PositionalAudio(this.listener!)
-    //                       }
-    //         });
-    //         this.addBall(ID, ball);
-    //     }
+        for (const [ID, { sound, juggler, color }] of ballIDs) {
+            const ballMaterial = createBallMaterial(color ?? "pink");
+            //TODO : Change sound.node ? (only specify positional or non-positional).
+            //TODO : How to not have to specify the listener ?
+            const ball = new Ball({
+                mesh: new THREE.Mesh(ballGeometry, ballMaterial),
+                defaultJuggler: this.jugglers.get(juggler)!,
+                id: ID,
+                radius: ballRadius,
+                sound:
+                    sound === undefined
+                        ? undefined
+                        : {
+                              buffers: soundBuffers,
+                              node: new THREE.PositionalAudio(this.listener!)
+                          }
+            });
+            this.addBall(ID, ball);
+        }
 
-    //     // x. Creating the params for the simulation
-    //     const ballIDSounds2 = new Map<
-    //         string,
-    //         {
-    //             onToss?: string | EventSound;
-    //             onCatch?: string | EventSound;
-    //         }
-    //     >();
-    //     for (const [name, sound] of ballIDs) {
-    //         ballIDSounds2.set(name, { onCatch: sound });
-    //     }
-    //     simulateEvents({
-    //         simulator: this,
-    //         jugglers: postSchedulerParams,
-    //         ballIDSounds: ballIDSounds2,
-    //         musicConverter: musicConverter
-    //     });
-    // }
+        // x. Creating the params for the simulation
+        const ballIDSounds2 = new Map<
+            string,
+            {
+                onToss?: string | EventSound;
+                onCatch?: string | EventSound;
+            }
+        >();
+        for (const [name, sound] of ballIDs) {
+            ballIDSounds2.set(name, { onCatch: sound });
+        }
+        simulateEvents({
+            simulator: this,
+            jugglers: postSchedulerParams,
+            ballIDSounds: ballIDSounds2,
+            musicConverter: musicConverter
+        });
+    }
 }

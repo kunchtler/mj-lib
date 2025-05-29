@@ -10,18 +10,13 @@ import {
 import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 
-// TODO : CamelCase for every variable.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : Better encapsulate what parameters are dependent on which (for ex, ofor combo mesh + radius)
-interface BallConstructorInterface {
+interface BallModelParams {
     radius?: number;
     id?: string;
     timeline?: BallTimeline;
     defaultJuggler?: JugglerModel;
-    sound?: {
-        node: THREE.Audio | THREE.PositionalAudio;
-        buffers: Map<string, AudioBuffer>;
-    };
 }
 
 //TODO : Fusionner les évènements de main et de balles ?
@@ -32,34 +27,32 @@ interface BallConstructorInterface {
 //TODO : At some point, custom sound nodes ?
 //TODO : Pause / Unpause sound.
 
+//TODO : velocity
+//TODO : acceleration
+
 export class BallModel {
     readonly radius: number;
     readonly id: string;
+    // readonly name: string;
     timeline: BallTimeline;
-    sound?: {
-        node: THREE.Audio | THREE.PositionalAudio;
-        buffers: Map<string, AudioBuffer>;
-    };
     defaultJuggler?: JugglerModel;
 
-    constructor({
-        radius,
-        id,
-        timeline,
-        // default_table,
-        defaultJuggler,
-        sound
-    }: BallConstructorInterface = {}) {
+    constructor({ radius, id, timeline, defaultJuggler }: BallModelParams = {}) {
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
         this.id = id ?? "None";
-        // this.defaultTable = default_table;
         this.defaultJuggler = defaultJuggler;
-        this.sound = sound;
     }
 
-    //TODO : Move this as static for events
-    throwTimelineError(event1: BallTimelineEvent | null, event2: BallTimelineEvent | null): void {
+    /**
+     * Throws an error when two events occuring next to each other don't make sense.
+     * @param event1 the previous event.
+     * @param event2 the following event.
+     */
+    private _throwTimelineError(
+        event1: BallTimelineEvent | null,
+        event2: BallTimelineEvent | null
+    ): void {
         const str1 =
             event1 === null
                 ? `has previous event null`
@@ -71,6 +64,11 @@ export class BallModel {
         throw Error(`Ball ${this.id} ${str1} and ${str2}.`);
     }
 
+    /**
+     * Returns the ball's position at a specific event from the timeline.
+     * @param event the event.
+     * @returns the position where that event occurs.
+     */
     positionAtEvent(event: BallTimelineEvent | null): THREE.Vector3 {
         if (event === null) {
             throw Error();
@@ -88,9 +86,7 @@ export class BallModel {
         throw Error("Unimplemented behaviour");
     }
 
-    //TODO : Logique des enchainements d'evenement pour la balle éparpillé dans le code...
-    //TODO : Change hand.position to hand.ball_position
-    /**
+    /** Returns the ball's position at a given time.
      * @param time The time in seconds.
      * @returns The position of the ball at that given time.
      */
@@ -112,7 +108,7 @@ export class BallModel {
                 }
             }
             if (nextEvent instanceof CatchEvent) {
-                this.throwTimelineError(prevEvent, nextEvent);
+                this._throwTimelineError(prevEvent, nextEvent);
             }
             if (nextEvent instanceof ThrowEvent || nextEvent instanceof TablePutEvent) {
                 return nextEvent.hand.position(time);
@@ -130,7 +126,7 @@ export class BallModel {
                 return prevEvent.hand.position(time);
             }
             if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
-                this.throwTimelineError(prevEvent, nextEvent);
+                this._throwTimelineError(prevEvent, nextEvent);
             } //Stop the looping if was set to loop.
         }
         if (prevEvent instanceof ThrowEvent) {
@@ -157,7 +153,7 @@ export class BallModel {
                 nextEvent instanceof ThrowEvent ||
                 nextEvent instanceof TableTakeEvent
             ) {
-                this.throwTimelineError(prevEvent, nextEvent);
+                this._throwTimelineError(prevEvent, nextEvent);
             }
         }
         if (prevEvent instanceof TablePutEvent) {
@@ -169,7 +165,7 @@ export class BallModel {
                 nextEvent instanceof ThrowEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
-                this.throwTimelineError(prevEvent, nextEvent);
+                this._throwTimelineError(prevEvent, nextEvent);
             }
         }
         if (prevEvent instanceof TableTakeEvent) {
@@ -181,12 +177,19 @@ export class BallModel {
                 return prevEvent.hand.position(time);
             }
             if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
-                this.throwTimelineError(prevEvent, nextEvent);
+                this._throwTimelineError(prevEvent, nextEvent);
             }
         }
         throw Error("Unimplemented behaviour");
     }
 
+    //TODO : Extend to any event.
+    //TODO : Extend to velocity at any point (but first, rework hand movement).
+    /**
+     * Returns the ball's velocity at a specific catch or toss event from the timeline.
+     * @param event the event.
+     * @returns the velocity at that time.
+     */
     velocityAtCatchTossEvent(event: CatchEvent | ThrowEvent): THREE.Vector3 {
         let prevEvent: BallTimelineEvent | null;
         let nextEvent: BallTimelineEvent | null;
