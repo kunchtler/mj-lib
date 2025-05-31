@@ -1,21 +1,11 @@
 import * as THREE from "three";
-import { GRAVITY } from "../utils/constants";
-import {
-    CatchEvent,
-    ThrowEvent,
-    TablePutEvent,
-    TableTakeEvent,
-    BallTimelineEvent,
-    BallTimeline
-} from "./Timeline";
-import { Juggler } from "./Juggler";
 import { BallModel } from "../model/BallModel";
 
 // TODO : CamelCase for every variable.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : Better encapsulate what parameters are dependent on which (for ex, ofor combo mesh + radius)
-interface BallConstructorInterface {
-    mesh: THREE.Mesh;
+interface BallSimParams {
+    object3D: THREE.Object3D;
     model: BallModel;
     id?: string;
     sound?: {
@@ -36,9 +26,9 @@ interface BallConstructorInterface {
 //TODO : At some point, custom sound nodes ?
 //TODO : Pause / Unpause sound.
 
-export class Ball {
+export class BallSim {
     model: BallModel;
-    mesh: THREE.Mesh;
+    object3D: THREE.Object3D;
     id: string;
     sound?: {
         node: THREE.Audio | THREE.PositionalAudio;
@@ -46,13 +36,13 @@ export class Ball {
     };
     private _prevTime?: number;
 
-    constructor({ model, mesh, id, sound }: BallConstructorInterface) {
+    constructor({ model, object3D, id, sound }: BallSimParams) {
         this.model = model;
-        this.mesh = mesh;
+        this.object3D = object3D;
         this.id = id ?? "None";
         this.sound = sound;
         if (this.sound !== undefined) {
-            this.mesh.add(this.sound.node);
+            this.object3D.add(this.sound.node);
         }
         this._prevTime = undefined;
     }
@@ -66,7 +56,7 @@ export class Ball {
             return;
         }
         const audioNode = new THREE.PositionalAudio(listener);
-        this.mesh.add(audioNode);
+        this.object3D.add(audioNode);
         this.sound = {
             node: audioNode,
             buffers: buffers
@@ -78,7 +68,7 @@ export class Ball {
             return;
         }
         // Remove from the mesh.
-        this.mesh.remove(this.sound.node);
+        this.object3D.remove(this.sound.node);
         // Stop the sound.
         this.sound.node.stop();
         // Disconnect from all audio nodes and filters.
@@ -88,7 +78,7 @@ export class Ball {
         this.sound = undefined;
     }
 
-    setSound();
+    setSound() {}
 
     playSound(soundName?: string, loop = false): void {
         if (this.sound === undefined) {
@@ -116,6 +106,41 @@ export class Ball {
 
     stopSound(): void {
         this.sound?.node.stop();
+    }
+
+    /**
+     * Updates the ball's position.
+     * @param time Time of the frame to render in seconds.
+     */
+    updatePosition(time: number): void {
+        const position = this.model.position(time);
+        this.object3D.position.copy(position);
+    }
+
+    //TODO : Review how prev_time works
+    triggerSound(time: number, isPaused: boolean): void {
+        const prevEventInfo = this.model.timeline.prevEvent(time);
+        if (prevEventInfo[0] !== null && !isPaused) {
+            const [prevEventTime, { sound: soundToPlay }] = prevEventInfo;
+            if (this._prevTime !== undefined && this._prevTime <= prevEventTime) {
+                if (soundToPlay === undefined) {
+                    if (this.sound?.node.getLoop() === true) {
+                        //Stop the previous sound (in case it was looping for instance).
+                        this.sound.node.stop();
+                    }
+                } else if (typeof soundToPlay.name === "string") {
+                    this.playSound(soundToPlay.name, soundToPlay.loop);
+                } else {
+                    const random_idx = Math.floor(Math.random() * soundToPlay.name.length);
+                    this.playSound(soundToPlay.name[random_idx], soundToPlay.loop);
+                }
+            }
+        }
+        this._prevTime = time;
+    }
+
+    dispose() {
+        //TODO
     }
 
     //TODO : make it so that event.sound if array or undefined in constructor ?
@@ -157,56 +182,6 @@ export class Ball {
     // }
     // this._prev_time = time;
     // }
-
-    /**
-     * Updates the ball's position.
-     * @param time Time of the frame to render in seconds.
-     */
-    updatePosition(time: number): void {
-        const position = this.model.position(time);
-        this.mesh.position.copy(position);
-    }
-
-    //TODO : Review how prev_time works
-    triggerSound(time: number, isPaused: boolean): void {
-        const prevEventInfo = this.timeline.prevEvent(time);
-        if (prevEventInfo[0] !== null && !isPaused) {
-            const [prevEventTime, { sound: soundToPlay }] = prevEventInfo;
-            if (this._prevTime !== undefined && this._prevTime <= prevEventTime) {
-                if (soundToPlay === undefined) {
-                    if (this.sound?.node.getLoop() === true) {
-                        //Stop the previous sound (in case it was looping for instance).
-                        this.sound.node.stop();
-                    }
-                } else if (typeof soundToPlay.name === "string") {
-                    this.playSound(soundToPlay.name, soundToPlay.loop);
-                } else {
-                    const random_idx = Math.floor(Math.random() * soundToPlay.name.length);
-                    this.playSound(soundToPlay.name[random_idx], soundToPlay.loop);
-                }
-            }
-        }
-        this._prevTime = time;
-    }
-
-    /**
-     * Properly deletes the resources. Call when instance is not needed anymore to free ressources. nullify all reference
-     */
-    dispose() {
-        if (this.mesh.parent !== null) {
-            this.mesh.parent.remove(this.mesh);
-        }
-        // this.geometry.dispose();
-        // this.material.dispose();
-        // if (this.sound instanceof Tone.Player) {
-        //     this.sound.stop();
-        // } else if (this.sound instanceof Tone.Players) {
-        //     this.sound.stopAll();
-        // }
-        // this.sound?.dispose();
-        // this.panner3D?.dispose();
-        this.timeline.clear();
-    }
 }
 
 export function createBallGeometry(radius = 0.1) {

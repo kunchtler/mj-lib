@@ -8,49 +8,20 @@ import { BallModel } from "./BallModel";
 // TODO : Use a normal vector to identify the table's "top".
 
 export interface TableConstructorParameters {
-    bottomLeftCorner: THREE.Object3D;
-    upRightCorner: THREE.Object3D;
-    surfaceInternalSize?: [number, number];
-    ballsPlacement?: Map<string, [number, number]>;
-    unkownBallPosition?: [number, number];
+    ballsPlacement?: Map<string, THREE.Object3D>;
+    unkownBallPosition?: THREE.Object3D;
 }
 
 /**
  * Describes a table within the model.
  */
 export class TableModel {
-    bottomLeftCorner: THREE.Object3D;
-    upRightCorner: THREE.Object3D;
-    ballsPlacement: Map<string, [number, number]>;
-    unkownBallPosition: [number, number];
-    private _surfaceInternal: THREE.Object3D;
+    ballsPlacement: Map<string, THREE.Object3D>;
+    unkownBallPosition: THREE.Object3D;
 
-    constructor({
-        bottomLeftCorner,
-        upRightCorner,
-        surfaceInternalSize,
-        ballsPlacement,
-        unkownBallPosition
-    }: TableConstructorParameters) {
-        // tableObject ??= createTableObject();
-        this.bottomLeftCorner = bottomLeftCorner;
-        this.upRightCorner = upRightCorner;
-        this.ballsPlacement = ballsPlacement ?? new Map<string, [number, number]>();
-        this.unkownBallPosition = unkownBallPosition ?? [0, 0];
-        surfaceInternalSize ??= [1, 1];
-        this._surfaceInternal = new THREE.Object3D();
-        this._surfaceInternal.position.copy(bottomLeftCorner.position);
-        const surfaceRealSize = [
-            this.upRightCorner.position.x - this.bottomLeftCorner.position.x,
-            this.upRightCorner.position.z - this.bottomLeftCorner.position.z
-        ];
-        this._surfaceInternal.scale.set(
-            surfaceRealSize[1] / surfaceInternalSize[1],
-            1,
-            surfaceRealSize[0] / surfaceInternalSize[0]
-        );
-        // this.mesh.add(this.bottomLeftCorner);
-        // this.mesh.add(this.upRightCorner);
+    constructor({ ballsPlacement, unkownBallPosition }: TableConstructorParameters = {}) {
+        this.ballsPlacement = ballsPlacement ?? new Map<string, THREE.Object3D>();
+        this.unkownBallPosition = unkownBallPosition ?? new THREE.Object3D();
     }
 
     /**
@@ -60,8 +31,8 @@ export class TableModel {
      */
     ballPosition(ball: BallModel): THREE.Vector3 {
         // TODO : Change id to name ?
-        const pos = this.ballsPlacement.get(ball.id) ?? this.unkownBallPosition;
-        return this._surfaceInternal.localToWorld(new THREE.Vector3(pos[1], ball.radius, pos[0]));
+        const positionObject = this.ballsPlacement.get(ball.name) ?? this.unkownBallPosition;
+        return positionObject.getWorldPosition(new THREE.Vector3());
     }
 
     /**
@@ -72,7 +43,10 @@ export class TableModel {
      */
     handPositionOverBall(ball: BallModel): THREE.Vector3 {
         const pos = this.ballPosition(ball);
-        pos.y = 3 * pos.y;
+        // TODO : Up vector rather than y coordinate.
+        pos.y += ball.radius * 3;
         return pos;
     }
 }
+
+// export function createTablePlacement({}: Map<string, THREE.Object3D>): 

@@ -15,6 +15,7 @@ import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 interface BallModelParams {
     radius?: number;
     id?: string;
+    name?: string;
     timeline?: BallTimeline;
     defaultJuggler?: JugglerModel;
 }
@@ -33,14 +34,16 @@ interface BallModelParams {
 export class BallModel {
     readonly radius: number;
     readonly id: string;
+    readonly name: string;
     // readonly name: string;
     timeline: BallTimeline;
     defaultJuggler?: JugglerModel;
 
-    constructor({ radius, id, timeline, defaultJuggler }: BallModelParams = {}) {
+    constructor({ radius, id, name, timeline, defaultJuggler }: BallModelParams = {}) {
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
         this.id = id ?? "None";
+        this.name = name ?? "None";
         this.defaultJuggler = defaultJuggler;
     }
 

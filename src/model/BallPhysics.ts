@@ -64,7 +64,7 @@ export function ballVelocityAtStartEnd(
  * @param t1 the time the ball is caught.
  * @param t a time.
  * @param gravity the gravitation acceleration. Defaults to Earth's constant g = 9.81 m.s^-2.
- * @returns the velocity of the ball at time t. If t is smaller than t0 or greater than t1, the position returned is in the continuation of the parabola of the trajectory.
+ * @returns the velocity of the ball at time t. If t is smaller than t0 or greater than t1, the velocity returned is in the continuation of the parabola of the trajectory.
  */
 export function ballVelocity(
     pos0: THREE.Vector3,

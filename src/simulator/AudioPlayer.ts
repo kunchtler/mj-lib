@@ -25,6 +25,8 @@ type TimeConductorEvents =
 //TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
 //TODO : clean TimeController interface.
 //TODO : Try playbackrate of 0 + negative.
+//TODO 30/05/25 : Remove manual trigger and make it responability of person using a clock to have updates ?
+// Or allow both with option to customize callback frequency. Properly handle the stop signal that must arrive on time.
 
 /**
  * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
@@ -45,8 +47,10 @@ export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implem
     private _playbackRate: number;
     private _paused: boolean;
     private _timeupdateInterval?: number;
+    // private _stopInterval?: number;
     private _bounds: [number | undefined, number | undefined];
     private _loop: boolean;
+    // private _timeupdateIntervalTime: number;
 
     /**
      * TODOSignals

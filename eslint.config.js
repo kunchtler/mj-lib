@@ -58,6 +58,8 @@ export default tseslint.config({
                 }
             }
         ],
-        "@typescript-eslint/no-unnecessary-template-expression": "warn"
+        "@typescript-eslint/no-unnecessary-template-expression": "warn",
+        "@typescript-eslint/no-empty-function": "warn",
+        "@typescript-eslint/no-extraneous-class": "warn"
     }
 });
