@@ -1,18 +1,12 @@
 import * as THREE from "three";
 import { BallModel } from "../model/BallModel";
+import { ThreeAudio, ThreePositionalAudio } from "./CustomThreeAudio";
+import { instance } from "three/tsl";
+import { JugglerSim } from "./JugglerSim";
 
 // TODO : CamelCase for every variable.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : Better encapsulate what parameters are dependent on which (for ex, ofor combo mesh + radius)
-interface BallSimParams {
-    object3D: THREE.Object3D;
-    model: BallModel;
-    id?: string;
-    sound?: {
-        node: THREE.Audio | THREE.PositionalAudio;
-        buffers: Map<string, AudioBuffer>;
-    };
-}
 
 // function create_audio(note_name: string): HTMLAudioElement {
 //     throw new Error("Not implemented");
@@ -26,95 +20,62 @@ interface BallSimParams {
 //TODO : At some point, custom sound nodes ?
 //TODO : Pause / Unpause sound.
 
+// TODO : Properly handle changing ball's object3D or juggler ?
+
+interface BallSimParams {
+    object3D: THREE.Object3D;
+    model: BallModel;
+    id?: string;
+    audio?: BallAudio;
+}
+
 export class BallSim {
     model: BallModel;
     object3D: THREE.Object3D;
     id: string;
-    sound?: {
-        node: THREE.Audio | THREE.PositionalAudio;
-        buffers: Map<string, AudioBuffer>;
-    };
+    audio?: BallAudio;
     private _prevTime?: number;
 
-    constructor({ model, object3D, id, sound }: BallSimParams) {
+    constructor({ model, object3D, id, audio }: BallSimParams) {
         this.model = model;
         this.object3D = object3D;
         this.id = id ?? "None";
-        this.sound = sound;
-        if (this.sound !== undefined) {
-            this.object3D.add(this.sound.node);
+        this.audio = audio;
+        if (this.audio !== undefined) {
+            this.object3D.add(this.audio.node);
         }
         this._prevTime = undefined;
     }
 
     isAudioEnabled(): boolean {
-        return this.sound !== undefined;
+        return this.audio !== undefined;
     }
 
     enableAudio(listener: THREE.AudioListener, buffers: Map<string, AudioBuffer>): void {
-        if (this.sound !== undefined) {
+        if (this.audio !== undefined) {
             return;
         }
         const audioNode = new THREE.PositionalAudio(listener);
         this.object3D.add(audioNode);
-        this.sound = {
+        this.audio = {
             node: audioNode,
             buffers: buffers
         };
     }
 
     disableAudio(): void {
-        if (this.sound === undefined) {
+        if (this.audio === undefined) {
             return;
         }
         // Remove from the mesh.
-        this.object3D.remove(this.sound.node);
+        this.object3D.remove(this.audio.node);
         // Stop the sound.
-        this.sound.node.stop();
+        this.audio.node.stop();
         // Disconnect from all audio nodes and filters.
-        this.sound.node.disconnect();
+        this.audio.node.disconnect();
         // Clear buffer
-        this.sound.node.buffer = null;
-        this.sound = undefined;
-    }
-
-    setSound() {}
-
-    playSound(soundName?: string, loop = false): void {
-        if (this.sound === undefined) {
-            console.log(
-                `Ball ${this.id} can't play sound as it has no AudioNode nor AudioBuffers.`
-            );
-            return;
-        }
-        if (soundName === undefined) {
-            console.log(`Ball ${this.id} doesn't know what sound to play.`);
-            return;
-        }
-        const soundBuffer = this.sound.buffers.get(soundName);
-        if (soundBuffer === undefined) {
-            console.log(`Ball ${this.id} has no known sound "${soundName}" in buffer to play.`);
-            return;
-        }
-        if (this.sound.node.isPlaying) {
-            this.sound.node.stop();
-        }
-        this.sound.node.setBuffer(soundBuffer);
-        this.sound.node.setLoop(loop);
-        this.sound.node.play();
-    }
-
-    stopSound(): void {
-        this.sound?.node.stop();
-    }
-
-    /**
-     * Updates the ball's position.
-     * @param time Time of the frame to render in seconds.
-     */
-    updatePosition(time: number): void {
-        const position = this.model.position(time);
-        this.object3D.position.copy(position);
+        this.audio.node.buffer = null;
+        this.audio = undefined;
     }
 
     //TODO : Review how prev_time works
@@ -124,9 +85,9 @@ export class BallSim {
             const [prevEventTime, { sound: soundToPlay }] = prevEventInfo;
             if (this._prevTime !== undefined && this._prevTime <= prevEventTime) {
                 if (soundToPlay === undefined) {
-                    if (this.sound?.node.getLoop() === true) {
+                    if (this.audio?.node.getLoop() === true) {
                         //Stop the previous sound (in case it was looping for instance).
-                        this.sound.node.stop();
+                        this.audio.node.stop();
                     }
                 } else if (typeof soundToPlay.name === "string") {
                     this.playSound(soundToPlay.name, soundToPlay.loop);
@@ -142,46 +103,87 @@ export class BallSim {
     dispose() {
         //TODO
     }
+}
 
-    //TODO : make it so that event.sound if array or undefined in constructor ?
-    //TODO : method should rather be in simulator ?
-    //TODO : Make it so if the ball has sounds, there are options to play on every event, or catch, or throw.
-    //TODO : Make it so if the ball falls after a throw it makes a sound
-    //TODO : Rename to play_sound, and have it executed on all events rather than just ball.
-    // playOnCatch(time: number): void {
-    //     const prev_event = this.timeline.prevEvent(time)[1];
-    //     if (prev_event === null) {
-    //         this._prevTime = time;
-    //         return;
-    //     }
-    //     if (prev_event.soundName !== null && this._prevTime <= prev_event.time) {
-    //         // Play a sound
-    //         if (this.sound instanceof Tone.Players) {
-    //             const sound_name = prev_event.random_sound_name();
-    //             this.sound.player(sound_name).start();
-    //         } else if (this.sound instanceof Tone.Player) {
-    //             this.sound.start();
-    //         }
-    //     }
-    //     this._prevTime = time;
-    // const prev_event = this.timeline.prev_event(time)[1];
-    // if (
-    //     prev_event !== null &&
-    //     prev_event instanceof CatchEvent &&
-    //     this._prev_time <= prev_event.time
-    // ) {
-    //     // Play a sound
-    //     if (this.sound instanceof Tone.Players) {
-    //         if (prev_event.sound_name !== null) {
-    //             const sound_name = prev_event.random_sound_name();
-    //             this.sound.player(sound_name).start();
-    //         }
-    //     } else if (this.sound instanceof Tone.Player) {
-    //         this.sound.start();
-    //     }
-    // }
-    // this._prev_time = time;
-    // }
+export class BallAudio {
+    bufferMap: Map<string, AudioBuffer>;
+    readonly node: ThreeAudio | ThreePositionalAudio;
+    private _ball: WeakRef<BallSim>;
+
+    constructor(
+        ball: BallSim,
+        listener: THREE.AudioListener,
+        bufferMap: Map<string, AudioBuffer>,
+        positional = true
+    ) {
+        this._ball = new WeakRef(ball);
+        this.bufferMap = bufferMap;
+        this.node = positional ? new ThreePositionalAudio(listener) : new ThreeAudio(listener);
+        this.ball.object3D.add(this.node);
+    }
+
+    get ball(): BallSim {
+        const ball = this._ball.deref();
+        if (ball === undefined) {
+            throw ReferenceError("No ball ref. This shouldn't happen.");
+        }
+        return ball;
+    }
+
+    isAudioPositional(): boolean {
+        return this.node instanceof ThreePositionalAudio;
+    }
+
+    setVolume(value: number) {
+        this.node.setVolume(value);
+    }
+
+    getVolume(): number {
+        return this.node.getVolume();
+    }
+
+    connectToJuggler(juggler: JugglerSim): void {
+        this.node.disconnect();
+        const gain = juggler.getGainNode();
+        if (gain !== undefined) {
+            this.node.connectTo(gain);
+        }
+    }
+
+    play(soundName: string, loop = false): void {
+        const soundBuffer = this.bufferMap.get(soundName);
+        if (soundBuffer === undefined) {
+            console.log(`Ball has no known sound "${soundName}" in buffer to play.`);
+            return;
+        }
+        this.node.stop();
+        this.node.setBuffer(soundBuffer);
+        this.node.setLoop(loop);
+        this.node.play();
+    }
+
+    pause() {
+        this.node.pause();
+    }
+
+    unpause() {
+        this.node.play();
+    }
+
+    stop() {
+        this.node.stop();
+    }
+
+    dispose() {
+        // Remove from the mesh.
+        this.ball.object3D.remove(this.node);
+        // Stop the sound.
+        this.stop();
+        // Disconnect from all audio nodes and filters.
+        this.node.disconnect();
+        // Clear buffer
+        this.node.buffer = null;
+    }
 }
 
 export function createBallGeometry(radius = 0.1) {

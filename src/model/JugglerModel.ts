@@ -1,12 +1,7 @@
 import * as THREE from "three";
 // import { Object3DHelper } from "../utils/Object3DHelper";
 // import { find_elbow } from "../utils/utils";
-import {
-    HandConstructorParams,
-    HandModel,
-    createHandSites,
-    HandSiteCreationParams
-} from "./HandModel";
+import { HandConstructorParams, HandModel, HandSiteCreationParams } from "./HandModel";
 import { TableModel } from "./TableModel";
 
 export interface JugglerParamConstructor {

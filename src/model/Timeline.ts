@@ -80,22 +80,51 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
     }
 }
 
+/**
+ * Basic interface for a juggling event. All juggling events interfaces extend it.
+ */
 export interface BaseEvent {
     time: number;
 }
 
+/**
+ * Interface for a sound event. TODO : Not really because it is a member of the events having sound. to change ?
+ */
 export interface EventSound {
+    /**
+     * The name of the sound to play.
+     */
     name: string | string[];
+    /**
+     * Whether the sound should loop until the next event.
+     */
     loop?: boolean;
 }
 
+/**
+ * Base interface for an event involving a ball.
+ */
 export interface BallEventInterface extends BaseEvent {
+    /**
+     * The ball the event references.
+     */
     ball: BallModel;
+    /**
+     * A verb charcterising the event (eg. tossed, caught, ...) to help with printing debug information.
+     */
     errorBallStatus: string;
+    /**
+     * A method to access the next ball event in the ball's timeline of events.
+     */
     nextBallEvent(): [number, BallTimelineEvent] | [null, null];
+    /**
+     * A method to acces the previous ball event in the ball's timeline of events.
+     */
     prevBallEvent(): [number, BallTimelineEvent] | [null, null];
+    /**
+     * TODO
+     */
     sound?: EventSound;
-    // soundNameTillNextEvent?: string;
 }
 
 //TODO : Handle unit_time ?
@@ -245,7 +274,7 @@ export class AbstractTableEvent extends AbstractBallHandEvent {
     }
 }
 
-export class ThrowEvent extends AbstractBallHandEvent {
+export class TossEvent extends AbstractBallHandEvent {
     readonly errorBallStatus = "thrown";
 }
 
@@ -284,9 +313,9 @@ export class HandMultiEvent<T extends HandEventInterface> extends AbstractHandEv
 // export class HandMultiTablePutTakeEvent extends HandMultiEvent<TablePutEvent | TableTakeEvent> {}
 
 // export type HandTimelineEvent = HandMultiCatchThrowEvent | HandMultiTablePutTakeEvent;
-export type HandTimelineSingleEvent = CatchEvent | ThrowEvent | TableTakeEvent | TablePutEvent;
+export type HandTimelineSingleEvent = CatchEvent | TossEvent | TableTakeEvent | TablePutEvent;
 export type HandTimelineEvent = HandMultiEvent<HandTimelineSingleEvent>;
-export type BallTimelineEvent = CatchEvent | ThrowEvent | TablePutEvent | TableTakeEvent;
+export type BallTimelineEvent = CatchEvent | TossEvent | TablePutEvent | TableTakeEvent;
 
 //TODO : Make it so balls are unique in events field in HandMultiCatchThrow, and in HandMultiTakePut.
 

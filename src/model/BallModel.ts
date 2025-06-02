@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {
     CatchEvent,
-    ThrowEvent,
+    TossEvent,
     TablePutEvent,
     TableTakeEvent,
     BallTimelineEvent,
@@ -77,7 +77,7 @@ export class BallModel {
             throw Error();
         } else if (
             event instanceof CatchEvent ||
-            event instanceof ThrowEvent ||
+            event instanceof TossEvent ||
             event instanceof TableTakeEvent
         ) {
             //TableTakeEvent for now here as the ball teleports from table to hand, so is in hand.
@@ -113,7 +113,7 @@ export class BallModel {
             if (nextEvent instanceof CatchEvent) {
                 this._throwTimelineError(prevEvent, nextEvent);
             }
-            if (nextEvent instanceof ThrowEvent || nextEvent instanceof TablePutEvent) {
+            if (nextEvent instanceof TossEvent || nextEvent instanceof TablePutEvent) {
                 return nextEvent.hand.position(time);
             }
             if (nextEvent instanceof TableTakeEvent) {
@@ -123,7 +123,7 @@ export class BallModel {
         if (prevEvent instanceof CatchEvent) {
             if (
                 nextEvent === null ||
-                nextEvent instanceof ThrowEvent ||
+                nextEvent instanceof TossEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
                 return prevEvent.hand.position(time);
@@ -132,7 +132,7 @@ export class BallModel {
                 this._throwTimelineError(prevEvent, nextEvent);
             } //Stop the looping if was set to loop.
         }
-        if (prevEvent instanceof ThrowEvent) {
+        if (prevEvent instanceof TossEvent) {
             if (nextEvent instanceof CatchEvent) {
                 return ballPosition(
                     prevEvent.hand.positionAtEvent(prevEvent.handMultiEvent()),
@@ -153,7 +153,7 @@ export class BallModel {
             }
             if (
                 nextEvent === null ||
-                nextEvent instanceof ThrowEvent ||
+                nextEvent instanceof TossEvent ||
                 nextEvent instanceof TableTakeEvent
             ) {
                 this._throwTimelineError(prevEvent, nextEvent);
@@ -165,7 +165,7 @@ export class BallModel {
             }
             if (
                 nextEvent instanceof CatchEvent ||
-                nextEvent instanceof ThrowEvent ||
+                nextEvent instanceof TossEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
                 this._throwTimelineError(prevEvent, nextEvent);
@@ -174,7 +174,7 @@ export class BallModel {
         if (prevEvent instanceof TableTakeEvent) {
             if (
                 nextEvent === null ||
-                nextEvent instanceof ThrowEvent ||
+                nextEvent instanceof TossEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
                 return prevEvent.hand.position(time);
@@ -193,22 +193,22 @@ export class BallModel {
      * @param event the event.
      * @returns the velocity at that time.
      */
-    velocityAtCatchTossEvent(event: CatchEvent | ThrowEvent): THREE.Vector3 {
+    velocityAtCatchTossEvent(event: CatchEvent | TossEvent): THREE.Vector3 {
         let prevEvent: BallTimelineEvent | null;
         let nextEvent: BallTimelineEvent | null;
-        let isThrown: boolean;
+        let isTossed: boolean;
         if (event instanceof CatchEvent) {
             prevEvent = event.prevBallEvent()[1];
             nextEvent = event;
-            isThrown = false;
+            isTossed = false;
         } else {
             prevEvent = event;
             nextEvent = event.nextBallEvent()[1];
-            isThrown = true;
+            isTossed = true;
         }
         //Validation of events ?
         if (
-            prevEvent instanceof ThrowEvent &&
+            prevEvent instanceof TossEvent &&
             (nextEvent instanceof CatchEvent || nextEvent instanceof TablePutEvent)
         ) {
             return ballVelocityAtStartEnd(
@@ -216,7 +216,7 @@ export class BallModel {
                 prevEvent.time,
                 this.positionAtEvent(nextEvent),
                 nextEvent.time,
-                isThrown
+                isTossed
             );
         }
         throw Error("Unimplemented behaviour");

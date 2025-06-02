@@ -51,8 +51,8 @@ export function ballVelocityAtStartEnd(
     const v0x = (pos1.x - pos0.x) / dt;
     const v0z = (pos1.z - pos0.z) / dt;
     const v0y = (dt * gravity) / 2 + (pos1.y - pos0.y) / dt;
-    const throw_sign = atStart ? 1 : -1;
-    return new THREE.Vector3(v0x, throw_sign * v0y, v0z);
+    const tossSign = atStart ? 1 : -1;
+    return new THREE.Vector3(v0x, tossSign * v0y, v0z);
 }
 
 /**

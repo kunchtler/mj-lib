@@ -15,6 +15,32 @@ export type PerformanceSimParams = {
     tables?: Map<string, TableSim>;
 };
 
+export class PerformanceAudio {
+    private _performance: WeakRef<PerformanceSim>;
+
+    constructor(performance: PerformanceSim) {
+        this._performance = new WeakRef(performance);
+    }
+
+    get performance() {
+        const performance = this._performance.deref();
+        if (performance === undefined) {
+            throw ReferenceError("No performance ref. This shouldn't happen.");
+        }
+        return performance;
+    }
+
+    setMasterVolume() {}
+
+    getMasterVolume() {}
+
+    pauseAll() {}
+
+    resumeAll() {}
+
+    dispose() {}
+}
+
 export class PerformanceSim {
     object3D: THREE.Object3D;
     model: PerformanceModel;
@@ -107,7 +133,7 @@ export class PerformanceSim {
         const removeEventListenerPause = this._clock.addEventListener("pause", () => {
             for (const ball of this.balls.values()) {
                 //TODO : Make proper pause ?
-                ball.sound?.node.stop();
+                ball.audio?.node.stop();
             }
             // this.requestRenderIfNotRequested(); // TODO : Needed ?
         });
@@ -143,6 +169,7 @@ export class PerformanceSim {
             return;
         }
         //TODO
+
         this._audioEnabled = true;
     }
 

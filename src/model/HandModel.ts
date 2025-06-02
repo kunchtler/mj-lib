@@ -5,7 +5,7 @@ import {
     CatchEvent,
     TablePutEvent,
     TableTakeEvent,
-    ThrowEvent,
+    TossEvent,
     HandTimelineEvent,
     HandTimelineSingleEvent,
     HandTimeline
@@ -23,85 +23,9 @@ import {
 
 const { multiplyByScalar: V3SCA } = VECTOR3_STRUCTURE;
 
-// This variable serves to make hand movements more circular.
-// const power = 1;
-
-function averageVector(vectors: THREE.Vector3[]): THREE.Vector3 {
-    const sum = new THREE.Vector3(0, 0, 0);
-    if (vectors.length === 0) {
-        return sum;
-    }
-    for (const vec of vectors) {
-        sum.add(vec);
-    }
-    sum.divideScalar(vectors.length);
-    return sum;
-}
-
-//TODO : Before launching simulation, console.log all events not sane to help debug.
-//TODO : Reversed catches in parser (to better allow rhtyhmic creation ?)
-function isMultiEventSane(events: HandTimelineEvent): boolean {
-    let nbCatch = 0;
-    let nbThrow = 0;
-    let nbTableTake = 0;
-    let nbTablePut = 0;
-    for (const ev of events.events) {
-        if (ev instanceof CatchEvent) {
-            nbCatch++;
-        } else if (ev instanceof ThrowEvent) {
-            nbThrow++;
-        } else if (ev instanceof TableTakeEvent) {
-            nbTableTake++;
-        } else {
-            nbTablePut++;
-        }
-    }
-    const sum = nbCatch + nbThrow + nbTablePut + nbTableTake;
-    return sum === nbCatch + nbThrow || sum === 1;
-}
-
-export type HandSiteCreationParams = {
-    restSiteDist: number;
-    centerRestDist: number;
-    rightVector: THREE.Vector3;
-    jugglerJugglingPlaneOrigin: THREE.Object3D;
-    isRightHand: boolean;
-};
-
-// TODO : ThrowSite -> TossSite
-//TODO : Add to all classes having to add child/parent meshes that if mesh has no parent, ot
-//instanciates it.
-
-export function createHandSites({
-    centerRestDist,
-    jugglerJugglingPlaneOrigin,
-    restSiteDist,
-    isRightHand,
-    rightVector
-}: HandSiteCreationParams): {
-    catchSite: THREE.Object3D;
-    throwSite: THREE.Object3D;
-    restSite: THREE.Object3D;
-} {
-    const handSign = isRightHand ? 1 : -1;
-    const centerHandUnitVector = V3SCA(handSign / rightVector.length(), rightVector);
-
-    const restSite = new THREE.Object3D();
-    jugglerJugglingPlaneOrigin.add(restSite);
-    restSite.position.copy(V3SCA(centerRestDist, centerHandUnitVector));
-    const throwSite = new THREE.Object3D();
-    jugglerJugglingPlaneOrigin.add(throwSite);
-    throwSite.position.copy(V3SCA(centerRestDist - restSiteDist, centerHandUnitVector));
-    const catchSite = new THREE.Object3D();
-    jugglerJugglingPlaneOrigin.add(catchSite);
-    catchSite.position.copy(V3SCA(centerRestDist + restSiteDist, centerHandUnitVector));
-
-    return { catchSite: catchSite, throwSite: throwSite, restSite: restSite };
-}
-
 export interface HandConstructorParams {
     catchSite: THREE.Object3D;
-    throwSite: THREE.Object3D;
+    tossSite: THREE.Object3D;
     restSite: THREE.Object3D;
     timeline?: HandTimeline;
 }
@@ -109,14 +33,14 @@ export interface HandConstructorParams {
 export class HandModel {
     timeline: HandTimeline;
     catchSite: THREE.Object3D;
-    throwSite: THREE.Object3D;
+    tossSite: THREE.Object3D;
     restSite: THREE.Object3D;
 
-    constructor({ catchSite, restSite, throwSite, timeline }: HandConstructorParams) {
+    constructor({ catchSite, restSite, tossSite, timeline }: HandConstructorParams) {
         this.timeline = timeline ?? new HandTimeline();
         this.restSite = restSite;
         this.catchSite = catchSite;
-        this.throwSite = throwSite;
+        this.tossSite = tossSite;
         // this.jugglingPlaneOrigin = jugglingPlaneOrigin;
         //TODO : jugglingPlaneOrigin parent in 3D scene of catch throw and rest site ?
         //Should we do that here or in juggler ?
@@ -140,12 +64,12 @@ export class HandModel {
 
     /**
      * Returns the position where balls are caught or thrown (such a spot is called a site).
-     * @param isThrown whether we want the position where balls are thrown (true) or caught (false).
+     * @param isTossed whether we want the position where balls are thrown (true) or caught (false).
      * @returns the site position.
      */
-    private sitePosition(isThrown: boolean): THREE.Vector3 {
-        return isThrown
-            ? this.throwSite.getWorldPosition(new THREE.Vector3())
+    private sitePosition(isTossed: boolean): THREE.Vector3 {
+        return isTossed
+            ? this.tossSite.getWorldPosition(new THREE.Vector3())
             : this.catchSite.getWorldPosition(new THREE.Vector3());
     }
 
@@ -202,7 +126,7 @@ export class HandModel {
         if (event instanceof TablePutEvent || event instanceof TableTakeEvent) {
             return event.table.handPositionOverBall(event.ball);
         } else {
-            return this.sitePosition(event instanceof ThrowEvent);
+            return this.sitePosition(event instanceof TossEvent);
         }
     }
 
@@ -287,52 +211,38 @@ export class HandModel {
         const spline = this.getSpline(prevEvent, nextEvent);
         return spline.interpolate(time);
     }
+}
 
-    // hand_position_correction(pos: THREE.Vector3): THREE.Vector3 {
-    //     const dist = pos.distanceTo(this.rest_pos);
-    //     if (dist <= 1e-8) {
-    //         return pos.clone();
-    //     }
-    //     return pos
-    //         .clone()
-    //         .sub(this.rest_pos)
-    //         .multiplyScalar((this.rest_site_dist / dist) ** (1 - power))
-    //         .add(this.rest_pos);
-    // }
+function averageVector(vectors: THREE.Vector3[]): THREE.Vector3 {
+    const sum = new THREE.Vector3(0, 0, 0);
+    if (vectors.length === 0) {
+        return sum;
+    }
+    for (const vec of vectors) {
+        sum.add(vec);
+    }
+    sum.divideScalar(vectors.length);
+    return sum;
+}
 
-    // hand_velocity_jacobian(pos: THREE.Vector3): THREE.Matrix3 {
-    //     const dist = pos.distanceTo(this.rest_pos);
-    //     // TODO? : if (dist == 0) {
-    //     //     return
-    //     // }
-    //     const correction_jacobian = new THREE.Matrix3(
-    //         dist ** 2 / power + pos.x * (pos.x - this.rest_pos.x),
-    //         pos.x * (pos.y - this.rest_pos.y),
-    //         pos.x * (pos.z - this.rest_pos.z),
-    //         pos.y * (pos.x - this.rest_pos.x),
-    //         dist ** 2 / power + pos.y * (pos.y - this.rest_pos.y),
-    //         pos.y * (pos.z - this.rest_pos.z),
-    //         pos.z * (pos.x - this.rest_pos.x),
-    //         pos.z * (pos.y - this.rest_pos.y),
-    //         dist ** 2 / power + pos.z * (pos.z - this.rest_pos.z)
-    //     );
-    //     correction_jacobian.multiplyScalar(
-    //         dist ** (power - 2) * this.rest_site_dist ** -power * power
-    //     );
-    //     return correction_jacobian;
-    // }
-
-    // local_position(time: number): THREE.Vector3 {
-    //     const prev_event = this.timeline.le(time).value;
-    //     const next_event = this.timeline.gt(time).value;
-    //     const spline = this.get_spline(prev_event, next_event);
-    //     const pos = spline.interpolate(time);
-    //     return pos;
-    // return this.hand_position_correction(pos);
-
-    // const prev_event = this.timeline.le(time).value;
-    // const next_event = this.timeline.gt(time).value;
-    // const spline = this.get_spline(prev_event, next_event);
-    // return spline.interpolate(time);
-    // }
+//TODO : Before launching simulation, console.log all events not sane to help debug.
+//TODO : Reversed catches in parser (to better allow rhtyhmic creation ?)
+function isMultiEventSane(events: HandTimelineEvent): boolean {
+    let nbCatch = 0;
+    let nbToss = 0;
+    let nbTableTake = 0;
+    let nbTablePut = 0;
+    for (const ev of events.events) {
+        if (ev instanceof CatchEvent) {
+            nbCatch++;
+        } else if (ev instanceof TossEvent) {
+            nbToss++;
+        } else if (ev instanceof TableTakeEvent) {
+            nbTableTake++;
+        } else {
+            nbTablePut++;
+        }
+    }
+    const sum = nbCatch + nbToss + nbTablePut + nbTableTake;
+    return sum === nbCatch + nbToss || sum === 1;
 }
