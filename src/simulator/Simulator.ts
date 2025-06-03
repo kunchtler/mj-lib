@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { Ball, createBallGeometry, createBallMaterial } from "./Ball";
 import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "./Juggler";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/Addons.js";
 import { createTableGeometry, createTableMaterial, createTableObject, Table } from "./Table";
 import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "../inference/JugglingApp";
 import { FracSortedList, Scheduler } from "../inference/Scheduler";
@@ -13,7 +12,7 @@ import {
     MusicTempo,
     ParserToSchedulerParams,
     simulateEvents,
-    TimeConductor,
+    Clock,
     transformParserParamsToSchedulerParams
 } from "../MusicalJuggling";
 import Fraction from "fraction.js";
@@ -82,7 +81,7 @@ export interface TimeController {
 
 interface SimulatorConstructorParams {
     canvas: HTMLCanvasElement;
-    timeConductor?: TimeConductor;
+    timeConductor?: Clock;
     enableAudio?: boolean;
     controls?: OrbitControls; //TODO : Change to control when updating Threejs.
     camera?: THREE.PerspectiveCamera;
@@ -105,7 +104,7 @@ export class Simulator {
     balls: Map<string, Ball>;
     jugglers: Map<string, Juggler>;
     tables: Map<string, Table>;
-    private timeConductor!: TimeConductor;
+    private timeConductor!: Clock;
     listener?: THREE.AudioListener;
     xrInput: XrInput;
     frame: number;
@@ -198,7 +197,7 @@ export class Simulator {
         this.jugglers = jugglers ?? new Map<string, Juggler>();
         this.tables = tables ?? new Map<string, Table>();
 
-        this.setTimeConductor(timeConductor ?? new TimeConductor());
+        this.setTimeConductor(timeConductor ?? new Clock());
 
         if (enableAudio ?? true) {
             this.listener = new THREE.AudioListener();
@@ -206,7 +205,7 @@ export class Simulator {
         }
 
         // Request render if the canvas size is changed.
-        this._resizeObserver = new ResizeObserver((entries) => {
+        this._resizeObserver = new ResizeObserver(() => {
             // Instead of directly calling a method to resize the canvas,
             // we wait for the next frame to do so (else it causes white flicker).
             this._needsRendererResize = true;
@@ -333,11 +332,11 @@ export class Simulator {
         // this.scene.removeFromParent();
     }
 
-    getTimeConductor(): TimeConductor {
+    getTimeConductor(): Clock {
         return this.timeConductor;
     }
 
-    setTimeConductor(newTimeConductor: TimeConductor) {
+    setTimeConductor(newTimeConductor: Clock) {
         // 1. Remove the old timeConductor's event listeners.
         this._timeConductorEventListeners.forEach((removeEventListenerFunc) => {
             removeEventListenerFunc();
@@ -694,13 +693,13 @@ export class Simulator {
     */
 }
 
-export class SimulatorCanvas {
-    constructor() {}
+// export class SimulatorCanvas {
+//     constructor() {}
 
-    requestRender() {}
+//     requestRender() {}
 
-    private render() {}
-}
+//     private render() {}
+// }
 
 export function resizeRendererToDisplaySize(
     renderer: THREE.WebGLRenderer,

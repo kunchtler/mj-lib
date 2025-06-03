@@ -7,7 +7,7 @@ import { Timeline } from "../simulator/Timeline";
 The epsilon value to use for comparisons ont the timeline.
 Two events apart by less than 0.0001 s are considered to be the same.
 */
-const EPSILON = 1e-5;
+// const EPSILON = 1e-5;
 
 //TODO : Precise in seconds or in milliseconds ?
 // function isApproxEqual(t1: number, t2: number, epsilon = EPSILON): boolean {

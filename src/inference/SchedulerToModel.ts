@@ -57,7 +57,7 @@ export function schedulerToModel({
             new JugglerModel({ defaultTable: tableModel, name: jugglerName })
         );
     }
-    for (const [ballName, { sound, name, id, juggler }] of ballIDSounds) {
+    for (const [ballName, { name, id, juggler }] of ballIDSounds) {
         model.balls.set(
             ballName,
             new BallModel({ defaultJuggler: model.jugglers.get(juggler)!, id: id, name: name }) //TODO : Ajouter "sounds" ?
