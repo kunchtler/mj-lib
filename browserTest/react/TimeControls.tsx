@@ -19,74 +19,72 @@ import { IconPlayerPauseFilled, IconPlayerPlayFilled, IconRotate } from "@tabler
 const DEFAULT_BOUNDS = [0, 20];
 type TimeState = "playing" | "paused" | "reachedEnd";
 
-export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }) {
+export function TimeControls({ clock }: { clock: TimeConductor }) {
     // The timeConductor is the single truth source here, so UI callbacks should
     // interact with timeConductor instead of setting their own state.
 
-    const [status, setStatus] = useState<TimeState>(
-        timeConductor.isPaused() ? "paused" : "playing"
-    );
+    const [status, setStatus] = useState<TimeState>(clock.isPaused() ? "paused" : "playing");
     const [statusBeforeSliderChange, setStatusBeforeSliderChange] = useState<TimeState | undefined>(
         undefined
     );
     const [bounds, setBounds] = useState<[number, number]>([
-        timeConductor.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-        timeConductor.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+        clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+        clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
     ]);
-    const [time, setTime] = useState(timeConductor.getTime());
-    const [playbackRate, setPlaybackRate] = useState(timeConductor.getPlaybackRate());
-    const [loop, setLoop] = useState(timeConductor.getLoop());
+    const [time, setTime] = useState(clock.getTime());
+    const [playbackRate, setPlaybackRate] = useState(clock.getPlaybackRate());
+    const [loop, setLoop] = useState(clock.getLoop());
 
     useEffect(() => {
         // Sets the various states in case the timeConductor has changed.
-        setStatus(timeConductor.isPaused() ? "paused" : "playing");
+        setStatus(clock.isPaused() ? "paused" : "playing");
         setStatusBeforeSliderChange(undefined);
         setBounds([
-            timeConductor.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-            timeConductor.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+            clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+            clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
         ]);
-        setTime(timeConductor.getTime());
-        setPlaybackRate(timeConductor.getPlaybackRate());
-        setLoop(timeConductor.getLoop());
+        setTime(clock.getTime());
+        setPlaybackRate(clock.getPlaybackRate());
+        setLoop(clock.getLoop());
 
         // Adds event listeners, and store their removal method in an array.
         const removeEventListeners: (() => void)[] = [];
         removeEventListeners.push(
-            timeConductor.addEventListener("play", () => {
+            clock.addEventListener("play", () => {
                 setStatus("playing");
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("pause", () => {
+            clock.addEventListener("pause", () => {
                 setStatus("paused");
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("reachedEnd", () => {
+            clock.addEventListener("reachedEnd", () => {
                 setStatus("reachedEnd");
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("timeUpdate", () => {
-                setTime(timeConductor.getTime());
+            clock.addEventListener("timeUpdate", () => {
+                setTime(clock.getTime());
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("playbackRateChange", () => {
-                setPlaybackRate(timeConductor.getPlaybackRate());
+            clock.addEventListener("playbackRateChange", () => {
+                setPlaybackRate(clock.getPlaybackRate());
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("boundsChange", () => {
+            clock.addEventListener("boundsChange", () => {
                 setBounds([
-                    timeConductor.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-                    timeConductor.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+                    clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+                    clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
                 ]);
             })
         );
         removeEventListeners.push(
-            timeConductor.addEventListener("loopChange", () => {
-                setLoop(timeConductor.getLoop());
+            clock.addEventListener("loopChange", () => {
+                setLoop(clock.getLoop());
             })
         );
         // Return a function to remove all event listeners.
@@ -95,18 +93,18 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
                 callback();
             });
         };
-    }, [timeConductor]);
+    }, [clock]);
 
     function onButtonClick() {
         if (status === "playing") {
-            timeConductor.pause();
+            clock.pause();
         } else if (status === "paused") {
-            timeConductor.play().catch((error: unknown) => {
+            clock.play().catch((error: unknown) => {
                 console.warn(error);
             });
         } else {
-            timeConductor.setTime(bounds[0]);
-            timeConductor.play().catch((error: unknown) => {
+            clock.setTime(bounds[0]);
+            clock.play().catch((error: unknown) => {
                 console.warn(error);
             });
         }
@@ -119,15 +117,15 @@ export function TimeControls({ timeConductor }: { timeConductor: TimeConductor }
             setStatusBeforeSliderChange(status);
         }
         if (status !== "paused") {
-            timeConductor.pause();
+            clock.pause();
         }
-        timeConductor.setTime(value);
+        clock.setTime(value);
     }
 
     function onSliderChangeEnd(value: number) {
-        timeConductor.setTime(value);
+        clock.setTime(value);
         if (statusBeforeSliderChange === "reachedEnd" || statusBeforeSliderChange === "playing") {
-            timeConductor.play().catch((error: unknown) => {
+            clock.play().catch((error: unknown) => {
                 console.warn(error);
             });
         }

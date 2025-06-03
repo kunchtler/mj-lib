@@ -32,11 +32,18 @@ export class ThreePositionalAudio extends THREE.PositionalAudio {
     }
 
     /**
-     * Connects the gain from another node.
+     * Disconnects the gain from another node.
      * @param node an AudioNode, or a ThreeJs Audiolistener.
+     * If no node is specified, disconnects from all nodes.
      */
-    disconnectFrom(node: AudioNode | THREE.AudioListener): void {
-        this.gain.disconnect(node instanceof AudioNode ? node : node.getInput());
+    disconnectFrom(node?: AudioNode | THREE.AudioListener): void {
+        if (node === undefined) {
+            this.gain.disconnect();
+        } else if (node instanceof AudioNode) {
+            this.gain.disconnect(node);
+        } else {
+            this.gain.disconnect(node.getInput());
+        }
     }
 }
 
@@ -72,10 +79,17 @@ export class ThreeAudio extends THREE.Audio {
     }
 
     /**
-     * Connects the gain from another node.
+     * Disconnects the gain from another node.
      * @param node an AudioNode, or a ThreeJs Audiolistener.
+     * If no node is specified, disconnects from all nodes.
      */
-    disconnectFrom(node: AudioNode | THREE.AudioListener): void {
-        this.gain.disconnect(node instanceof AudioNode ? node : node.getInput());
+    disconnectFrom(node?: AudioNode | THREE.AudioListener): void {
+        if (node === undefined) {
+            this.gain.disconnect();
+        } else if (node instanceof AudioNode) {
+            this.gain.disconnect(node);
+        } else {
+            this.gain.disconnect(node.getInput());
+        }
     }
 }

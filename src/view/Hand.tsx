@@ -1,34 +1,32 @@
-import { ReactNode, use, useEffect, useRef } from "react";
-import { PerformanceContext, HandContext, JugglerContext } from "./Context";
-import { HandSim as HandSim } from "../simulation/HandSim";
+import { ReactNode, RefObject, use, useRef, useState } from "react";
+import { HandContext, JugglerContext } from "./Context";
 import * as THREE from "three";
+import { ThreeElements } from "@react-three/fiber";
+import mergeRefs from "merge-refs";
+import { FiberObject3D } from "./FiberTypeUtils";
+import { HandSim } from "../simulation/HandSim";
 
-export function Hand({
-    isRight,
-    children
-}: {
+//TODO : Librairie merge refs ?
+
+export type HandReactProps = {
     isRight: boolean;
-    debug?: boolean;
-    children?: ReactNode;
-}) {
-    const juggler = use(JugglerContext);
-    const object3Dref = useRef<THREE.Mesh>(null!);
-    // Setup the hand.
-    useEffect(() => {
-        if (juggler === undefined) {
-            return;
-        }
-        const hand = isRight ? juggler.rightHand : juggler.leftHand;
-        hand.object3D = 
-        return () => {
-            juggler.removeHand(name);
-        };
-    }, [juggler, name, isRight]);
+    // ref?: RefObject<THREE.Object3D>;
+} & FiberObject3D;
 
+export function Hand({ isRight, ref, ...props }: HandReactProps) {
+    const juggler = use(JugglerContext);
+    // const [hand, useHand] = useState<HandSim | undefined>(undefined);
+    const object3DRef = useRef<THREE.Object3D>(null!);
+
+    // The HandSim has already been constructed in the JugglerSim
+    let hand = undefined;
+    if (juggler !== undefined) {
+        hand = isRight ? juggler.rightHand : juggler.leftHand;
+    }
     return (
-        //TODO : Context ?
-        <HandContext value={isRight ? juggler.rightHand : juggler.leftHand}>
-            <group ref={object3Dref}>{children}</group>
+        <HandContext value={hand}>
+            {/*@ts-expect-error React 19's refs are weirdly typed*/}
+            <object3D ref={mergeRefs(object3DRef, ref)} {...props}></object3D>
         </HandContext>
     );
 }

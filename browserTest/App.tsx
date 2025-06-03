@@ -1,33 +1,62 @@
-import { createContext, ReactNode, use, useContext, useEffect, useRef, useState } from "react";
+import { HTMLProps, ReactNode, useRef, useState } from "react";
 
-const TestContext = createContext<string | null>(null);
+export function App({ children }: { children?: ReactNode } = {}) {
+    const [isH1, setIsH1] = useState(true);
+    const ref = useRef<HTMLHeadingElement>(null!);
 
-const ObjContext = createContext<{ x: number } | undefined>(undefined);
+    const toggleHeading = () => {
+        setIsH1((prev) => !prev);
+    };
 
-export function App() {
-    const ref = useRef<HTMLParagraphElement>(null);
-    const [value, setValue] = useState<string | null>(null);
-    const [comp, setComp] = useState<boolean>(true);
-    useEffect(() => {
-        setValue(ref.current?.textContent + "2");
-    }, []);
     return (
-        <>
-            {/* <Test /> */}
+        <div className="p-4 text-center">
+            {isH1 ? <h1 ref={ref}>This is an H1</h1> : <h2 ref={ref}>This is an H2</h2>}
             <button
                 type="button"
-                onClick={() => {
-                    console.log("BUTTONCLICK");
-                    setComp(!comp);
-                }}
-            />
-            <TestContext value={value}>
-                <p ref={ref}>HALLO</p>
-                <Test4>{comp ? <Test3 key={0} /> : <Test3 key={1} />}</Test4>
-            </TestContext>
-        </>
+                onClick={toggleHeading}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+            >
+                Toggle Heading
+            </button>
+            {children}
+        </div>
     );
 }
+
+function Test({ ref }: HTMLProps<HTMLElement>) {
+    useRef;
+}
+
+// import { createContext, ReactNode, use, useContext, useEffect, useRef, useState } from "react";
+
+// const TestContext = createContext<string | null>(null);
+
+// const ObjContext = createContext<{ x: number } | undefined>(undefined);
+
+// export function App() {
+//     const ref = useRef<HTMLParagraphElement>(null);
+//     const [value, setValue] = useState<string | null>(null);
+//     const [comp, setComp] = useState<boolean>(true);
+//     useEffect(() => {
+//         setValue(ref.current?.textContent + "2");
+//     }, []);
+//     return (
+//         <>
+//             {/* <Test /> */}
+//             <button
+//                 type="button"
+//                 onClick={() => {
+//                     console.log("BUTTONCLICK");
+//                     setComp(!comp);
+//                 }}
+//             />
+//             <TestContext value={value}>
+//                 <p ref={ref}>HALLO</p>
+//                 <Test4>{comp ? <Test3 key={0} /> : <Test3 key={1} />}</Test4>
+//             </TestContext>
+//         </>
+//     );
+// }
 
 // export function App() {
 //     const ref = useRef<HTMLParagraphElement>(null);

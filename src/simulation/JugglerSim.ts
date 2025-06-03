@@ -1,46 +1,55 @@
 import * as THREE from "three";
-import { HandSim } from "./HandSim";
+import { HandInfo, HandSim } from "./HandSim";
 import { JugglerModel } from "../model/JugglerModel";
+import { JugglerAudio } from "./audio/JugglerAudio";
 
 export interface JugglerSimParams {
-    object3D: THREE.Mesh;
+    // object3D: THREE.Mesh;
     hands?: [HandSim, HandSim];
     model: JugglerModel;
-    debug?: boolean;
     // allowAudio?: boolean;
 }
 
+export type JugglerInfo = {
+    rightHand: HandInfo;
+    leftHand: HandInfo;
+};
+
 //TODO : Allow to toggle the audio on/off.
 export class JugglerSim {
-    object3D: THREE.Object3D;
-    readonly hands: [HandSim, HandSim];
     model: JugglerModel;
+    readonly hands: [HandSim, HandSim];
+    // object3D: THREE.Object3D;
+    // audio: JugglerAudio;
     // gainNode?: GainNode;
 
-    constructor({ object3D, hands, model, debug }: JugglerSimParams) {
-        this.object3D = object3D;
+    constructor({ hands, model }: JugglerSimParams) {
         this.model = model;
         this.hands = hands ?? [
-            new HandSim({ model: model.hands[0], object3D: new THREE.Object3D(), debug: debug }),
-            new HandSim({ model: model.hands[1], object3D: new THREE.Object3D(), debug: debug })
+            new HandSim({ model: model.hands[0] }),
+            new HandSim({ model: model.hands[1] })
         ];
+        // this.object3D = object3D;
     }
 
     get leftHand(): HandSim {
         return this.hands[0];
     }
 
-    // set leftHand(hand: HandSim) {
-    //     this.hands[0] = hand;
-    // }
+    set leftHand(hand: HandSim) {
+        this.hands[0] = hand;
+    }
 
     get rightHand(): HandSim {
         return this.hands[1];
     }
 
-    // set rightHand(hand: HandSim) {
-    //     this.hands[1] = hand;
-    // }
+    set rightHand(hand: HandSim) {
+        this.hands[1] = hand;
+    }
 
-    dispose() {}
+    fillPositionInfo({ rightHand, leftHand }: JugglerInfo) {
+        this.rightHand.fillPositionInfo(rightHand);
+        this.leftHand.fillPositionInfo(leftHand);
+    }
 }

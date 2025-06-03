@@ -1,73 +1,27 @@
-import * as THREE from "three";
-// import { Object3DHelper } from "../utils/Object3DHelper";
-// import { find_elbow } from "../utils/utils";
-import { HandConstructorParams, HandModel, HandSiteCreationParams } from "./HandModel";
+import { HandModel } from "./HandModel";
 import { TableModel } from "./TableModel";
-
 export interface JugglerParamConstructor {
-    // hands?: [HandModel, HandModel] | [HandConstructorParams, HandConstructorParams];
-    hands: [HandModel, HandModel];
+    hands?: [HandModel, HandModel];
+    name?: string;
     defaultTable?: TableModel;
-    // height?: number;
-    // width?: number;
-    // depth?: number;
-    // arm_length?: number;
-    // default_table?: Table;
 }
 
-const defaultJugglerParam = { height: 1.8, width: 0.5, depth: 0.3, armLength: 0.4 };
-
-//TODO : Optional elbows (but only if defined) ?
-//TODO : Allow to toggle the audio on/off.
 export class JugglerModel {
+    /**
+     * Contains a juggler [leftHand, rightHand].
+     * Can also be accessed with the attributes leftHand and rightHand.
+     *
+     * Tip to remember : the hands are in the same order in the array as your own hands.
+     * The left one is on the left, the right one on the right.
+     */
     readonly hands: [HandModel, HandModel];
+    name: string;
     defaultTable?: TableModel;
-    // height: number;
-    // geometry: THREE.BufferGeometry;
-    // material: THREE.Material;
-    // jugglingOrigin: THREE.Object3D;
-    // shoulder: THREE.Object3D;
-    // elbow: THREE.Object3D;
-    // arm_length: number;
-    // target: THREE.Object3D;
 
-    constructor({ defaultTable, hands }: JugglerParamConstructor) {
-        this.hands = hands;
+    constructor({ defaultTable, name, hands }: JugglerParamConstructor = {}) {
+        this.hands = hands ?? [new HandModel(), new HandModel()];
+        this.name = name ?? "NoName";
         this.defaultTable = defaultTable;
-        // if (hands === undefined) {
-        //     const defaultOriginObject = new THREE.Object3D();
-        //     // this.mesh.add(defaultOriginObject);
-        //     defaultOriginObject.position.set(
-        //         defaultJugglerParam.armLength,
-        //         defaultJugglerParam.height - 0.4 - defaultJugglerParam.armLength,
-        //         0
-        //     );
-        //     const defaultHandSiteParams: Omit<HandSiteCreationParams, "isRightHand"> = {
-        //         centerRestDist: (defaultJugglerParam.depth * 2) / 3,
-        //         restSiteDist: defaultJugglerParam.depth / 4,
-        //         //TODO : Rename to better indicate that is between hands.
-        //         jugglerJugglingPlaneOrigin: defaultOriginObject,
-        //         rightVector: new THREE.Vector3(0, 0, 1)
-        //     };
-        //     const leftHand = new HandModel(
-        //         createHandSites({ ...defaultHandSiteParams, isRightHand: false })
-        //     );
-        //     const rightHand = new HandModel(
-        //         createHandSites({ ...defaultHandSiteParams, isRightHand: true })
-        //     );
-        //     this.hands = [leftHand, rightHand];
-        //     for (const hand of this.hands) {
-        //         defaultOriginObject.add(hand.catchSite);
-        //         defaultOriginObject.add(hand.throwSite);
-        //         defaultOriginObject.add(hand.restSite);
-        //         // this.mesh.add(hand.mesh);
-        //     }
-        // } else if (!(hands[0] instanceof HandModel)) {
-        //     this.hands = [new HandModel(hands[0]), new HandModel(hands[1])];
-        // } else {
-        //     this.hands = hands as [HandModel, HandModel];
-        // }
-        // this.defaultTable = defaultTable;
     }
 
     get leftHand(): HandModel {

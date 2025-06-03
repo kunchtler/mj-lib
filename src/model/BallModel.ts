@@ -32,7 +32,7 @@ interface BallModelParams {
 //TODO : acceleration
 
 export class BallModel {
-    readonly radius: number;
+    radius: number;
     readonly id: string;
     readonly name: string;
     // readonly name: string;

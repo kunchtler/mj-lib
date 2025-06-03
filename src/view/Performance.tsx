@@ -1,25 +1,53 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, RefObject, useEffect, useRef, useState } from "react";
 import { PerformanceSim } from "../simulation/PerformanceSim";
 import { PerformanceContext } from "./Context";
-import { JugglingAppParams, TimeConductor } from "../MusicalJuggling";
+import { TimeConductor } from "../MusicalJuggling";
 import { PerformanceModel } from "../model/PerformanceModel";
+import { ThreeElements, useFrame, useThree } from "@react-three/fiber";
+import { enableMapSet } from "immer";
+import * as THREE from "three";
+import mergeRefs from "merge-refs";
+import { FiberObject3D } from "./FiberTypeUtils";
 
 type PerformanceReactProps = {
-    pattern: JugglingAppParams;
     clock: TimeConductor;
-    model: PerformanceModel;
-    children?: ReactNode;
-};
+    // model: PerformanceModel;
+    performance: PerformanceSim;
+    audio: boolean;
+    // pattern: JugglingAppParams;
+} & FiberObject3D;
 
-export function Performance({ model, clock, children }: PerformanceReactProps) {
-    const [performanceContext] = useState(
-        () => new PerformanceSim({ audioEnabled: true, clock: clock, model: model })
+// enableMapSet();
+
+// TODO : Cool render when timeconductor is paused.
+
+export function Performance({ performance, clock, audio, ref, ...props }: PerformanceReactProps) {
+    // const [performance] = useState(() => new PerformanceSim({ model: model }));
+    const object3DRef = useRef<THREE.Object3D>(null!);
+
+    //TODO : SoundNames / buffer
+
+    // useEffect(() => {
+    //     performance.model = model;
+    // }, [performance, model]);
+
+    // useEffect(() => {
+    //     if (audio) {
+    //         performance.enableAudio({ballsThreeAudio: , bufferMap: })
+    //     } else {
+    //         performance.disableAudio();
+    //     }
+    // })
+
+    // useEffect(() => {
+    //     performance.audio?.setClock(clock);
+    //     // The cleanup happens when a new clock is set.
+    //     // TODO : Change this to make it behave more naturally, with cleanup func ?
+    // }, [clock, performance.audio]);
+
+    return (
+        <PerformanceContext value={performance}>
+            <object3D ref={mergeRefs(object3DRef, ref)} {...props}></object3D>
+        </PerformanceContext>
     );
-
-    // In case the clock changes.
-    useEffect(() => {
-        set;
-    }, [clock, performanceContext]);
-
-    return <PerformanceContext value={performanceContext}>{children}</PerformanceContext>;
 }

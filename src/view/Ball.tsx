@@ -1,52 +1,39 @@
 import * as THREE from "three";
-import { ReactNode, use, useEffect, useRef } from "react";
+import { ReactNode, RefObject, use, useEffect, useRef } from "react";
 import { PerformanceContext } from "./Context";
 import { BallSim as BallSim } from "../simulation/BallSim";
+import { ThreeElements } from "@react-three/fiber";
+import mergeRefs from "merge-refs";
+import { FiberObject3D } from "./FiberTypeUtils";
 
-export const DEFAULT_BALL_RADIUS = 0.05;
-export const DEFAULT_BALL_COLOR = 0xffdbac;
+export type BallReactProps = {
+    name?: string;
+    id: string;
+    radius: number;
+} & FiberObject3D;
 
-export function Ball({ name, children }: { name: string; children?: ReactNode }) {
+export function Ball({ radius, id, ref, ...props }: BallReactProps) {
     const performance = use(PerformanceContext);
     const object3DRef = useRef<THREE.Object3D>(null!);
 
-    // Setup the ball.
+    // Create / delete the ball.
     useEffect(() => {
         if (performance === undefined) {
             return;
         }
-        const ballModel = performance.model.balls.get(name);
+        const ballModel = performance.model.balls.get(id);
         if (ballModel === undefined) {
             return;
         }
         const ball = new BallSim({
-            object3D: object3DRef.current,
             model: ballModel
-        }); //TODO Fill in debug
-        performance.addBall(name, ball);
+        });
+        performance.balls.set(id, ball);
         return () => {
-            performance.removeBall(name);
+            performance.balls.delete(id);
         };
-    }, [performance, name]);
+    }, [performance, radius, id]);
 
-    return <object3D ref={object3DRef}>{children}</object3D>;
+    /*@ts-expect-error React 19's refs are weirdly typed*/
+    return <object3D ref={mergeRefs(object3DRef, ref)} {...props}></object3D>;
 }
-
-// TODO : Add customization options (striped, with middle band, ...)
-export function BallMesh({
-    radius,
-    color
-}: {
-    radius?: number;
-    color?: THREE.ColorRepresentation;
-}) {
-    radius ??= DEFAULT_BALL_RADIUS;
-    color ??= DEFAULT_BALL_COLOR;
-    return (
-        <mesh>
-            <sphereGeometry args={[radius, 8, 4]} />
-            <meshPhongMaterial args={[{ color }]} />
-        </mesh>
-    );
-}
-

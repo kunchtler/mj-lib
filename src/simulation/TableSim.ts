@@ -1,68 +1,39 @@
 import * as THREE from "three";
 import { TableModel } from "../model/TableModel";
 
-// TODO : To debug, show the model helpers !
-
-//TODO : Rename Ball_placement en balls_spot
-//TODO : Change THREE.Vector2 to [number, number]
 export interface TableSimParams {
-    object3D: THREE.Object3D;
     model: TableModel;
-    debug?: boolean;
+    // object3D: THREE.Object3D;
 }
 
+export type TableInfo = {
+    ballPlacement: Map<string, THREE.Vector3>;
+    unknownBallPosition: THREE.Vector3;
+};
+
 export class TableSim {
-    object3D: THREE.Object3D;
     model: TableModel;
-    private _debug: boolean;
+    // object3D: THREE.Object3D;
 
-    constructor({ object3D, debug, model }: TableSimParams) {
-        this.object3D = object3D;
+    constructor({ model }: TableSimParams) {
         this.model = model;
-        this._debug = debug ?? false;
-        if (debug === true) {
-            this.enableDebug();
-        }
+        // this.object3D = object3D;
     }
 
-    addSpot(ballName: string, spot: THREE.Object3D) {
-        this.model.ballsPlacement.set(ballName, spot);
+    fillPositionInfo({ ballPlacement, unknownBallPosition }: TableInfo) {
+        this.model.ballsPlacement = ballPlacement;
+        this.model.unkownBallPosition = unknownBallPosition;
     }
 
-    removeSpot(ballName: string) {
-        this.model.ballsPlacement.delete(ballName);
-    }
+    // addSpot(ballName: string, spot: THREE.Vector3) {
+    //     this.model.ballsPlacement.set(ballName, spot);
+    // }
 
-    setUnknownSpot(spot: THREE.Object3D) {
-        this.model.unkownBallPosition = spot;
-    }
+    // removeSpot(ballName: string) {
+    //     this.model.ballsPlacement.delete(ballName);
+    // }
 
-    debugEnabled(): boolean {
-        return this._debug;
-    }
-
-    enableDebug(): void {
-        if (this.debugEnabled()) {
-            return;
-        }
-        // this._surfaceInternal.add(new Object3DHelper(true, undefined, true));
-        // this._surfaceInternal.add(new THREE.GridHelper(10, 10, "orange", "orange"));
-        // this.mesh.add(this._surfaceInternal);
-        // this.mesh.add(this.bottomLeftCorner);
-        // this.mesh.add(this.upRightCorner);
-        this._debug = true;
-    }
-
-    disableDebug(): void {
-        if (!this.debugEnabled()) {
-            return;
-        }
-        //TODO
-        this._debug = false;
-    }
-
-    dispose(): void {
-        //TODO
-        this.disableDebug();
-    }
+    // setUnknownSpot(spot: THREE.Vector3) {
+    //     this.model.unkownBallPosition = spot;
+    // }
 }

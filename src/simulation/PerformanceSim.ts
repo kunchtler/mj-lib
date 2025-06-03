@@ -4,69 +4,114 @@ import * as THREE from "three";
 import { JugglerSim } from "./JugglerSim";
 import { BallSim } from "./BallSim";
 import { TableSim } from "./TableSim";
+import { PerformanceAudio } from "./audio/PerformanceAudio";
+import { BallAudio } from "./audio/BallAudio";
+import { ThreeAudio, ThreePositionalAudio } from "./CustomThreeAudio";
+import { setIntersection } from "../utils/SetOperations";
+import { immerable } from "immer";
 
 export type PerformanceSimParams = {
-    object3D: THREE.Object3D;
+    // object3D: THREE.Object3D;
     model: PerformanceModel;
     clock: TimeConductor;
-    audioEnabled: boolean;
     jugglers?: Map<string, JugglerSim>;
     balls?: Map<string, BallSim>;
     tables?: Map<string, TableSim>;
 };
 
-export class PerformanceAudio {
-    private _performance: WeakRef<PerformanceSim>;
-
-    constructor(performance: PerformanceSim) {
-        this._performance = new WeakRef(performance);
-    }
-
-    get performance() {
-        const performance = this._performance.deref();
-        if (performance === undefined) {
-            throw ReferenceError("No performance ref. This shouldn't happen.");
-        }
-        return performance;
-    }
-
-    setMasterVolume() {}
-
-    getMasterVolume() {}
-
-    pauseAll() {}
-
-    resumeAll() {}
-
-    dispose() {}
-}
-
 export class PerformanceSim {
-    object3D: THREE.Object3D;
+    [immerable] = true;
+    // object3D: THREE.Object3D;
     model: PerformanceModel;
+    audio?: PerformanceAudio;
     jugglers: Map<string, JugglerSim>;
     balls: Map<string, BallSim>;
     tables: Map<string, TableSim>;
     private _clock: TimeConductor;
-    private _audioEnabled: boolean;
-    private _clockEventListeners: (() => void)[] = [];
+    // private _clockEventListeners: (() => void)[] = [];
 
-    constructor({
-        object3D,
-        model,
-        clock,
-        audioEnabled,
-        jugglers,
-        balls,
-        tables
-    }: PerformanceSimParams) {
-        this.object3D = object3D;
+    constructor({ model, jugglers, balls, tables, clock }: PerformanceSimParams) {
+        // this.object3D = object3D;
         this.model = model;
-        this._clock = clock;
-        this._audioEnabled = audioEnabled;
         this.jugglers = jugglers ?? new Map<string, JugglerSim>();
         this.balls = balls ?? new Map<string, BallSim>();
         this.tables = tables ?? new Map<string, TableSim>();
+        this._clock = clock;
+    }
+
+    getClock(): TimeConductor {
+        return this._clock;
+    }
+
+    setClock(clock: TimeConductor): void {
+        this._clock = clock;
+        if (this.audio !== undefined) {
+            this.audio.setClock(clock);
+        }
+    }
+
+    isAudioEnabled() {
+        return this.audio !== undefined;
+    }
+
+    /**
+     * Enables audio for the whole troup.
+     */
+    enableAudio({
+        ballsThreeAudio,
+        bufferMap,
+        context
+    }: {
+        ballsThreeAudio: Map<string, ThreeAudio | ThreePositionalAudio>;
+        bufferMap: Map<string, AudioBuffer>;
+        context?: AudioContext;
+    }) {
+        if (this.audio !== undefined) {
+            return;
+        }
+        this.audio = new PerformanceAudio({ bufferMap, context, clock: this.getClock() });
+
+        // Set the audio nodes for all balls.
+        //TODO : Change the way this works. + Delete ball.enable as it won't link to PerformanceAudio
+        for (const [name, ballAudio] of ballsThreeAudio) {
+            const ball = this.balls.get(name);
+            if (ball === undefined) {
+                console.warn(`No ball named ${name} exist.`);
+                continue;
+            }
+            ball.enableAudio({
+                threeAudio: ballAudio,
+                bufferMap: bufferMap,
+                connectTo: this.audio.gain
+            });
+            this.audio.balls.set(name, ball.audio!);
+        }
+    }
+
+    /**
+     * Disables audio for the whole troup.
+     * If you only want to temporarily mute the troup, use Troup.setVolume(0) as it doesn't dismount audio nodes.
+     */
+    disableAudio(): void {
+        if (this.audio === undefined) {
+            return;
+        }
+        // Dispose of the PerformanceAudio
+        this.audio.dispose();
+        this.audio = undefined;
+        // Dispose of all audio nodes in the performance.
+        for (const ball of this.balls.values()) {
+            ball.disableAudio();
+        }
+    }
+
+    /**
+     * Properly disposes of the internal ressources of the troup
+     * (namely event listeners, audio nodes, ...)
+     */
+    dispose(): void {
+        // Audio
+        this.disableAudio();
     }
 
     /**
@@ -76,128 +121,28 @@ export class PerformanceSim {
      *  - For each element in the simulation, there is one element in the model (you may have unused models).
      * @returns whether all elements are in place to run the simulation. Running it if it is false may not necessarily disfunction, but may lead to strange results.
      */
-    validateModel(): boolean {
-        // const missingEntities: (Ball | Juggler | Table)[];
-        //TODO : Add check for hands, and others...
-        for (const [name, jugglerModel] of this.model.jugglers) {
-            const jugglerSim = this.jugglers.get(name);
-            if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
-                return false;
-            }
-        }
-        for (const [name, jugglerModel] of this.model.jugglers) {
-            const jugglerSim = this.jugglers.get(name);
-            if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
-                return false;
-            }
-        }
-        for (const [name, jugglerModel] of this.model.jugglers) {
-            const jugglerSim = this.jugglers.get(name);
-            if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    addBall(name: string, ball: BallSim): void {}
-
-    removeBall(name: string): void {}
-
-    addJuggler(name: string, juggler: JugglerSim): void {}
-
-    removeJuggler(name: string): void {}
-
-    addTable(name: string, table: TableSim): void {}
-
-    removeTable(name: string): void {}
-
-    getClock(): TimeConductor {
-        return this._clock;
-    }
-
-    //TODO : React friendly ?
-    setClock(newClock: TimeConductor) {
-        // 1. Remove the old timeConductor's event listeners.
-        this._clockEventListeners.forEach((removeEventListenerFunc) => {
-            removeEventListenerFunc();
-        });
-
-        // 2. Add the new timeConductor and event listeners.
-        this._clock = newClock;
-        // Event listener when play is pressed.
-        const removeEventListenerPlay = this._clock.addEventListener("play", () => {
-            // this.requestRenderIfNotRequested();
-        });
-        // Event listener when pause is pressed.
-        const removeEventListenerPause = this._clock.addEventListener("pause", () => {
-            for (const ball of this.balls.values()) {
-                //TODO : Make proper pause ?
-                ball.audio?.node.stop();
-            }
-            // this.requestRenderIfNotRequested(); // TODO : Needed ?
-        });
-        // Event listener when time changes manually. (Also gets called additionnaly when timer is ticking, TODO fix with either manualUpdate event, or by offsetting to UI the periodic checks (better).)
-        const updateEventListenerPlay = this._clock.addEventListener("timeUpdate", () => {
-            // this.requestRenderIfNotRequested();
-        });
-        this._clockEventListeners = [
-            removeEventListenerPlay,
-            removeEventListenerPause,
-            updateEventListenerPlay
-        ];
-    }
-
-    getVolume(): number | undefined {
-        // return this.listener?.
-        return undefined;
-    }
-
-    setVolume(gain: number): void {
-        // this.listener?.setMasterVolume(gain);
-    }
-
-    isAudioEnabled() {
-        return this._audioEnabled;
-    }
-
-    /**
-     * Enables audio for the whole troup.
-     */
-    enableAudio() {
-        if (this.isAudioEnabled()) {
-            return;
-        }
-        //TODO
-
-        this._audioEnabled = true;
-    }
-
-    /**
-     * Disables audio for the whole troup.
-     * If you only want to temporarily mute the troup, use Troup.setVolume(0) as it doesn't dismount audio nodes.
-     */
-    disableAudio(): void {
-        if (!this.isAudioEnabled()) {
-            return;
-        }
-        //TODO
-        this._audioEnabled = false;
-    }
-
-    /**
-     * Properly disposes of the internal ressources of the troup
-     * (namely event listeners, audio nodes, ...)
-     */
-    dispose(): void {
-        //TODO : to finish, to check
-
-        // Audio
-        this.disableAudio();
-
-        // Clock
-        this._clockEventListeners.forEach((removeEventListenerFunc) => {
-            removeEventListenerFunc();
-        });
-    }
+    // validateModel(): boolean {
+    //     // const missingEntities: (Ball | Juggler | Table)[];
+    //     //TODO : Add check for hands, and others...
+    //     for (const [name, jugglerModel] of this.model.jugglers) {
+    //         const jugglerSim = this.jugglers.get(name);
+    //         if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
+    //             return false;
+    //         }
+    //     }
+    //     for (const [name, jugglerModel] of this.model.jugglers) {
+    //         const jugglerSim = this.jugglers.get(name);
+    //         if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
+    //             return false;
+    //         }
+    //     }
+    //     for (const [name, jugglerModel] of this.model.jugglers) {
+    //         const jugglerSim = this.jugglers.get(name);
+    //         if (jugglerSim === undefined || jugglerSim.model !== jugglerModel) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 }
+

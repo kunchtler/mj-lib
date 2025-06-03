@@ -2,24 +2,29 @@ import * as THREE from "three";
 import { HandModel } from "../model/HandModel";
 
 export interface HandSimParams {
-    object3D: THREE.Object3D;
     model: HandModel;
-    debug?: boolean;
+    // object3D: THREE.Object3D;
 }
 
-export class HandSim {
-    object3D: THREE.Object3D;
-    model: HandModel;
+export type HandInfo = {
+    tossPos: THREE.Vector3;
+    catchPos: THREE.Vector3;
+    restPos: THREE.Vector3;
+};
 
-    constructor({ object3D, model, debug }: HandSimParams) {
-        this.object3D = object3D;
+export class HandSim {
+    model: HandModel;
+    // object3D: THREE.Object3D;
+
+    constructor({ model }: HandSimParams) {
         this.model = model;
+        // this.object3D = object3D;
         // this.object3D.visible = false;
     }
 
-    enabledDebug() {}
-
-    disableDebug() {}
-
-    dispose(): void {}
+    fillPositionInfo({ tossPos, catchPos, restPos }: HandInfo) {
+        this.model.restPos = restPos;
+        this.model.catchPos = catchPos;
+        this.model.tossPos = tossPos;
+    }
 }

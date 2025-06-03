@@ -23,6 +23,8 @@ import { TableModel } from "./TableModel.js";
 import { JugglingAppParams } from "../inference/JugglingApp.js";
 // import { Map as FrozenMap, MapOf } from "immutable";
 
+//TODO : Juggler position in model + Table position in model (so tha tthe model in the single source of truth for poitions.)
+
 // Découpage en petits bouts spécialisés qui communique par des API.
 
 /* TODO : juggling model / simulator / canvas refactor
@@ -87,8 +89,33 @@ All aesthetic things (color, ground)
 // - the pause method of the simulator to freeze it.
 // - the requestRenderIfNotRequested method of the simulator to render a single frame when paused.
 
-interface PerformanceModelParams {
-    origin?: THREE.Vector3;
+//TODO : No threeJS, but immutable vectors in all model ?
+/**
+ * All positions must be given either as world coordinates, or local coordinates to the same object.
+ */
+
+// export type WorldInfo = {
+//     jugglers: Map<string, JugglerInfo>;
+//     tables: Map<string, TableInfo>;
+// };
+
+// export type JugglerInfo = {
+//     rightHand: HandInfo;
+//     leftHand: HandInfo;
+// };
+
+// export type HandInfo = {
+//     tossPos: THREE.Vector3;
+//     catchPos: THREE.Vector3;
+//     restPos: THREE.Vector3;
+// };
+
+// export type TableInfo = {
+//     ballPlacement: Map<string, THREE.Vector3>;
+//     unknownBallPosition: THREE.Vector3;
+// };
+
+export interface PerformanceModelParams {
     jugglers?: Map<string, JugglerModel>;
     balls?: Map<string, BallModel>;
     tables?: Map<string, TableModel>;
@@ -98,15 +125,11 @@ export class PerformanceModel {
     readonly balls: Map<string, BallModel>;
     readonly jugglers: Map<string, JugglerModel>;
     readonly tables: Map<string, TableModel>;
-    origin: THREE.Vector3;
 
-    constructor({ balls, jugglers, tables, origin }: PerformanceModelParams) {
+    constructor({ balls, jugglers, tables }: PerformanceModelParams = {}) {
         this.balls = balls ?? new Map<string, BallModel>();
         this.jugglers = jugglers ?? new Map<string, JugglerModel>();
         this.tables = tables ?? new Map<string, TableModel>();
-        this.origin = origin ?? new THREE.Vector3();
-
-        // this.balls.forEach((ball) => this.origin.add(ball));
     }
 
     /**
@@ -135,6 +158,24 @@ export class PerformanceModel {
             endTime === null ? endTime : endTime + 2
         ];
     }
+
+    // ballPosition(id: string, time: number): THREE.Vector3 | undefined {
+    //     return this.balls.get(id)?.position(time);
+    // }
+    // ballVelocity(id: string, time: number): THREE.Vector3 | undefined {
+    //     return this.balls.get(id)?.velocity(time);
+    // }
+
+    // jugglerPosition(name: string, time: number) {}
+    // jugglerVelocity(name: string, time: number) {}
+    // tablePosition(name: string, time: number) {}
+
+    // handPosition(jugglerName: string, rightHand: boolean, time: number): THREE.Vector3 | undefined {
+    //     return this.jugglers.get(jugglerName)?.hands[rightHand ? 1 : 0].position(time);
+    // }
+    // handVelocity(jugglerName: string, rightHand: boolean, time: number): THREE.Vector3 | undefined {
+    //     return this.jugglers.get(jugglerName)?.hands[rightHand ? 1 : 0].velocity(time);
+    // }
 
     static fromPattern({
         jugglers: rawJugglers,

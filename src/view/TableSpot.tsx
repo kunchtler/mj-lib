@@ -1,10 +1,15 @@
-import { ReactNode, use, useEffect, useRef } from "react";
+import { ReactNode, RefObject, use, useEffect, useRef } from "react";
 import { TableContext } from "./Context";
 import * as THREE from "three";
+import { ThreeElements } from "@react-three/fiber";
+import mergeRefs from "merge-refs";
+import { FiberObject3D } from "./FiberTypeUtils";
 
-//TODO : Problem to reference the inner Object3D ?
+type TableSpotReactProps = {
+    ballName: string;
+} & FiberObject3D;
 
-export function TableSpot({ ballName, children }: { ballName: string; children: ReactNode }) {
+export function TableSpot({ ballName, ref, ...props }: TableSpotReactProps) {
     const table = use(TableContext);
     const spotRef = useRef<THREE.Object3D>(null!);
 
@@ -12,16 +17,20 @@ export function TableSpot({ ballName, children }: { ballName: string; children: 
         if (table === undefined) {
             return;
         }
-        table.addSpot(ballName, spotRef.current);
+        const spotPosition = spotRef.current.getWorldPosition(new THREE.Vector3());
+        table.model.ballsPlacement.set(ballName, spotPosition);
         return () => {
-            table.removeSpot(ballName);
+            table.model.ballsPlacement.delete(ballName);
         };
     }, [table, ballName]);
 
-    return <object3D ref={spotRef}>{children}</object3D>;
+    /*@ts-expect-error React 19's refs are weirdly typed*/
+    return <object3D ref={mergeRefs(spotRef, ref)} {...props}></object3D>;
 }
 
-export function TableUnknownSpot({ children }: { children: ReactNode }) {
+type TableUnknownSpotReactProps = FiberObject3D;
+
+export function TableUnknownSpot({ ref, ...props }: TableUnknownSpotReactProps) {
     const table = use(TableContext);
     const spotRef = useRef<THREE.Object3D>(null!);
 
@@ -29,11 +38,12 @@ export function TableUnknownSpot({ children }: { children: ReactNode }) {
         if (table === undefined) {
             return;
         }
-        table.setUnknownSpot(spotRef.current);
+        spotRef.current.getWorldPosition(table.model.unkownBallPosition);
         return () => {
-            table.setUnknownSpot(new THREE.Object3D());
+            table.model.unkownBallPosition.set(0, 0, 0);
         };
     }, [table]);
 
-    return <object3D ref={spotRef}>{children}</object3D>;
+    /*@ts-expect-error React 19's refs are weirdly typed*/
+    return <object3D ref={mergeRefs(spotRef, ref)} {...props}></object3D>;
 }

@@ -1,24 +1,23 @@
-import { ReactNode, use, useEffect, useRef } from "react";
+import { ReactNode, RefObject, use, useEffect, useRef, useState } from "react";
 import { PerformanceContext, JugglerContext } from "./Context";
 import { JugglerSim as JugglerSim } from "../simulation/JugglerSim";
 import * as THREE from "three";
+import mergeRefs from "merge-refs";
+import { ThreeElements } from "@react-three/fiber";
+import { FiberObject3D } from "./FiberTypeUtils";
 
-type JugglerReactProps = {
+//TODO : Add debug.
+
+export type JugglerReactProps = {
     name: string;
-    debug?: boolean;
-    children?: ReactNode;
-};
+} & FiberObject3D;
 
-export function Juggler({
-    name,
-    // debug,
-    children
-}: JugglerReactProps) {
+export function Juggler({ name, ref, ...props }: JugglerReactProps) {
     const performance = use(PerformanceContext);
-    // const [juggler, setJuggler] = useState<JugglerSim | undefined>(() => performance?.jugglers.get(name));
-    const meshRef = useRef<THREE.Mesh>(null!);
+    const [juggler, setJuggler] = useState<JugglerSim | undefined>(undefined);
+    const object3DRef = useRef<THREE.Object3D>(null!);
 
-    // Setup the juggler.
+    // Create / delete the hand.
     useEffect(() => {
         if (performance === undefined) {
             return;
@@ -27,49 +26,21 @@ export function Juggler({
         if (jugglerModel === undefined) {
             return;
         }
-        const juggler = new JugglerSim({
-            object3D: meshRef.current,
-            model: performance.model.jugglers.get(name)
-        }); //TODO Fill in debug
-        performance.addJuggler(name, juggler);
+        const newJuggler = new JugglerSim({ model: jugglerModel });
+        performance.jugglers.set(name, newJuggler);
+        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+        setJuggler(newJuggler);
         return () => {
-            performance.removeJuggler(name);
+            performance.jugglers.delete(name);
+            setJuggler(undefined);
         };
     }, [performance, name]);
 
     return (
         //TODO : Context ?
-        <JugglerContext value={performance?.jugglers.get(name)}>
-            <group ref={meshRef}>{children}</group>
+        <JugglerContext value={juggler}>
+            {/*@ts-expect-error React 19's refs are weirdly typed*/}
+            <object3D ref={mergeRefs(object3DRef, ref)} {...props}></object3D>
         </JugglerContext>
-    );
-}
-
-export const DEFAULT_JUGGLER_CUBE_HEIGHT = 1.8;
-export const DEFAULT_JUGGLER_CUBE_WIDTH = 0.5;
-export const DEFAULT_JUGGLER_CUBE_DEPTH = 0.3;
-export const DEFAULT_JUGGLER_CUBE_COLOR = 0x202020;
-
-//TODO : Customization options
-export function JugglerMesh({
-    height,
-    width,
-    depth,
-    color
-}: {
-    height?: number;
-    width?: number;
-    depth?: number;
-    color?: THREE.ColorRepresentation;
-}) {
-    height ??= DEFAULT_JUGGLER_CUBE_HEIGHT;
-    width ??= DEFAULT_JUGGLER_CUBE_WIDTH;
-    depth ??= DEFAULT_JUGGLER_CUBE_DEPTH;
-    color ??= DEFAULT_JUGGLER_CUBE_COLOR;
-    // TODO : How to translate geometry ?
-    return (
-        <mesh>
-            <meshPhongMaterial args={[{ color }]} />
-        </mesh>
     );
 }

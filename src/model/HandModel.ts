@@ -21,45 +21,25 @@ import {
 //TODO : Replace HandEventInterface by HandEventTimeline in function signatures ?
 //TODO : Better handle type checking of multievent ?
 
-const { multiplyByScalar: V3SCA } = VECTOR3_STRUCTURE;
 
 export interface HandConstructorParams {
-    catchSite: THREE.Object3D;
-    tossSite: THREE.Object3D;
-    restSite: THREE.Object3D;
+    catchSite?: THREE.Vector3;
+    tossSite?: THREE.Vector3;
+    restSite?: THREE.Vector3;
     timeline?: HandTimeline;
 }
 
 export class HandModel {
     timeline: HandTimeline;
-    catchSite: THREE.Object3D;
-    tossSite: THREE.Object3D;
-    restSite: THREE.Object3D;
+    catchPos: THREE.Vector3;
+    tossPos: THREE.Vector3;
+    restPos: THREE.Vector3;
 
-    constructor({ catchSite, restSite, tossSite, timeline }: HandConstructorParams) {
+    constructor({ catchSite, restSite, tossSite, timeline }: HandConstructorParams = {}) {
         this.timeline = timeline ?? new HandTimeline();
-        this.restSite = restSite;
-        this.catchSite = catchSite;
-        this.tossSite = tossSite;
-        // this.jugglingPlaneOrigin = jugglingPlaneOrigin;
-        //TODO : jugglingPlaneOrigin parent in 3D scene of catch throw and rest site ?
-        //Should we do that here or in juggler ?
-
-        // const {
-        //     centerRestDist,
-        //     jugglerJugglingPlaneOrigin: originObject,
-        //     restSiteDist,
-        //     rightVector
-        // } = handPhysicsHandling;
-        // const handSign = isRightHand ? 1 : -1;
-        // const centerHandUnitVector = V3SCA(handSign, rightVector);
-
-        // this.restSite = new THREE.Object3D();
-        // this.restSite.position.copy(V3SCA(centerRestDist, centerHandUnitVector));
-        // this.throwSite = new THREE.Object3D();
-        // this.throwSite.position.copy(V3SCA(centerRestDist - restSiteDist, centerHandUnitVector));
-        // this.catchSite = new THREE.Object3D();
-        // this.catchSite.position.copy(V3SCA(centerRestDist + restSiteDist, centerHandUnitVector));
+        this.restPos = restSite ?? new THREE.Vector3(0, 0, 0);
+        this.catchPos = catchSite ?? new THREE.Vector3(0, 0, 0);
+        this.tossPos = tossSite ?? new THREE.Vector3(0, 0, 0);
     }
 
     /**
@@ -67,11 +47,9 @@ export class HandModel {
      * @param isTossed whether we want the position where balls are thrown (true) or caught (false).
      * @returns the site position.
      */
-    private sitePosition(isTossed: boolean): THREE.Vector3 {
-        return isTossed
-            ? this.tossSite.getWorldPosition(new THREE.Vector3())
-            : this.catchSite.getWorldPosition(new THREE.Vector3());
-    }
+    // private sitePosition(isTossed: boolean): THREE.Vector3 {
+    //     return isTossed ? this.tossSite : this.catchSite;
+    // }
 
     /**
      * Computes the velocity of a single-event. Used internally to later compute the velocity of a multi-event (an event where multiple tosses, catches, and other) happen at the same time.
@@ -126,7 +104,7 @@ export class HandModel {
         if (event instanceof TablePutEvent || event instanceof TableTakeEvent) {
             return event.table.handPositionOverBall(event.ball);
         } else {
-            return this.sitePosition(event instanceof TossEvent);
+            return event instanceof TossEvent ? this.tossPos : this.restPos;
         }
     }
 
@@ -137,7 +115,7 @@ export class HandModel {
      */
     positionAtEvent(multiEv: HandTimelineEvent | null): THREE.Vector3 {
         if (multiEv === null || multiEv.events.length === 0) {
-            return this.restSite.getWorldPosition(new THREE.Vector3());
+            return this.restPos;
         }
         if (!isMultiEventSane(multiEv)) {
             return this.positionAtSingleEvent(multiEv.events[multiEv.events.length - 1]);

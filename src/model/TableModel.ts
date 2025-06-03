@@ -8,20 +8,23 @@ import { BallModel } from "./BallModel";
 // TODO : Use a normal vector to identify the table's "top".
 
 export interface TableConstructorParameters {
-    ballsPlacement?: Map<string, THREE.Object3D>;
-    unkownBallPosition?: THREE.Object3D;
+    name?: string;
+    ballsPlacement?: Map<string, THREE.Vector3>;
+    unkownBallPosition?: THREE.Vector3;
 }
 
 /**
  * Describes a table within the model.
  */
 export class TableModel {
-    ballsPlacement: Map<string, THREE.Object3D>;
-    unkownBallPosition: THREE.Object3D;
+    name: string;
+    ballsPlacement: Map<string, THREE.Vector3>;
+    unkownBallPosition: THREE.Vector3;
 
-    constructor({ ballsPlacement, unkownBallPosition }: TableConstructorParameters = {}) {
-        this.ballsPlacement = ballsPlacement ?? new Map<string, THREE.Object3D>();
-        this.unkownBallPosition = unkownBallPosition ?? new THREE.Object3D();
+    constructor({ name, ballsPlacement, unkownBallPosition }: TableConstructorParameters = {}) {
+        this.name = name ?? "NoName";
+        this.ballsPlacement = ballsPlacement ?? new Map<string, THREE.Vector3>();
+        this.unkownBallPosition = unkownBallPosition ?? new THREE.Vector3(0, 0, 0);
     }
 
     /**
@@ -31,8 +34,7 @@ export class TableModel {
      */
     ballPosition(ball: BallModel): THREE.Vector3 {
         // TODO : Change id to name ?
-        const positionObject = this.ballsPlacement.get(ball.name) ?? this.unkownBallPosition;
-        return positionObject.getWorldPosition(new THREE.Vector3());
+        return this.ballsPlacement.get(ball.name) ?? this.unkownBallPosition;
     }
 
     /**
@@ -48,5 +50,3 @@ export class TableModel {
         return pos;
     }
 }
-
-// export function createTablePlacement({}: Map<string, THREE.Object3D>): 

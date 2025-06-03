@@ -60,6 +60,7 @@ export default tseslint.config({
         ],
         "@typescript-eslint/no-unnecessary-template-expression": "warn",
         "@typescript-eslint/no-empty-function": "warn",
-        "@typescript-eslint/no-extraneous-class": "warn"
+        "@typescript-eslint/no-extraneous-class": "warn",
+        "@eslint-react/hooks-extra/no-direct-set-state-in-use-effect": "off"
     }
 });
