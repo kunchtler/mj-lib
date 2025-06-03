@@ -1,122 +1,160 @@
-import { Juggler, JugglingAppParams, Simulator, TimeConductor } from "../../src/MusicalJuggling";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Performance } from "../../src/view/Performance";
+import {
+    BasicBall,
+    BasicBallProps,
+    BasicJuggler,
+    BasicJugglerParams,
+    BasicTable
+} from "../../src/view/Default3DModels";
+import { TimeConductor } from "../../src/MusicalJuggling";
+import { useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
-import styles from "./simulator.module.css";
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { pattern as pattern1 } from "./jugglingPattern";
-import { Affix } from "@mantine/core";
-import { VRButton } from "./VRButton";
-import { VRButton as VRButtonThree } from "three/examples/jsm/Addons.js";
-import { WebGLRenderer } from "three";
+import { PerformanceModel } from "../../src/model/PerformanceModel";
+import { PerformanceSim } from "../../src/simulation/PerformanceSim";
+import { BallSim } from "../../src/simulation/BallSim";
 import * as THREE from "three";
+import { pattern } from "./pattern";
+import { patternToModel } from "../../src/model/PatternToModel";
+import { OrbitControls } from "@react-three/drei";
+import styles from "./simulator.module.css";
+import mergeRefs from "merge-refs";
 
-//TODO : Handle timecontrol styles better ?
-// TODO : When separation of canvas and simulator, see where to put simulator.onVRstart/end.
+//TODO : styles ?
+//TODO : clock optional for performance ?
 
-function App() {
-    // const [pattern, setPattern] = useState<JugglingAppParams>(pattern1);
-    // const [playbackRate, setPlaybackRate] = useState(1);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    // const rendererRef = useRef<WebGLRenderer>(null);
-    const simulatorRef = useRef<Simulator>(null);
-    const [timeConductor, setTimeConductor] = useState<TimeConductor>(new TimeConductor());
-    const [showVRButton, setShowVRButton] = useState(false); //TODO : Find better solution to this.
-
-    useEffect(() => {
-        // Create renderer using the existing canvas
-        const simulator = new Simulator({
-            canvas: canvasRef.current!,
-            enableAudio: true,
-            scene: { backgroundColor: "#444444" },
-            timeConductor: timeConductor
-        });
-        simulator.setupPattern(pattern1);
-        // const renderer = simulator.renderer;
-        // rendererRef.current = renderer;
-        simulatorRef.current = simulator;
-        // const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-        // renderer.setSize(window.innerWidth, window.innerHeight);
-        // renderer.xr.enabled = true;
-
-        // Add VRButton to the DOM
-        // document.body.appendChild(VRButtonThree.createButton(renderer));
-
-        // renderer.setAnimationLoop(simulator.render);
-
-        setShowVRButton(true);
-
-        return () => {
-            simulator.dispose();
-            timeConductor.dispose();
-        };
-    }, [timeConductor]);
-
-    // useEffect(() => {
-    //     const simulator = new Simulator({ canvas: canvasRef.current!, enableAudio: true });
-    //     simulator.renderer.xr.enabled = true;
-    //     simulator.renderer.setAnimationLoop(simulator.render);
-    //     simulatorRef.current = simulator;
-    //     // const root = document.getElementById("root");
-    //     // root?.appendChild(VRButtonThree.createButton(simulator.renderer));
-    //     // simulatorRef.current = new Simulator({
-    //     //     canvas: canvasRef.current!,
-    //     //     enableAudio: true,
-    //     //     scene: { backgroundColor: "#444444" },
-    //     //     timeConductor: timeConductorRef.current
-    //     // });
-    //     // simulatorRef.current.renderer.xr.enabled = true;
-    //     // simulatorRef.current.renderer.setAnimationLoop(simulatorRef.current.render);
-    //     setShowVRButton(true);
-    // }, []);
-
-    // useEffect(() => {
-    //     simulatorRef.current!.scene.background = new THREE.Color(sceneBackgroundColor);
-    //     simulatorRef.current!.requestRenderIfNotRequested();
-    // }, [sceneBackgroundColor]);
-
-    // useEffect(() => {
-    //     simulatorRef.current!.reset();
-    //     simulatorRef.current!.setupPattern(pattern);
-    // }, [pattern]);
-
-    // useEffect(() => {
-    //     simulatorRef.current!.timeController.playbackRate = playbackRate ?? 1;
-    // }, [playbackRate]);
-
-    let vrButton: ReactNode;
-    if (showVRButton) {
-        vrButton = (
-            <Affix position={{ bottom: "md", right: "md" }}>
-                <VRButton
-                    renderer={simulatorRef.current!.renderer}
-                    onVRStart={simulatorRef.current!.onVRstart}
-                    onVREnd={simulatorRef.current!.onVRend}
-                />
-            </Affix>
-        );
-    } else {
-        vrButton = <></>;
-    }
+export function App() {
+    const [clock] = useState(() => new TimeConductor());
+    const [model] = useState(() => patternToModel(pattern));
 
     return (
         <>
-            <canvas ref={canvasRef} className={styles.simulator} />
+            <Canvas frameloop="demand">
+                <color args={[0x444444]} attach={"background"} />
+                <OrbitControls enableDamping={false} />
+                <ambientLight args={[0xfefded, 2]} />
+                <directionalLight args={[0xfefded, 1]} />
+                <axesHelper args={[1.5]} position={[0, 0.01, 0]} />
+                <gridHelper args={[30, 30]} />
+                <CanvasContent clock={clock} model={model} />
+            </Canvas>
             <div className={styles.timecontrols}>
-                <TimeControls timeConductor={timeConductor} />
+                <TimeControls clock={clock} />
             </div>
-            {vrButton}
-            {/* <ColorPicker onChange={handleBackgroundColorChange}></ColorPicker> */}
         </>
     );
-    // return (
-    //     <>
-    //         <canvas ref={canvasRef} />
-    //         {showVRButton ? (
-    //             <VRButton renderer={/*rendererRef.current!*/ simulatorRef.current!.renderer} />
-    //         ) : (
-    //             <></>
-    //         )}
-    //     </>
-    // );
 }
 
-export default App;
+function CanvasContent({ clock, model }: { clock: TimeConductor; model: PerformanceModel }) {
+    const [performance] = useState(() => new PerformanceSim({ model: model, clock: clock }));
+    const ballsRef = useRef(new Map<string, THREE.Object3D>());
+    const jugglersRef = useRef(
+        new Map<string, { leftHand: THREE.Object3D; rightHand: THREE.Object3D }>()
+    );
+
+    useFrame(() => {
+        const time = performance.getClock().getTime();
+
+        // Update the balls' positions.
+        for (const [id, { model }] of performance.balls) {
+            const ballObject = ballsRef.current.get(id);
+            if (ballObject !== undefined) {
+                ballObject.position.copy(model.position(time));
+            }
+        }
+
+        // Update the hands' positions.
+        for (const [name, { model }] of performance.jugglers) {
+            const jugglerObject = jugglersRef.current.get(name);
+            if (jugglerObject !== undefined) {
+                jugglerObject.leftHand.position.copy(model.leftHand.position(time));
+                jugglerObject.rightHand.position.copy(model.rightHand.position(time));
+            }
+        }
+    });
+
+    const ballsData = [
+        { id: "Do?K", note: "Do", color: "red" },
+        { id: "Re?K", note: "Re", color: "orange" },
+        { id: "Mi?K", note: "Mi", color: "yellow" }
+    ];
+
+    const jugglersData = [{ name: "Kylian", position: [-1, 0, 0] as [number, number, number] }];
+
+    function mapBalls({ id, ref, ...props }: BasicBallProps) {
+        return (
+            <BasicBall
+                id={id}
+                key={id}
+                ref={mergeRefs((elem) => {
+                    if (elem === null) {
+                        ballsRef.current.delete(id);
+                    } else {
+                        ballsRef.current.set(id, elem);
+                    }
+                    /*@ts-expect-error React 19's refs are weirdly typed*/
+                }, ref)}
+                {...props}
+            />
+        );
+    }
+    // <BasicBall
+    //     id="Do?K"
+    //     color="red"
+    //     ref={(elem) => {
+    //         if (elem !== null) {
+    //             ballsRef.current.set("Do?K", elem);
+    //         }
+    //     }}
+    // />
+
+    function mapJuggler({ name, ...props }: BasicJugglerParams) {
+        return (
+            <BasicJuggler
+                name={name}
+                key={name}
+                rightHandRef={(elem) => {
+                    const ref = jugglersRef.current.get(name);
+                    if (ref !== undefined) {
+                        ref.rightHand = elem;
+                    } else {
+                        jugglersRef.current.delete(name);
+                    }
+                }}
+                leftHandRef={(elem) => {
+                    const ref = jugglersRef.current.get(name);
+                    if (ref !== undefined) {
+                        ref.leftHand = elem;
+                    } else {
+                        jugglersRef.current.delete(name);
+                    }
+                }}
+                {...props}
+            />
+        );
+    }
+    // <BasicJuggler
+    //     name="Kylian"
+    //     position={[-1, 0, 0]}
+    //     rightHandRef={(elem) => {
+    //         const ref = jugglersRef.current.get("Kylian");
+    //         if (ref !== undefined) {
+    //             ref.rightHand = elem;
+    //         }
+    //     }}
+    //     leftHandRef={(elem) => {
+    //         const ref = jugglersRef.current.get("Kylian");
+    //         if (ref !== undefined) {
+    //             ref.leftHand = elem;
+    //         }
+    //     }}
+    // />
+
+    return (
+        <Performance audio={true} clock={clock} performance={performance}>
+            {jugglersData.map((elem) => mapJuggler(elem))}
+            <BasicTable name="KylianT" position={[0, 0, 0]} rotation={[0, Math.PI, 0]} />
+            {ballsData.map((elem) => mapBalls(elem))}
+        </Performance>
+    );
+}

@@ -18,7 +18,7 @@ import {
 } from "../MusicalJuggling";
 import Fraction from "fraction.js";
 import { V3SCA } from "../utils/three/StaticOp";
-import { XrInput } from './XRControls/xrInput.js';
+import { XrInput } from "./XRControls/xrInput.js";
 
 // Découpage en petits bouts spécialisés qui communique par des API.
 
@@ -43,8 +43,6 @@ The model handles :
  - The Listener is linked to the camera
 */
 
-
-
 //TODO : Handle sounds pausing when simulator pauses.
 //TODO : Handle gentle implementation of sounds (do not make them mandatory).
 //TODO : Make empty timeline balls behave better than throwing an error.
@@ -62,6 +60,8 @@ The model handles :
 
 //TODO : onended.
 //TODO : Change getPatternDuration to getPatternBounds and return undefined not null.
+
+//TODO :
 
 //TODO : Create default class implementing TimeController.
 // The TimeController Interface is used to connect the simulator to an interface.
@@ -100,6 +100,8 @@ export class Simulator {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     controls?: OrbitControls;
+    private _needsRendererResize = false;
+    private _resizeObserver: ResizeObserver;
     balls: Map<string, Ball>;
     jugglers: Map<string, Juggler>;
     tables: Map<string, Table>;
@@ -108,8 +110,6 @@ export class Simulator {
     xrInput: XrInput;
     frame: number;
     private _timeConductorEventListeners: (() => void)[] = [];
-    private _needsRendererResize = false;
-    private _resizeObserver: ResizeObserver;
     // readonly audioEnabled: boolean;
     // playBackRate: number;
     // paused: boolean;
@@ -157,11 +157,26 @@ export class Simulator {
                     this.scene.add(light);
                 }
             } else {
+                // const loader = new THREE.CubeTextureLoader();
+                // loader.setPath("src/assets/skybox/");
+
+                // loader
+                //     .loadAsync(["px.png", "nx.png", "py.png", "ny.png", "pz.png", "nz.png"])
+                //     .then((texture) => {
+                //         this.scene.background = texture;
+                //     })
+                //     .catch((error: unknown) => {
+                //         console.warn(error);
+                //     });
+
+                // this.scene.background = textureCube;
                 this.scene.background = backgroundColor;
-                const ambient_light = new THREE.AmbientLight(this.scene.background, 2);
+                const ambient_light = new THREE.AmbientLight(0xfefded, 2);
                 this.scene.add(ambient_light);
-                const light = new THREE.DirectionalLight(0xffffff, 1);
-                light.position.set(4, 2, -1);
+                const light = new THREE.DirectionalLight(0xfefded, 1);
+                light.position.set(0, 1, 0);
+                const helper = new THREE.DirectionalLightHelper(light);
+                this.scene.add(helper);
                 this.scene.add(light);
             }
         }
@@ -679,7 +694,7 @@ export class Simulator {
     */
 }
 
-export class MyCanvas {
+export class SimulatorCanvas {
     constructor() {}
 
     requestRender() {}
