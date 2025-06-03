@@ -15,12 +15,11 @@ import {
     Table
 } from "../simulator/Table";
 import { Ball, createBallGeometry, createBallMaterial } from "../simulator/Ball";
-import { getNoteBuffer } from "../simulator/NoteBank";
+import { getNoteBuffer } from "../audio/NoteBank";
 import { V3SCA } from "../utils/three/StaticOp";
 import { EventSound } from "../simulator/Timeline";
 import { simulateEvents } from "./SchedulerToSimulator";
-import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
-import { TimeConductor } from "../MusicalJuggling";
+import { Clock } from "../MusicalJuggling";
 
 export type RawPreParserEvent = {
     tempo?: string;
@@ -162,7 +161,7 @@ export function jugglingApp(
     const schedulerParams = transformParserParamsToSchedulerParams(parserParams);
     const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
 
-    const timeConductor = new TimeConductor();
+    const timeConductor = new Clock();
     // timeConductor.playbackRate = 0.1;
     const simulator = new Simulator({
         canvas: canvas,
@@ -275,7 +274,6 @@ export function jugglingApp(
         musicConverter: musicConverter
     });
 
-    const timeBounds = simulator.getPatternDuration(); //TODO : FIX ! (problem sur les bords.)
     // createControls(
     //     document.body,
     //     timeConductor,

@@ -2,9 +2,9 @@
 //TODO : Rename as Clock ?
 //TODO : Change filename.
 
-import { EventDispatcher } from "../utils/EventDispatcher";
+import { EventDispatcher } from "./EventDispatcher";
 
-export interface TimeConductorParam {
+export interface ClockParam {
     startTime?: number;
     playbackRate?: number;
     autoplay?: boolean;
@@ -12,7 +12,7 @@ export interface TimeConductorParam {
     loop?: boolean;
 }
 
-type TimeConductorEvents =
+type ClockEvents =
     | "play"
     | "pause"
     | "reachedEnd"
@@ -25,6 +25,8 @@ type TimeConductorEvents =
 //TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
 //TODO : clean TimeController interface.
 //TODO : Try playbackrate of 0 + negative.
+//TODO 30/05/25 : Remove manual trigger and make it responability of person using a clock to have updates ?
+// Or allow both with option to customize callback frequency. Properly handle the stop signal that must arrive on time.
 
 /**
  * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
@@ -39,20 +41,22 @@ type TimeConductorEvents =
  * - playbackRateChange: Whenever the playback rate changes.
  * - boundsChange: Whevenever the bounds (start and end time) change.
  */
-export class TimeConductor extends EventDispatcher<TimeConductorEvents> /*implements TimeController*/ {
+export class Clock extends EventDispatcher<ClockEvents> /*implements TimeController*/ {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
     private _paused: boolean;
     private _timeupdateInterval?: number;
+    // private _stopInterval?: number;
     private _bounds: [number | undefined, number | undefined];
     private _loop: boolean;
+    // private _timeupdateIntervalTime: number;
 
     /**
      * TODOSignals
      * @param param0
      */
-    constructor({ startTime, playbackRate, autoplay, bounds, loop }: TimeConductorParam = {}) {
+    constructor({ startTime, playbackRate, autoplay, bounds, loop }: ClockParam = {}) {
         super();
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
