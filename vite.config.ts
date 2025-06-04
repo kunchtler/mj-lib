@@ -4,6 +4,7 @@ import libAssetsPlugin from "@laynezh/vite-plugin-lib-assets";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { PluginOptions } from "babel-plugin-react-compiler";
+import { externalizeDeps } from "vite-plugin-externalize-deps";
 
 const assetsDir = "src/assets/";
 const ReactCompilerConfig: Partial<PluginOptions> = {
@@ -26,17 +27,18 @@ export default defineConfig((config) => {
             target: "esnext",
             minify: false,
             rollupOptions: {
-                external: ["three", "js-sdsl", "fraction.js", "antlr4", /^three/],
+                // external: ["three", "js-sdsl", "fraction.js", "antlr4", /^three/],
                 output: {
-                    globals: {
-                        three: "THREE",
-                        "three/addons/controls/OrbitControls.js": "OrbitControls"
-                    },
+                    // globals: {
+                    //     three: "THREE",
+                    //     "three/addons/controls/OrbitControls.js": "OrbitControls"
+                    // },
                     assetFileNames: assetsDir
                 }
             }
         },
         plugins: [
+            externalizeDeps(),
             react({
                 babel: {
                     plugins: [
