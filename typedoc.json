@@ -1,0 +1,27 @@
+{
+    "entryPoints": [
+        "./src/index.ts"
+    ],
+    "out": "./docs",
+    "externalPattern": [
+        "**/node_modules/**"
+    ],
+    "categorizeByGroup": true,
+    // "categoryOrder": [
+    //     "Model",
+    //     "React"
+    // ],
+    "navigation": {
+        "includeCategories": true,
+        "includeGroups": true
+    },
+    "excludeExternals": true,
+    // "excludeProtected": true,
+    // "excludePrivate": true,
+    // "excludeInternal": true
+    // "includeVersion": true,
+    // "hideGenerator": true,
+    "plugin": [
+        "typedoc-plugin-coverage",
+    ]
+}

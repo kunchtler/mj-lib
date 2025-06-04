@@ -23,5 +23,8 @@ dist-ssr
 # ANTLR
 .antlr
 
+# Docs generated with Typedoc
+docs
+
 # Custom folders
 **/IGNORE
