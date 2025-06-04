@@ -187,7 +187,7 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
             this.sound === undefined
                 ? ""
                 : `emits ${this.sound.loop ? "looping " : ""}sound ${this.sound.name} `;
-        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand ${soundText}(time: ${this.time}).`;
+        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand ${soundText}(time: ${this.time}s).`;
     }
 }
 
@@ -234,7 +234,7 @@ export class AbstractHandEvent implements HandEventInterface {
     }
 
     stringify(): string {
-        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand (time: ${this.time}).`;
+        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand (time: ${this.time}s).`;
     }
 }
 
