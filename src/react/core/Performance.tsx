@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { PerformanceView } from "../view/PerformanceView";
+import { PerformanceView } from "../../view/PerformanceView";
 import { PerformanceContext } from "./Context";
-import { Clock } from "../MusicalJuggling";
+import { Clock } from "../../MusicalJuggling";
 import { ThreeElements } from "@react-three/fiber";
 import * as THREE from "three";
 import mergeRefs from "merge-refs";

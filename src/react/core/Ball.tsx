@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { use, useEffect, useRef } from "react";
 import { PerformanceContext } from "./Context";
-import { BallView } from "../view/BallView";
+import { BallView } from "../../view/BallView";
 import { ThreeElements } from "@react-three/fiber";
 import mergeRefs from "merge-refs";
 

@@ -1,6 +1,6 @@
 import { use, useEffect, useRef, useState } from "react";
 import { PerformanceContext, TableContext } from "./Context";
-import { TableView } from "../view/TableView";
+import { TableView } from "../../view/TableView";
 import * as THREE from "three";
 import { ThreeElements } from "@react-three/fiber";
 import mergeRefs from "merge-refs";
