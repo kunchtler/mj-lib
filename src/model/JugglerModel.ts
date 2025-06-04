@@ -19,7 +19,10 @@ export class JugglerModel {
     defaultTable?: TableModel;
 
     constructor({ defaultTable, name, hands }: JugglerParamConstructor = {}) {
-        this.hands = hands ?? [new HandModel(), new HandModel()];
+        this.hands = hands ?? [
+            new HandModel({ juggler: this, isRightHand: false }),
+            new HandModel({ juggler: this, isRightHand: true })
+        ];
         this.name = name ?? "NoName";
         this.defaultTable = defaultTable;
     }

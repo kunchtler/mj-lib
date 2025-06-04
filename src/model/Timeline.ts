@@ -3,19 +3,17 @@ import { HandModel } from "./HandModel";
 import { TableModel } from "./TableModel";
 import { OrderedMap } from "js-sdsl";
 
-// TODO : Add transition throw -> TablePut.
 // TODO : time redundant if in EventType ? Remove it ?
-// TODO : Two kind of sound events : once when event happens + until next event.
+// Garbage in, garbage out.
 
+//TODO : Methods to create / modify / delete events without interacting with OrderedMap directly ?
+//TODO : Rename key to time ?
+// (and to not mess up modifying or fusing of events for instance)
 /**
  * Generic timeline class. Allows a single event to exist at different times.
  * Internally, uses js-sdsl OrderedMap class to keep elements ordered as they are added.
  */
-export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType> {
-    //TODO : Methods to create / modify / delete events without interacting with OrderedMap directly ?
-    //TODO : Rename key to time ?
-    // (and to not mess up modifying or fusing of events for instance)
-
+export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventType> {
     /**
      * Get the closest event before a given time.
      * @param time a time to search for.
@@ -25,7 +23,7 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
      * - [null, null] if no event is after the target time.
      * - [time, event] otherwise.
      */
-    prevEvent(time: KeyType, strict = false): [KeyType, EventType] | [null, null] {
+    prevEvent(time: TimeType, strict = false): [TimeType, EventType] | [null, null] {
         const it = strict ? this.reverseUpperBound(time) : this.reverseLowerBound(time);
         //We make a copy of the contents of the list because the list itself
         //is a proxy otherwise (which has unfridenly console.logs).
@@ -41,7 +39,7 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
      * - [null, null] if no event is before the target time.
      * - [time, event] otherwise.
      */
-    nextEvent(time: KeyType, strict = true): [KeyType, EventType] | [null, null] {
+    nextEvent(time: TimeType, strict = true): [TimeType, EventType] | [null, null] {
         const it = strict ? this.upperBound(time) : this.lowerBound(time);
         return it.isAccessible() ? [...it.pointer] : [null, null];
     }
@@ -52,7 +50,7 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
      * - [null, null] if no event is in the timeline.
      * - [startTime, endTime] otherwise.
      */
-    timeBounds(): [KeyType, KeyType] | [null, null] {
+    timeBounds(): [TimeType, TimeType] | [null, null] {
         const itBegin = this.begin();
         const itEnd = this.rBegin();
         if (!itBegin.isAccessible()) {
@@ -63,20 +61,22 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
     }
 
     /**
-     * Prints the whole timeline in a human friendly fashion.
-     * @param stringifyKey an optional function to stringify the time.
-     * @param stringifyElem an optional function to stringify the events.
+     * Create a string of the whole timeline in a human friendly fashion.
+     * @param stringifyTime an optional function to stringify the time.
+     * @param stringifyEvent an optional function to stringify the events.
+     * @returns a string.
      */
-    prettyPrint(
-        stringifyKey?: (key: KeyType) => string,
-        stringifyElem?: (elem: EventType) => string
-    ): void {
+    stringify(
+        stringifyTime?: (key: TimeType) => string,
+        stringifyEvent?: (elem: EventType) => string
+    ) {
+        let text = "";
         this.forEach(([time, event]) => {
-            console.log(
-                `${stringifyKey === undefined ? time : stringifyKey(time)} : \
-                ${stringifyElem === undefined ? event : stringifyElem(event)}`
-            );
+            text += `\
+${stringifyTime === undefined ? time : stringifyTime(time)}: \
+${stringifyEvent === undefined ? event : stringifyEvent(event)}\n`;
         });
+        return text;
     }
 }
 
@@ -84,7 +84,15 @@ export class Timeline<KeyType, EventType> extends OrderedMap<KeyType, EventType>
  * Basic interface for a juggling event. All juggling events interfaces extend it.
  */
 export interface BaseEvent {
+    /**
+     * The time the event happens at in seconds.
+     */
     time: number;
+    /**
+     * Represent the event in a human readible format (useful for debugging).
+     * @returns a pretty string.
+     */
+    stringify: () => string;
 }
 
 /**
@@ -102,7 +110,7 @@ export interface EventSound {
 }
 
 /**
- * Base interface for an event involving a ball.
+ * Base interface for all events involving a ball.
  */
 export interface BallEventInterface extends BaseEvent {
     /**
@@ -110,42 +118,79 @@ export interface BallEventInterface extends BaseEvent {
      */
     ball: BallModel;
     /**
-     * A verb charcterising the event (eg. tossed, caught, ...) to help with printing debug information.
+     * Verb charcterising the event (eg. tossed, caught, ...) to help with printing debug information.
      */
-    errorBallStatus: string;
+    actionDescription: string;
     /**
-     * A method to access the next ball event in the ball's timeline of events.
+     * Access the next ball event in the ball's timeline of events.
+     * @returns
+     * - [null, null] if this event is the last and there aren't any after.
+     * - [timeOfTheEvent, event] otherwise.
      */
-    nextBallEvent(): [number, BallTimelineEvent] | [null, null];
+    nextBallEvent: () => [number, BallTimelineEvent] | [null, null];
     /**
-     * A method to acces the previous ball event in the ball's timeline of events.
+     * Access the previous ball event in the ball's timeline of events.
+     * @returns
+     * - [null, null] if this event is the first and there aren't any before.
+     * - [timeOfTheEvent, event] otherwise.
      */
-    prevBallEvent(): [number, BallTimelineEvent] | [null, null];
+    prevBallEvent: () => [number, BallTimelineEvent] | [null, null];
     /**
-     * TODO
+     * Whether the ball should emit some sound when that event happens.
      */
     sound?: EventSound;
 }
 
-//TODO : Handle unit_time ?
-//TODO : Remove time from BaseEvent and only rely on the one of the timeline ?
-//TODO : Remove next_hand_event and prev_hand_event from Catch/Throw ? (instead only have hand)
+/**
+ * Base interface for all events (both single and multi events) involving a hand.
+ */
 export interface HandEventInterface extends BaseEvent {
+    /**
+     * The hand the event references.
+     */
     hand: HandModel;
+    /**
+     * The juggling unit time of the juggler when the event happened.
+     */
     unitTime: number;
+    /**
+     * A method to access the next hand multi-event in the ball's timeline of events.
+     */
     nextHandEvent(): [number, HandTimelineEvent] | [null, null];
+    /**
+     * A method to acces the previous hand multi-event in the ball's timeline of events.
+     */
     prevHandEvent(): [number, HandTimelineEvent] | [null, null];
+    /**
+     * If the current event is part of a bigger multi-event at the same time, this method returns that multi-event.
+     */
     handMultiEvent(): HandTimelineEvent | null;
 }
 
+/**
+ * Class used to represent an event involving both a ball and a hand.
+ */
 export class AbstractBallHandEvent implements BallEventInterface, HandEventInterface {
+    /**
+     * Internal reference to the ball, as a WeakRef to also garbage collection.
+     */
     private _ballRef: WeakRef<BallModel>;
+    /**
+     * Internal reference to the hand, as a WeakRef to also garbage collection.
+     */
     private _handRef: WeakRef<HandModel>;
     time: number;
     unitTime: number;
-    readonly errorBallStatus: string = "unnamed attribute";
+    readonly actionDescription: string = "unnamed attribute";
     sound?: EventSound;
 
+    /**
+     * @param param.time - the time the event happens at.
+     * @param param.unitTime - the unit time of the juggler at that time.
+     * @param param.sound - the sound the ball makes at that time.
+     * @param param.ball - the ball involved in that event.
+     * @param param.hand - the hand involved in that event.
+     */
     constructor({
         time,
         unitTime,
@@ -210,14 +255,26 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
         const it = this.hand.timeline.find(this.time);
         return it.isAccessible() ? it.pointer[1] : null;
     }
+
+    stringify(): string {
+        const soundText =
+            this.sound === undefined
+                ? ""
+                : `emits ${this.sound.loop ? "looping " : ""}sound ${this.sound.name} `;
+        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand ${soundText}(time: ${this.time}).`;
+    }
 }
 
-//TODO : Move sound_name to AbstractBallEvent as we don't want hand to make sound.
+/**
+ * Class used to represent an event involving a Hand.
+ */
 export class AbstractHandEvent implements HandEventInterface {
+    /**
+     * Internal reference to the hand, as a WeakRef to also garbage collection.
+     */
     private _handRef: WeakRef<HandModel>;
     time: number;
     unitTime: number;
-    // private _cached_tree_iterator:
 
     constructor({ time, unitTime, hand }: { time: number; unitTime: number; hand: HandModel }) {
         this.time = time;
@@ -249,9 +306,19 @@ export class AbstractHandEvent implements HandEventInterface {
         const it = this.hand.timeline.find(this.time);
         return it.isAccessible() ? it.pointer[1] : null;
     }
+
+    stringify(): string {
+        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand (time: ${this.time}).`;
+    }
 }
 
-export class AbstractTableEvent extends AbstractBallHandEvent {
+/**
+ * Class used to represent an event involving a ball, a table and a hand.
+ */
+export class AbstractBallTableHandEvent extends AbstractBallHandEvent {
+    /**
+     * The tabel the event involves.
+     */
     table: TableModel;
 
     constructor({
@@ -274,22 +341,37 @@ export class AbstractTableEvent extends AbstractBallHandEvent {
     }
 }
 
+/**
+ * Event when a ball is tossed by a hand.
+ */
 export class TossEvent extends AbstractBallHandEvent {
-    readonly errorBallStatus = "thrown";
+    readonly actionDescription = "tossed";
 }
 
+/**
+ * Event when a ball is caught by a hand.
+ */
 export class CatchEvent extends AbstractBallHandEvent {
-    readonly errorBallStatus = "caught";
+    readonly actionDescription = "caught";
 }
 
-export class TablePutEvent extends AbstractTableEvent {
-    readonly errorBallStatus = "put on table";
+/**
+ * Event when a ball is put on a table with a hand.
+ */
+export class TablePutEvent extends AbstractBallTableHandEvent {
+    readonly actionDescription = "put on table";
 }
 
-export class TableTakeEvent extends AbstractTableEvent {
-    readonly errorBallStatus = "taken from table";
+/**
+ * Event when a ball is taken from a table with a hand.
+ */
+export class TableTakeEvent extends AbstractBallTableHandEvent {
+    readonly actionDescription = "taken from table";
 }
 
+/**
+ * Class that represents multiple hand events happening at the exact same time (for instance, catching multiple balls).
+ */
 export class HandMultiEvent<T extends HandEventInterface> extends AbstractHandEvent {
     events: T[];
     constructor({
@@ -308,23 +390,45 @@ export class HandMultiEvent<T extends HandEventInterface> extends AbstractHandEv
     }
 }
 
-//TODO : move ball error status to AbstractBallEvent only (not hand)
-// export class HandMultiCatchThrowEvent extends HandMultiEvent<CatchEvent | ThrowEvent> {}
-// export class HandMultiTablePutTakeEvent extends HandMultiEvent<TablePutEvent | TableTakeEvent> {}
-
-// export type HandTimelineEvent = HandMultiCatchThrowEvent | HandMultiTablePutTakeEvent;
+/** Union of all single-events that a hand can perform in the timeline. */
 export type HandTimelineSingleEvent = CatchEvent | TossEvent | TableTakeEvent | TablePutEvent;
+/** All multi-events that a hand can perform in the timeline. */
 export type HandTimelineEvent = HandMultiEvent<HandTimelineSingleEvent>;
+/** All events a that a ball can perform in the timeline. */
 export type BallTimelineEvent = CatchEvent | TossEvent | TablePutEvent | TableTakeEvent;
 
-//TODO : Make it so balls are unique in events field in HandMultiCatchThrow, and in HandMultiTakePut.
+// export class HandMultiCatchThrowEvent extends HandMultiEvent<CatchEvent | ThrowEvent> {}
+// export class HandMultiTablePutTakeEvent extends HandMultiEvent<TablePutEvent | TableTakeEvent> {}
+// export type HandTimelineEvent = HandMultiCatchThrowEvent | HandMultiTablePutTakeEvent;
+// // Make it so balls are unique in events field in HandMultiCatchThrow, and in HandMultiTakePut.
 
+/**
+ * Represents the timeline of a ball in the model.
+ */
 export class BallTimeline extends Timeline<number, BallTimelineEvent> {
-    addEvent(ev: BallTimelineEvent) {
+    /**
+     * Add an event in the timeline (at time event.time)
+     * @param ev the event to add.
+     */
+    addEvent(ev: BallTimelineEvent): void {
         this.setElement(ev.time, ev);
+    }
+
+    /**
+     * Create a string of the whole timeline in a human friendly fashion.
+     * @returns a string.
+     */
+    stringify(): string {
+        return super.stringify(
+            (key) => `${key}s`,
+            (elem) => elem.stringify()
+        );
     }
 }
 
+/**
+ * Represents the timeline of a hand in the model.
+ */
 export class HandTimeline extends Timeline<number, HandTimelineEvent> {
     prevEvent(time: number, strict = false): [number, HandTimelineEvent] | [null, null] {
         let lastEvent = super.prevEvent(time, strict);
@@ -348,63 +452,36 @@ export class HandTimeline extends Timeline<number, HandTimelineEvent> {
         return nextEvent;
     }
 
-    addEvent(ev: HandTimelineSingleEvent): void {
-        const it = this.find(ev.time);
+    /**
+     * Add a single-event in the timeline (at time event.time).
+     * If there were already events happening there, it handles them as
+     * a multi-event.
+     * @param singleEv the single-event to add.
+     */
+    addEvent(singleEv: HandTimelineSingleEvent): void {
+        const it = this.find(singleEv.time);
         // Case 1: The multi-event doesn't exist, or exists but is empty.
         if (!it.isAccessible() || it.pointer[1].events.length === 0) {
             this.setElement(
-                ev.time,
+                singleEv.time,
                 new HandMultiEvent({
-                    time: ev.time,
-                    unitTime: ev.unitTime,
-                    hand: ev.hand,
-                    events: [ev]
+                    time: singleEv.time,
+                    unitTime: singleEv.unitTime,
+                    hand: singleEv.hand,
+                    events: [singleEv]
                 })
             );
         }
     }
-}
 
-// type ValidHandEventPair = [null, null | ThrowEvent | TablePutEvent | TableTakeEvent] | [CatchEvent, null | ThrowEvent | TablePutEvent] | [ThrowEvent, CatchEvent | TablePutEvent] | [TablePutEvent, TableTakeEvent] | [TableTakeEvent, null | ThrowEvent | TablePutEvent];
-// type ValidBallEventPair = [];
-
-/*
-if (prev_event === null) {
-    if (next_event === null) {}
-    if (next_event instanceof CatchEvent) {}
-    if (next_event instanceof ThrowEvent) {}
-    if (next_event instanceof TablePutEvent) {}
-    if (next_event instanceof TableTakeEvent) {}
+    /**
+     * Create a string of the whole timeline in a human friendly fashion.
+     * @returns a string.
+     */
+    stringify(): string {
+        return super.stringify(
+            (key) => `${key}s`,
+            (elem) => elem.stringify()
+        );
+    }
 }
-if (prev_event instanceof CatchEvent) {
-    if (next_event === null) {}
-    if (next_event instanceof CatchEvent) {}
-    if (next_event instanceof ThrowEvent) {}
-    if (next_event instanceof TablePutEvent) {}
-    if (next_event instanceof TableTakeEvent) {}
-}
-if (prev_event instanceof ThrowEvent) {
-    if (next_event === null) {}
-    if (next_event instanceof CatchEvent) {}
-    if (next_event instanceof ThrowEvent) {}
-    if (next_event instanceof TablePutEvent) {}
-    if (next_event instanceof TableTakeEvent) {}
-}
-if (prev_event instanceof TablePutEvent) {
-    if (next_event === null) {}
-    if (next_event instanceof CatchEvent) {}
-    if (next_event instanceof ThrowEvent) {}
-    if (next_event instanceof TablePutEvent) {}
-    if (next_event instanceof TableTakeEvent) {}
-}
-if (prev_event instanceof TableTakeEvent) {
-    if (next_event === null) {}
-    if (next_event instanceof CatchEvent) {}
-    if (next_event instanceof ThrowEvent) {}
-    if (next_event instanceof TablePutEvent) {}
-    if (next_event instanceof TableTakeEvent) {}
-}
-throw Error("Unimplemented behaviour");
-*/
-
-// class HandCustomMovementEvent {}

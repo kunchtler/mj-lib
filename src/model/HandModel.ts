@@ -10,6 +10,7 @@ import {
     HandTimelineSingleEvent,
     HandTimeline
 } from "./Timeline";
+import { JugglerModel } from "./JugglerModel";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -21,11 +22,12 @@ import {
 //TODO : Replace HandEventInterface by HandEventTimeline in function signatures ?
 //TODO : Better handle type checking of multievent ?
 
-
 export interface HandConstructorParams {
     catchSite?: THREE.Vector3;
     tossSite?: THREE.Vector3;
     restSite?: THREE.Vector3;
+    juggler: JugglerModel;
+    isRightHand: boolean;
     timeline?: HandTimeline;
 }
 
@@ -34,12 +36,35 @@ export class HandModel {
     catchPos: THREE.Vector3;
     tossPos: THREE.Vector3;
     restPos: THREE.Vector3;
+    isRightHand: boolean;
+    private _jugglerRef: WeakRef<JugglerModel>;
 
-    constructor({ catchSite, restSite, tossSite, timeline }: HandConstructorParams = {}) {
+    constructor({
+        catchSite,
+        restSite,
+        tossSite,
+        juggler,
+        isRightHand,
+        timeline
+    }: HandConstructorParams) {
         this.timeline = timeline ?? new HandTimeline();
         this.restPos = restSite ?? new THREE.Vector3(0, 0, 0);
         this.catchPos = catchSite ?? new THREE.Vector3(0, 0, 0);
         this.tossPos = tossSite ?? new THREE.Vector3(0, 0, 0);
+        this._jugglerRef = new WeakRef(juggler);
+        this.isRightHand = isRightHand;
+    }
+
+    get juggler(): JugglerModel {
+        const obj = this._jugglerRef.deref();
+        if (obj === undefined) {
+            throw new Error("Juggler is undefined");
+        }
+        return obj;
+    }
+
+    set juggler(newJuggler: JugglerModel) {
+        this._jugglerRef = new WeakRef(newJuggler);
     }
 
     /**
