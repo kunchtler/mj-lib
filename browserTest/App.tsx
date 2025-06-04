@@ -11,7 +11,7 @@ import { PerformanceModel } from "../src/model/PerformanceModel";
 import { PerformanceView } from "../src/view/PerformanceView";
 import * as THREE from "three";
 import { pattern } from "./pattern";
-import { patternToModel } from "../src/model/PatternToModel";
+import { patternToModel } from "../src/inference/PatternToModel";
 import { OrbitControls } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import mergeRefs from "merge-refs";

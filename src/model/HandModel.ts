@@ -7,9 +7,9 @@ import {
     TableTakeEvent,
     TossEvent,
     HandTimelineEvent,
-    HandTimelineSingleEvent,
-    HandTimeline
-} from "./ModelTimelines";
+    HandTimelineSingleEvent
+} from "./timelines/TimelineEvents";
+import { HandTimeline, isMultiEventSane } from "./timelines/HandTimeline";
 import { JugglerModel } from "./JugglerModel";
 
 //TODO : Change the fact that all methods have get in front of them
@@ -22,39 +22,71 @@ import { JugglerModel } from "./JugglerModel";
 //TODO : Replace HandEventInterface by HandEventTimeline in function signatures ?
 //TODO : Better handle type checking of multievent ?
 
-export interface HandConstructorParams {
-    catchSite?: THREE.Vector3;
-    tossSite?: THREE.Vector3;
-    restSite?: THREE.Vector3;
+/**
+ * Interface for the constructor of HandModel.
+ */
+export interface handModel {
+    /**
+     * The place where the hand catches balls.
+     */
+    catchPos?: THREE.Vector3;
+    /**
+     * The place where the hand tosses balls.
+     */
+    tossPos?: THREE.Vector3;
+    /**
+     * The place where the hand rests when it has nothing to do
+     * for its foreseable future.
+     */
+    restPos?: THREE.Vector3;
+    /**
+     * The juggler the hand belongs to.
+     */
     juggler: JugglerModel;
-    isRightHand: boolean;
+    /**
+     * The timeline of events (throws, catches, ...) of the hand.
+     */
     timeline?: HandTimeline;
 }
 
+/**
+ * A model class that can perform many computations
+ * (position, velocity, ...) representing a hand.
+ */
 export class HandModel {
-    timeline: HandTimeline;
+    /**
+     * The place where the hand catches balls.
+     */
     catchPos: THREE.Vector3;
+    /**
+     * The place where the hand tosses balls.
+     */
     tossPos: THREE.Vector3;
+    /**
+     * The place where the hand rests when it has nothing to do
+     * for its foreseable future.
+     */
     restPos: THREE.Vector3;
-    isRightHand: boolean;
+    /**
+     * The timeline of events (throws, catches, ...) of the hand.
+     */
+    timeline: HandTimeline;
+    /**
+     * Internal reference to the juggler the hand belongs to, as a WeakRef to allow garbage collection.
+     */
     private _jugglerRef: WeakRef<JugglerModel>;
 
-    constructor({
-        catchSite,
-        restSite,
-        tossSite,
-        juggler,
-        isRightHand,
-        timeline
-    }: HandConstructorParams) {
+    constructor({ catchPos, restPos, tossPos, juggler, timeline }: handModel) {
         this.timeline = timeline ?? new HandTimeline();
-        this.restPos = restSite ?? new THREE.Vector3(0, 0, 0);
-        this.catchPos = catchSite ?? new THREE.Vector3(0, 0, 0);
-        this.tossPos = tossSite ?? new THREE.Vector3(0, 0, 0);
+        this.restPos = restPos ?? new THREE.Vector3(0, 0, 0);
+        this.catchPos = catchPos ?? new THREE.Vector3(0, 0, 0);
+        this.tossPos = tossPos ?? new THREE.Vector3(0, 0, 0);
         this._jugglerRef = new WeakRef(juggler);
-        this.isRightHand = isRightHand;
     }
 
+    /**
+     * The juggler the hand belongs to.
+     */
     get juggler(): JugglerModel {
         const obj = this._jugglerRef.deref();
         if (obj === undefined) {
@@ -68,13 +100,12 @@ export class HandModel {
     }
 
     /**
-     * Returns the position where balls are caught or thrown (such a spot is called a site).
-     * @param isTossed whether we want the position where balls are thrown (true) or caught (false).
-     * @returns the site position.
+     * Whether this hand is the right or the left one of the juggler.
+     * @returns a boolean
      */
-    // private sitePosition(isTossed: boolean): THREE.Vector3 {
-    //     return isTossed ? this.tossSite : this.catchSite;
-    // }
+    isRightHand(): boolean {
+        return this.juggler.rightHand === this;
+    }
 
     /**
      * Computes the velocity of a single-event. Used internally to later compute the velocity of a multi-event (an event where multiple tosses, catches, and other) happen at the same time.
@@ -152,13 +183,7 @@ export class HandModel {
         return averageVector(positions);
     }
 
-    //TODO : Move unit_time info to simulator level.
-    //TODO : Better handle local/global corrdinates functions ?
-    //eg : make local functions private and global public.
-    //or make spline global. Better ?
-    //TODO : Make HandEventInterface[] have its own time ?
-    // TODO : Add a little bit of impact based on speed after throw / catch. Ou quand la ball sonne et qu'on la claque dans la main.
-    //Rather clamp position ?
+    // TODO : Add a little bit of impact based on speed after throw / catch. Ou quand la ball sonne et qu'on la claque dans la main. Rather clamp position ?
     /**
      * Returns the hand's trajectory (spline) in between two consecutive events).
      * @param prevEvent the previous event.
@@ -216,6 +241,11 @@ export class HandModel {
     }
 }
 
+/**
+ * Computes the component-wise average of 3D Vectors.
+ * @param vectors an array of ThreeJS 3D vectors.
+ * @returns the average vector.
+ */
 function averageVector(vectors: THREE.Vector3[]): THREE.Vector3 {
     const sum = new THREE.Vector3(0, 0, 0);
     if (vectors.length === 0) {
@@ -226,26 +256,4 @@ function averageVector(vectors: THREE.Vector3[]): THREE.Vector3 {
     }
     sum.divideScalar(vectors.length);
     return sum;
-}
-
-//TODO : Before launching simulation, console.log all events not sane to help debug.
-//TODO : Reversed catches in parser (to better allow rhtyhmic creation ?)
-function isMultiEventSane(events: HandTimelineEvent): boolean {
-    let nbCatch = 0;
-    let nbToss = 0;
-    let nbTableTake = 0;
-    let nbTablePut = 0;
-    for (const ev of events.events) {
-        if (ev instanceof CatchEvent) {
-            nbCatch++;
-        } else if (ev instanceof TossEvent) {
-            nbToss++;
-        } else if (ev instanceof TableTakeEvent) {
-            nbTableTake++;
-        } else {
-            nbTablePut++;
-        }
-    }
-    const sum = nbCatch + nbToss + nbTablePut + nbTableTake;
-    return sum === nbCatch + nbToss || sum === 1;
 }

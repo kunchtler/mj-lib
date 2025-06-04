@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Spline } from "../spline/Spline";
 
-class SplineThree<SplineT extends Spline<THREE.Vector3>> extends THREE.Curve<THREE.Vector3> {
+export class SplineThree<SplineT extends Spline<THREE.Vector3>> extends THREE.Curve<THREE.Vector3> {
     readonly type = "SplineThree";
     spline: SplineT;
 

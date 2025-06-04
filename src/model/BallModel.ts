@@ -4,39 +4,68 @@ import {
     TossEvent,
     TablePutEvent,
     TableTakeEvent,
-    BallTimelineEvent,
-    BallTimeline
-} from "./ModelTimelines";
+    BallTimelineEvent
+} from "./timelines/TimelineEvents";
+import { BallTimeline } from "./timelines/BallTimeline";
 import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 
+//TODO : Remove ID alltogether in the whole project for balls. We only have the name (which must be unique) and the eventual sound the ball makes.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
-//TODO : Better encapsulate what parameters are dependent on which (for ex, ofor combo mesh + radius)
-interface BallModelParams {
-    radius?: number;
-    id?: string;
-    name?: string;
-    timeline?: BallTimeline;
-    defaultJuggler?: JugglerModel;
-}
-
-//TODO : Fusionner les évènements de main et de balles ?
-//TODO : Defaults for constructors here and in simulator
-//TODO : Checks that hand/ball examined is indeed for this ball / hand and not another ?
-//TODO : Remove Tone to only use WebAudio API / THREEjs audio.
-//TODO : Better handling of sound when ball is caught / is launched / is flying (unify this ?)
-//TODO : At some point, custom sound nodes ?
-//TODO : Pause / Unpause sound.
-
+//TODO : What is readonly ?
 //TODO : velocity
 //TODO : acceleration
 
+/**
+ * Interface for the constructor of BallModel.
+ */
+interface BallModelParams {
+    /**
+     * The name of the ball. TODO : Will change.
+     */
+    name?: string;
+    /**
+     * The unique ID amongst of ball of the ball. TODO : Will change.
+     */
+    id?: string;
+    /**
+     * The radius of the ball.
+     */
+    radius?: number;
+    /**
+     * The timeline of events (throws, catches, ...) of the ball.
+     */
+    timeline?: BallTimeline;
+    /**
+     * A juggler the ball belongs to (if it makes sense, a ball may travel between jugglers all the time for instance).
+     */
+    defaultJuggler?: JugglerModel;
+}
+
+/**
+ * A model class that can perform many computations
+ * (position, velocity, ...) representing a ball.
+ */
 export class BallModel {
+    /**
+     * The radius of the ball.
+     */
     radius: number;
-    readonly id: string;
-    readonly name: string;
-    // readonly name: string;
+    /**
+     * The unique ID amongst of ball of the ball. TODO : Will change.
+     */
+    id: string;
+    /**
+     * The name of the ball. TODO : Will change.
+     */
+    name: string;
+    /**
+     * The timeline of events (throws, catches, ...) of the ball.
+     */
     timeline: BallTimeline;
+    /**
+     * A juggler the ball belongs to (if it makes sense, a ball may travel between jugglers all the time for instance).
+     */
     defaultJuggler?: JugglerModel;
 
     constructor({ radius, id, name, timeline, defaultJuggler }: BallModelParams = {}) {
