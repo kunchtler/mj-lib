@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { Timeline } from "../simulator/Timeline";
+import { Timeline } from "../utils/Timeline";
 
 //TODO : Messages d'erreurs avec position.
 
@@ -7,7 +7,7 @@ import { Timeline } from "../simulator/Timeline";
 The epsilon value to use for comparisons ont the timeline.
 Two events apart by less than 0.0001 s are considered to be the same.
 */
-const EPSILON = 1e-5;
+// const EPSILON = 1e-5;
 
 //TODO : Precise in seconds or in milliseconds ?
 // function isApproxEqual(t1: number, t2: number, epsilon = EPSILON): boolean {
@@ -23,7 +23,6 @@ function timePerMeasure(
 ): Fraction {
     return signature.div(tempoNote).mul(new Fraction(60).div(tempoBpm));
 }
-//TODO : Make vanilla timeline in utils rather than in simulator folder.
 //TODO : Confusion in what a beat is (if sig 3/4 and tempo 1/4. Is beat : 0, 1, 2 or 0/4, 1/4, 2/4 ??)
 export type MusicTime = [number, Fraction];
 export type MusicTempo = { note: Fraction; bpm: number };

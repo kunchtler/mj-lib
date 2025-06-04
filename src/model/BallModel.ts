@@ -6,7 +6,7 @@ import {
     TableTakeEvent,
     BallTimelineEvent,
     BallTimeline
-} from "./Timeline";
+} from "./ModelTimelines";
 import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 
@@ -59,11 +59,11 @@ export class BallModel {
         const str1 =
             event1 === null
                 ? `has previous event null`
-                : `is ${event1.errorBallStatus} at time ${event1.time}`;
+                : `is ${event1.actionDescription} at time ${event1.time}`;
         const str2 =
             event2 === null
                 ? `has next event null`
-                : `is ${event2.errorBallStatus} at time ${event2.time}`;
+                : `is ${event2.actionDescription} at time ${event2.time}`;
         throw Error(`Ball ${this.id} ${str1} and ${str2}.`);
     }
 

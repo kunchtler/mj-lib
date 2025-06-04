@@ -1,28 +1,84 @@
 import Fraction from "fraction.js";
-import { FracSortedList, SimulatorEvent, Hands } from "./Scheduler";
-import { MusicBeatConverter, MusicTempo } from "./MusicBeatConverter";
+import { Hand } from "./Hand";
+import { Juggler } from "./Juggler";
+import { Simulator } from "./Simulator";
+import { Table } from "./Table";
+import { FracSortedList, SimulatorEvent, Hands } from "../inference/Scheduler";
+import { MusicBeatConverter, MusicTempo } from "../inference/MusicBeatConverter";
 import {
     CatchEvent,
     EventSound,
     TablePutEvent,
     TableTakeEvent,
-    TossEvent
-} from "../model/ModelTimelines";
+    ThrowEvent
+} from "./Timeline";
+import { Ball } from "./Ball";
 import { OrderedSet } from "js-sdsl";
-import { PerformanceModel } from "../model/PerformanceModel";
-import { JugglerModel } from "../model/JugglerModel";
-import { HandModel } from "../model/HandModel";
-import { BallModel } from "../model/BallModel";
-import { TableModel } from "../model/TableModel";
 
 //TODO : In balls, rename "name" to "ID".
 //TODO : Rename MusicBeatConverter to MusicConverter ?
 
-export type PostSchedulerParams = {
+// function computeRealTime(
+//     events: FracSortedList<SimulatorEvent<Fraction>>,
+//     musicConverter: MusicBeatConverter
+// ): FracSortedList<SimulatorEvent<Fraction>> {
+//     const newEvents: FracSortedList<SimulatorEvent<Fraction>> = [];
+//     for (const [beat, ev] of events) {
+//         const newTosses: SimulatorToss<Fraction>[] = [];
+//         for (const toss of ev.tosses) {
+//             newTosses.push({
+//                 from: { ...toss.from, beat: musicConverter.convertBeatToRealTime(toss.from.beat) },
+//                 to: { ...toss.to, beat: musicConverter.convertBeatToRealTime(toss.to.beat) },
+//                 ball: toss.ball
+//             });
+//         }
+//         newEvents.push([
+//             musicConverter.convertBeatToRealTime(beat),
+//             { tempo: ev.tempo, tosses: newTosses }
+//         ]);
+//     }
+//     return [];
+// }
+
+export function eventsBeatList(
+    jugglers: Map<string, { events: FracSortedList<SimulatorEvent<Fraction>> }>
+): Map<string, Fraction[]> {
+    const beatsMap = new Map<string, Fraction[]>();
+    for (const name of jugglers.keys()) {
+        beatsMap.set(name, []);
+    }
+    for (const [name, { events }] of jugglers) {
+        for (const [evBeat, { hands, tosses }] of events) {
+            for (const toss of tosses) {
+                beatsMap.get(toss.from.juggler)!.push(toss.from.beat);
+                beatsMap.get(toss.to.juggler)!.push(toss.to.beat);
+            }
+            if (hands !== undefined) {
+                beatsMap.get(name)!.push(evBeat);
+            }
+        }
+    }
+    const sortedBeatsMap = new Map<string, Fraction[]>();
+    for (const [name, beats] of beatsMap) {
+        const sortedBeats: Fraction[] = [];
+        for (const beat of new OrderedSet(beats, (a, b) => a.compare(b))) {
+            sortedBeats.push(beat);
+        }
+        sortedBeatsMap.set(name, sortedBeats);
+    }
+    return sortedBeatsMap;
+}
+
+//TODO : Fuse with timePerMeasure ?
+function jugglerUnitTime(jugglerTempo: Fraction, musicTempo: MusicTempo): Fraction {
+    return jugglerTempo.mul(new Fraction(60).div(musicTempo.bpm)).div(musicTempo.note);
+}
+
+export type SimulateParams = {
+    simulator: Simulator;
     jugglers: Map<
         string,
         {
-            table?: string;
             events: FracSortedList<SimulatorEvent<Fraction>>;
         }
     >;
@@ -30,52 +86,29 @@ export type PostSchedulerParams = {
     ballIDSounds: Map<
         string,
         {
-            sound?: string;
-            name: string;
-            id: string;
-            juggler: string;
+            onToss?: string | EventSound;
+            onCatch?: string | EventSound;
         }
     >;
 };
 
-//TODO : Properly add support for sounds on balls, presence or absence of table, world info ?
-export function schedulerToModel({
+export function simulateEvents({
+    simulator,
     jugglers,
-    ballIDSounds,
-    musicConverter
-}: PostSchedulerParams): PerformanceModel {
-    // 1. Create the differents elements of the model.
-    const model = new PerformanceModel();
-    for (const [jugglerName, { table }] of jugglers) {
-        let tableModel: TableModel | undefined = undefined;
-        if (table !== undefined) {
-            tableModel = new TableModel({ name: table });
-            model.tables.set(table, tableModel); //TODO : Customize.
-        }
-        model.jugglers.set(
-            jugglerName,
-            new JugglerModel({ defaultTable: tableModel, name: jugglerName })
-        );
-    }
-    for (const [ballName, { name, id, juggler }] of ballIDSounds) {
-        model.balls.set(
-            ballName,
-            new BallModel({ defaultJuggler: model.jugglers.get(juggler)!, id: id, name: name }) //TODO : Ajouter "sounds" ?
-        ); //TODO : Params ?
-    }
-
-    // 2. Populate the model's timelines.
+    musicConverter,
+    ballIDSounds
+}: SimulateParams): void {
     const sortedEventsBeatsPerJuggler = eventsBeatList(jugglers);
     for (const [jugglerName, { events }] of jugglers) {
         const sortedEventsBeats = sortedEventsBeatsPerJuggler.get(jugglerName)!;
-        const fromJuggler = model.jugglers.get(jugglerName)!;
+        const fromJuggler = simulator.jugglers.get(jugglerName)!;
         const fromTable = fromJuggler.defaultTable!;
         for (let evIdx = 0; evIdx < events.length; evIdx++) {
             const [beat, { tempo: tempoFrom, tosses, hands }] = events[evIdx];
             const fromMusicTempo = musicConverter.getTempo(beat);
             const fromUnitTime = jugglerUnitTime(tempoFrom, fromMusicTempo);
             const fromTime = musicConverter.convertBeatToRealTime(beat);
-            // We simulate each toss.
+            // We simulate each toss...
             for (const toss of tosses) {
                 const toMusicTempo = musicConverter.getTempo(toss.to.beat);
                 const ballSounds = ballIDSounds.get(toss.ball.id)!;
@@ -86,18 +119,19 @@ export function schedulerToModel({
                 }
                 const toTempo = toJuggler.events[evIdx][1].tempo;
                 simulateToss({
-                    ball: model.balls.get(toss.ball.id)!,
+                    ball: simulator.balls.get(toss.ball.id)!,
                     tossInfo: {
                         time: fromTime,
                         hand: fromJuggler.hands[toss.from.rightHand ? 1 : 0],
-                        // sound: ballSounds.onToss,
+                        sound: ballSounds.onToss,
                         unitTime: fromUnitTime
                     },
                     catchInfo: {
                         time: musicConverter.convertBeatToRealTime(toss.to.beat),
-                        hand: model.jugglers.get(toss.to.juggler)!.hands[toss.to.rightHand ? 1 : 0],
-                        // sound: ballSounds.onCatch,
-                        sound: ballSounds,
+                        hand: simulator.jugglers.get(toss.to.juggler)!.hands[
+                            toss.to.rightHand ? 1 : 0
+                        ],
+                        sound: ballSounds.onCatch,
                         unitTime: jugglerUnitTime(toTempo, toMusicTempo)
                     }
                 });
@@ -109,14 +143,14 @@ export function schedulerToModel({
                 // Note that indexOf won't return -1.
                 const prevEvIdx = sortedEventsBeats.indexOf(beat) - 1;
                 const startTime = prevEvIdx === -1 ? beat.sub(999) : sortedEventsBeats[prevEvIdx];
-                const oldHands: Hands<BallModel> = [[], []];
-                const newHands: Hands<BallModel> = [[], []];
+                const oldHands: Hands<Ball> = [[], []];
+                const newHands: Hands<Ball> = [[], []];
                 for (let i = 0; i < 2; i++) {
                     for (const ball of hands.old[i]) {
-                        oldHands[i].push(model.balls.get(ball.id)!);
+                        oldHands[i].push(simulator.balls.get(ball.id)!);
                     }
                     for (const ball of hands.new[i]) {
-                        newHands[i].push(model.balls.get(ball.id)!);
+                        newHands[i].push(simulator.balls.get(ball.id)!);
                     }
                 }
                 changeHandsContents({
@@ -131,7 +165,6 @@ export function schedulerToModel({
             }
         }
     }
-    return model;
 }
 
 function simulateToss({
@@ -139,14 +172,14 @@ function simulateToss({
     tossInfo,
     catchInfo
 }: {
-    ball: BallModel;
-    tossInfo: { time: Fraction; hand: HandModel; unitTime: Fraction; sound?: string | EventSound };
-    catchInfo: { time: Fraction; hand: HandModel; unitTime: Fraction; sound?: string | EventSound };
+    ball: Ball;
+    tossInfo: { time: Fraction; hand: Hand; unitTime: Fraction; sound?: string | EventSound };
+    catchInfo: { time: Fraction; hand: Hand; unitTime: Fraction; sound?: string | EventSound };
     // ss_height: number,
 }): void {
     // const time_offset = ss_height <= 1 ? unit_time / 3 : (unit_time * 7) / 10;
     const timeOffset = tossInfo.unitTime.mul("7/10"); //TODO
-    const tossEv = new TossEvent({
+    const tossEv = new ThrowEvent({
         time: tossInfo.time.add(timeOffset).valueOf(),
         unitTime: tossInfo.unitTime.valueOf(),
         sound: tossInfo.sound,
@@ -166,7 +199,7 @@ function simulateToss({
     catchInfo.hand.timeline.addEvent(catchEv);
 }
 
-//TODO : Differentiate the Ball from scheduler and from simulator;
+//TODO : Differentiaite the Ball from scheduler and from simulator;
 //TODO : Remove exchange hands ? Put / Take from table instead ?
 function changeHandsContents({
     startTime,
@@ -179,15 +212,15 @@ function changeHandsContents({
 }: {
     startTime: Fraction;
     endTime: Fraction;
-    oldHands: Hands<BallModel>;
-    newHands: Hands<BallModel>;
-    juggler: JugglerModel;
-    table: TableModel;
+    oldHands: Hands<Ball>;
+    newHands: Hands<Ball>;
+    juggler: Juggler;
+    table: Table;
     unitTime: Fraction;
 }) {
     // 1. Identify the different moves needed.
-    const ballstoPutOnTable: Hands<BallModel> = [[], []];
-    const ballstoTakeFromTable: Hands<BallModel> = [[], []];
+    const ballstoPutOnTable: Hands<Ball> = [[], []];
+    const ballstoTakeFromTable: Hands<Ball> = [[], []];
     // const ballstoSwapHands: Hands<Ball> = [[], []];
     for (let i = 0; i < 2; i++) {
         for (const ball of oldHands[i]) {
@@ -242,10 +275,10 @@ function putOnTable({
     table,
     unitTime
 }: {
-    ball: BallModel;
+    ball: Ball;
     time: Fraction;
-    hand: HandModel;
-    table: TableModel;
+    hand: Hand;
+    table: Table;
     unitTime: Fraction;
 }): void {
     const timeOffset = unitTime.div(3); //TODO : Pb if next event too close :/
@@ -267,10 +300,10 @@ function takeFromTable({
     table,
     unitTime
 }: {
-    ball: BallModel;
+    ball: Ball;
     time: Fraction;
-    hand: HandModel;
-    table: TableModel;
+    hand: Hand;
+    table: Table;
     unitTime: Fraction;
 }): void {
     const timeOffset = unitTime.div(3); //TODO : Pb if next event too close :/
@@ -309,60 +342,3 @@ function takeFromTable({
 //         unitTime
 //     });
 // }
-
-// function computeRealTime(
-//     events: FracSortedList<SimulatorEvent<Fraction>>,
-//     musicConverter: MusicBeatConverter
-// ): FracSortedList<SimulatorEvent<Fraction>> {
-//     const newEvents: FracSortedList<SimulatorEvent<Fraction>> = [];
-//     for (const [beat, ev] of events) {
-//         const newTosses: SimulatorToss<Fraction>[] = [];
-//         for (const toss of ev.tosses) {
-//             newTosses.push({
-//                 from: { ...toss.from, beat: musicConverter.convertBeatToRealTime(toss.from.beat) },
-//                 to: { ...toss.to, beat: musicConverter.convertBeatToRealTime(toss.to.beat) },
-//                 ball: toss.ball
-//             });
-//         }
-//         newEvents.push([
-//             musicConverter.convertBeatToRealTime(beat),
-//             { tempo: ev.tempo, tosses: newTosses }
-//         ]);
-//     }
-//     return [];
-// }
-
-//TODO : Document : returns a flatten event list for each juggler with only the times.
-export function eventsBeatList(
-    jugglers: Map<string, { events: FracSortedList<SimulatorEvent<Fraction>> }>
-): Map<string, Fraction[]> {
-    const beatsMap = new Map<string, Fraction[]>();
-    for (const name of jugglers.keys()) {
-        beatsMap.set(name, []);
-    }
-    for (const [name, { events }] of jugglers) {
-        for (const [evBeat, { hands, tosses }] of events) {
-            for (const toss of tosses) {
-                beatsMap.get(toss.from.juggler)!.push(toss.from.beat);
-                beatsMap.get(toss.to.juggler)!.push(toss.to.beat);
-            }
-            if (hands !== undefined) {
-                beatsMap.get(name)!.push(evBeat);
-            }
-        }
-    }
-    const sortedBeatsMap = new Map<string, Fraction[]>();
-    for (const [name, beats] of beatsMap) {
-        const sortedBeats: Fraction[] = [];
-        for (const beat of new OrderedSet(beats, (a, b) => a.compare(b))) {
-            sortedBeats.push(beat);
-        }
-        sortedBeatsMap.set(name, sortedBeats);
-    }
-    return sortedBeatsMap;
-}
-
-//TODO : Fuse with timePerMeasure ?
-function jugglerUnitTime(jugglerTempo: Fraction, musicTempo: MusicTempo): Fraction {
-    return jugglerTempo.mul(new Fraction(60).div(musicTempo.bpm)).div(musicTempo.note);
-}

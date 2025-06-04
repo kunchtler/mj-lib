@@ -1,4 +1,4 @@
-import { Timeline } from "../simulator/Timeline";
+import { Timeline } from "../utils/Timeline";
 import Fraction from "fraction.js";
 import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
 import { Severity, TimedErrorLogger } from "../utils/ErrorLogger";
@@ -37,7 +37,7 @@ export class FracTimeline<EventType> extends Timeline<Fraction, EventType> {
     }
 }
 
-export interface Ball {
+export interface BallI {
     name: string;
     id: string;
 }
@@ -61,20 +61,20 @@ export type PartialTossMode = { type: "Beat"; beat: Fraction } | { type: "Height
 
 export type Hands<BallT> = [BallT[], BallT[]];
 //TODO : Remove Balls and PartialBallsInHands and replace with Hands<...>.
-export type BallsInHands = Hands<Ball>;
+export type BallsInHands = Hands<BallI>;
 export type PartialBallsInHands = Hands<PartialBall>;
 
 // TODO: Rename
 export interface PartialToss2 {
     from: { juggler: string; rightHand: boolean; beat: Fraction };
     to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
-    ball: Ball;
+    ball: BallI;
 }
 
 export interface SimulatorToss<BeatT> {
     from: { juggler: string; rightHand: boolean; beat: BeatT };
     to: { juggler: string; rightHand: boolean; beat: BeatT };
-    ball: Ball;
+    ball: BallI;
 }
 
 export interface SchedulerEvent {
@@ -104,7 +104,7 @@ interface JugglerCache {
 }
 
 export interface SchedulerParams {
-    jugglers: Map<string, { events: FracSortedList<SchedulerEvent>; balls: Ball[] }>;
+    jugglers: Map<string, { events: FracSortedList<SchedulerEvent>; balls: BallI[] }>;
 }
 
 export type SchedulerRes = Map<
@@ -217,13 +217,13 @@ interface JugglerState {
         string,
         {
             toRightHand: boolean;
-            ball: Ball;
+            ball: BallI;
             catchBeat: Fraction;
             throwBeat: Fraction;
         }
     >;
     held: BallsInHands;
-    onTable: Map<string, Ball>;
+    onTable: Map<string, BallI>;
 }
 
 function cloneState(state: JugglerState): JugglerState {
@@ -257,7 +257,7 @@ class JugglerManager {
     name: string;
     events: FracSortedList<SchedulerEvent>;
     errorLogger: TimedErrorLogger;
-    ballsOnTable: Ball[];
+    ballsOnTable: BallI[];
     // catches: FracSortedList<SimulatorToss>;
     // beats: FracSortedList<JugglerState>;
     // private _currentTempo: Fraction;
@@ -274,7 +274,7 @@ class JugglerManager {
     // FIRST ANSWER, reason : to keep the symbolic of the height (hand changing etc)
     //+ Easier to understand in practice (number of actions done before catching it).
     //TODO: Reorder constructor code.
-    constructor(name: string, ballsOnTable: Ball[], events: FracSortedList<SchedulerEvent>) {
+    constructor(name: string, ballsOnTable: BallI[], events: FracSortedList<SchedulerEvent>) {
         this.name = name;
         this.events = events;
         this.errorLogger = new TimedErrorLogger();
@@ -282,7 +282,7 @@ class JugglerManager {
     }
 
     generateIntialState(): JugglerState {
-        const ballsOnTableMap: [string, Ball][] = this.ballsOnTable.map((ball) => [ball.id, ball]);
+        const ballsOnTableMap: [string, BallI][] = this.ballsOnTable.map((ball) => [ball.id, ball]);
         return {
             airborne: new Map(),
             held: [[], []],
@@ -432,8 +432,8 @@ class JugglerManager {
         // Identify caught balls by hand and by catch time.
         state = cloneState(state);
         const handCatches: [
-            [Fraction, { ball: Ball; catchBeat: Fraction; throwBeat: Fraction }[]][],
-            [Fraction, { ball: Ball; catchBeat: Fraction; throwBeat: Fraction }[]][]
+            [Fraction, { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]][],
+            [Fraction, { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]][]
         ] = [[], []];
         for (const { catchBeat, throwBeat, toRightHand, ball } of state.airborne.values()) {
             if (catchBeat.lte(toBeat)) {
@@ -442,7 +442,7 @@ class JugglerManager {
                 if (foundIdx === -1) {
                     const caught: [
                         Fraction,
-                        { ball: Ball; catchBeat: Fraction; throwBeat: Fraction }[]
+                        { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]
                     ] = [catchBeat, [{ ball: ball, catchBeat: catchBeat, throwBeat: throwBeat }]];
                     catches.push(caught);
                 } else {
@@ -516,7 +516,7 @@ class JugglerManager {
             const tossHand = state.held[fromRightHand ? 1 : 0];
 
             // Compute the ball thrown.
-            let ball: Ball;
+            let ball: BallI;
             if (toss.ball === undefined) {
                 if (tossHand.length === 0) {
                     this.logError(
@@ -541,7 +541,7 @@ class JugglerManager {
                 ball = tossHand.splice(ballIdx, 1)[0];
             } else {
                 // We look for the ball with the right name
-                const matches: Ball[] = [];
+                const matches: BallI[] = [];
                 for (const ball of tossHand) {
                     if (ball.name === toss.ball.name) {
                         matches.push(ball);
@@ -613,7 +613,7 @@ class JugglerManager {
         // 2. Put the according balls from the table in the hands.
         for (let i = 0; i < 2; i++) {
             for (const ballPartial of newHands[i] as PartialBall[]) {
-                let ball: Ball;
+                let ball: BallI;
                 if (ballPartial.id !== undefined) {
                     if (!state.onTable.has(ballPartial.id)) {
                         this.logError(
@@ -625,7 +625,7 @@ class JugglerManager {
                     }
                     ball = state.onTable.get(ballPartial.id)!;
                 } else {
-                    const matches: Ball[] = [];
+                    const matches: BallI[] = [];
                     for (const ball of state.onTable.values()) {
                         if (ball.name === ballPartial.name) {
                             matches.push(ball);

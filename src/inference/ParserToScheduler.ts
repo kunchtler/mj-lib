@@ -1,23 +1,19 @@
 import Fraction from "fraction.js";
 import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
-import { MusicBeatConverter, MusicTempo } from "./MusicBeatConverter";
+import { MusicBeatConverter } from "./MusicBeatConverter";
 import {
-    SchedulerEvent,
     PartialTossMode,
     PartialBall,
     FracSortedList,
-    isInRhythm,
     XOR,
     FracTimeline,
-    Ball,
-    SchedulerParams,
-    Scheduler
+    BallI,
+    SchedulerParams
 } from "./Scheduler";
 import { closestWordsTo } from "../utils/LevenshteinDistance";
 import { setIntersection } from "../utils/SetOperations";
 import { TimedErrorLogger } from "../utils/ErrorLogger";
-import { formatRawEventInput, JugglingAppParams } from "./JugglingApp";
-import { stringifyEvents, stringifyFraction, stringifyHandSide } from "../utils/stringifyEvent";
+import { stringifyHandSide } from "../utils/stringifyEvent";
 
 //TODO : Rewrite more cleanly with Immer.js ?
 
@@ -46,7 +42,7 @@ export type PreParserEvent = {
 // }
 
 export interface ParserToSchedulerParams {
-    jugglers: Map<string, { events: FracSortedList<PreParserEvent>; balls: Ball[] }>;
+    jugglers: Map<string, { events: FracSortedList<PreParserEvent>; balls: BallI[] }>;
     ballNames: Set<string>;
     ballIDs: Map<string, { name: string }>;
     musicConverter?: MusicBeatConverter;

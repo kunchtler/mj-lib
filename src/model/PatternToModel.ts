@@ -5,28 +5,10 @@ import {
     ParserToSchedulerParams,
     transformParserParamsToSchedulerParams as parserParamsToSchedulerParams
 } from "../inference/ParserToScheduler";
-import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "../simulator/Juggler";
-import * as THREE from "three";
-import { TableModel } from "../model/TableModel";
-import { BallModel } from "../model/BallModel";
-import { getNoteBuffer } from "../simulator/NoteBank";
-import { V3SCA } from "../utils/three/StaticOp";
-import { EventSound } from "../simulator/Timeline";
 import { schedulerToModel } from "../inference/SchedulerToModel";
-import { TimeConductor } from "../MusicalJuggling";
 import { PerformanceModel } from "./PerformanceModel";
+import { RawPreParserEvent, PreParserEvent } from "../inference/ParserToScheduler";
 
-export type RawPreParserEvent = {
-    tempo?: string;
-    hands?: [string[], string[]];
-    pattern?: string /*; useHand?: "L" | "R" */;
-};
-
-export type PreParserEvent = {
-    tempo?: Fraction;
-    hands?: [string[], string[]];
-    pattern?: string /*; useHand?: "L" | "R" */;
-};
 
 export type RawMusicConverter = [
     number,
