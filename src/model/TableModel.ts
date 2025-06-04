@@ -8,11 +8,12 @@ import { BallModel } from "./BallModel";
 // TODO : Use ball ID or ball Name to be placed ?
 // TODO : Use a normal vector to identify the table's "top".
 // TODO : Rename everywhere name to ID to make it clearer it should be unique ?
+// TODO : Except for "implements", change evry interface to a type. Or not ? Choose. Which one has better messages (error, intellisense, ...) ?
 
 /**
  * Interface for the constructor of TableModel.
  */
-export interface TableConstructorParameters {
+export interface TableModelParams {
     /**
      * The name of the table (yes, tables have names in this world).
      */
@@ -47,7 +48,7 @@ export class TableModel {
      */
     unkownBallSpot: THREE.Vector3;
 
-    constructor({ name, ballsSpots, unkownBallSpot }: TableConstructorParameters = {}) {
+    constructor({ name, ballsSpots, unkownBallSpot }: TableModelParams = {}) {
         this.name = name ?? "NoName";
         this.ballsSpots = ballsSpots ?? new Map<string, THREE.Vector3>();
         this.unkownBallSpot = unkownBallSpot ?? new THREE.Vector3(0, 0, 0);

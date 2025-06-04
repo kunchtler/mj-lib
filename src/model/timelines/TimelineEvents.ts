@@ -109,13 +109,6 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
     readonly actionDescription: string = "unnamed attribute";
     sound?: EventSound;
 
-    /**
-     * @param param.time - the time the event happens at.
-     * @param param.unitTime - the unit time of the juggler at that time.
-     * @param param.sound - the sound the ball makes at that time.
-     * @param param.ball - the ball involved in that event.
-     * @param param.hand - the hand involved in that event.
-     */
     constructor({
         time,
         unitTime,
