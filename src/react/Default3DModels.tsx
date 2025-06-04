@@ -119,8 +119,8 @@ export function BasicJuggler({
                 }}
             >
                 {/* <HandMesh {...hands} /> */}
-                <TossSpot position={[0, 0, juggler.depth / 4]} />
-                <CatchSpot position={[0, 0, -juggler.depth / 4]} />
+                <TossSpot position={[0, 0, juggler.width / 4]} />
+                <CatchSpot position={[0, 0, -juggler.width / 4]} />
                 <RestSpot position={[0, 0, 0]} />
             </Hand>
             <Hand
@@ -141,8 +141,8 @@ export function BasicJuggler({
                 }}
             >
                 {/* <HandMesh {...hands} /> */}
-                <TossSpot position={[0, 0, -juggler.depth / 4]} />
-                <CatchSpot position={[0, 0, juggler.depth / 4]} />
+                <TossSpot position={[0, 0, -juggler.width / 4]} />
+                <CatchSpot position={[0, 0, juggler.width / 4]} />
                 <RestSpot position={[0, 0, 0]} />
             </Hand>
         </Juggler>

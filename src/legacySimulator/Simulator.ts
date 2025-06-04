@@ -3,7 +3,7 @@ import { Ball, createBallGeometry, createBallMaterial } from "./Ball";
 import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "./Juggler";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createTableGeometry, createTableMaterial, createTableObject, Table } from "./Table";
-import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "../inference/JugglingApp";
+import { formatRawEventInput, JugglingAppParams, PreParserEvent } from "./JugglingApp.js";
 import { FracSortedList, Scheduler } from "../inference/Scheduler";
 import {
     EventSound,

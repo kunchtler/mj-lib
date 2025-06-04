@@ -1,4 +1,4 @@
-import { Timeline } from "../simulator/Timeline";
+import { Timeline } from "../utils/Timeline";
 import Fraction from "fraction.js";
 import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
 import { Severity, TimedErrorLogger } from "../utils/ErrorLogger";

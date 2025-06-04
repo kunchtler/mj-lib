@@ -1,23 +1,18 @@
 import Fraction from "fraction.js";
-import { FracSortedList, Scheduler } from "./Scheduler";
-import { MusicBeatConverter, MusicTempo, MusicTime } from "./MusicBeatConverter";
+import { FracSortedList, Scheduler } from "../inference/Scheduler";
+import { MusicBeatConverter, MusicTempo, MusicTime } from "../inference/MusicBeatConverter";
 import {
     ParserToSchedulerParams,
     transformParserParamsToSchedulerParams
-} from "./ParserToScheduler";
-import { Simulator } from "../simulator/Simulator";
-import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "../simulator/Juggler";
+} from "../inference/ParserToScheduler";
+import { Simulator } from "./Simulator";
+import { createJugglerCubeGeometry, createJugglerMaterial, Juggler } from "./Juggler";
 import * as THREE from "three";
-import {
-    createTableGeometry,
-    createTableMaterial,
-    createTableObject,
-    Table
-} from "../simulator/Table";
-import { Ball, createBallGeometry, createBallMaterial } from "../simulator/Ball";
+import { createTableGeometry, createTableMaterial, createTableObject, Table } from "./Table";
+import { Ball, createBallGeometry, createBallMaterial } from "./Ball";
 import { getNoteBuffer } from "../audio/NoteBank";
 import { V3SCA } from "../utils/three/StaticOp";
-import { EventSound } from "../simulator/Timeline";
+import { EventSound } from "./Timeline";
 import { simulateEvents } from "./SchedulerToSimulator";
 import { Clock } from "../MusicalJuggling";
 

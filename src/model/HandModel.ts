@@ -9,7 +9,7 @@ import {
     HandTimelineEvent,
     HandTimelineSingleEvent,
     HandTimeline
-} from "./Timeline";
+} from "./ModelTimelines";
 import { JugglerModel } from "./JugglerModel";
 
 //TODO : Change the fact that all methods have get in front of them

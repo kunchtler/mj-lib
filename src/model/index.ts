@@ -5,4 +5,4 @@ export * from "./JugglerModel";
 export * from "./PatternToModel";
 export * from "./PerformanceModel";
 export * from "./TableModel";
-export * from "./Timeline";
+export * from "./ModelTimelines";

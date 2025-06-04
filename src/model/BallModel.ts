@@ -6,7 +6,7 @@ import {
     TableTakeEvent,
     BallTimelineEvent,
     BallTimeline
-} from "./Timeline";
+} from "./ModelTimelines";
 import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 

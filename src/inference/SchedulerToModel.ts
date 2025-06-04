@@ -7,7 +7,7 @@ import {
     TablePutEvent,
     TableTakeEvent,
     TossEvent
-} from "../model/Timeline";
+} from "../model/ModelTimelines";
 import { OrderedSet } from "js-sdsl";
 import { PerformanceModel } from "../model/PerformanceModel";
 import { JugglerModel } from "../model/JugglerModel";
