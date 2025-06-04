@@ -19,9 +19,9 @@ export default defineConfig((config) => {
         server: { https: { key: "./musjugvr.key", cert: "./musjugvr.crt" } },
         build: {
             lib: {
-                entry: "./src/MusicalJuggling.ts",
-                fileName: "MusicalJuggling",
-                name: "MusicalJuggling",
+                entry: "./src/index.ts",
+                fileName: "index",
+                name: "index",
                 formats: ["es"]
             },
             target: "esnext",

@@ -4,7 +4,7 @@ import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
 import { BasicJuggler } from "../src/react/examples/BasicJuggler";
 import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
 import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
-import { Clock } from "../src/MusicalJuggling";
+import { Clock } from "../src";
 import { useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
