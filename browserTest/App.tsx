@@ -24,7 +24,7 @@ import mergeRefs from "merge-refs";
 //TODO : clock optional for performance ?
 
 export function App() {
-    const [clock] = useState(() => new Clock());
+    const [clock] = useState(() => new Clock({bounds: [0, 20]}));
     const [model] = useState(() => patternToModel(pattern));
     const [ballsData] = useState<BasicBallProps[]>([
         { id: "Do?K", color: "red" },
@@ -77,20 +77,47 @@ function CanvasContent({
 }) {
     const [performance] = useState(() => new PerformanceView({ model: model, clock: clock }));
     const ballsRef = useRef(new Map<string, THREE.Object3D>());
+    const curvesRef = useRef(new Map<string, THREE.Line>());
     const jugglersRef = useRef(
         new Map<string, { leftHand: THREE.Object3D | null; rightHand: THREE.Object3D | null }>()
     );
 
     useFrame(() => {
         const time = performance.getClock().getTime();
-
         // Update the balls' positions.
-        for (const [id, { model }] of performance.balls) {
+        for (const [id, ballView] of performance.balls) {
+            const { model, curvePoints, initCurve } = ballView;
             const ballObject = ballsRef.current.get(id);
-            if (ballObject !== undefined) {
-                ballObject.position.copy(model.position(time));
+            const curveObject = curvesRef.current.get(id);
+
+            if (curvePoints.length === 0) {
+                ballView.initCurve(performance.getClock());
+                console.log('After initCurve:', curvePoints);
             }
+
+            if (ballObject !== undefined) {
+                const pos = model.position(time);
+
+                if(!performance.getClock().isPaused()){
+                    curvePoints.shift();
+                    curvePoints.push(model.position(time+0.81));
+
+                    let curve = new THREE.CatmullRomCurve3(curvePoints);
+                    curve.closed = false;
+                    curve.curveType = 'catmullrom';
+                    curve.tension = 0.5;
+
+                    const p = curve.getPoints(100);
+
+                    curveObject?.geometry.setFromPoints(p);
+                }
+
+                ballObject.position.copy(pos);
+            }
+
+                      
         }
+
 
         // Update the hands' positions.
         // for (const [name, { model }] of performance.jugglers) {
@@ -115,19 +142,31 @@ function CanvasContent({
 
     function mapBalls({ id, ref, ...props }: BasicBallProps) {
         return (
-            <BasicBall
-                id={id}
-                key={id}
-                ref={mergeRefs((elem) => {
-                    if (elem === null) {
-                        ballsRef.current.delete(id);
-                    } else {
-                        ballsRef.current.set(id, elem);
-                    }
-                    /*@ts-expect-error React 19's refs are weirdly typed*/
-                }, ref)}
-                {...props}
-            />
+            <>
+                <BasicBall
+                    id={id}
+                    key={id}
+                    ref={mergeRefs((elem) => {
+                        if (elem === null) {
+                            ballsRef.current.delete(id);
+                        } else {
+                            ballsRef.current.set(id, elem);
+                        }
+                        /*@ts-expect-error React 19's refs are weirdly typed*/
+                    }, ref)}
+                    {...props}
+                />
+                <line ref={mergeRefs((elem) => {
+                        if (elem === null) {
+                            curvesRef.current.delete(id);
+                        } else {
+                            curvesRef.current.set(id, elem);
+                        }
+                    })}>
+                    <bufferGeometry />
+                    <lineBasicMaterial color={props.color}/>
+                </line>
+            </>
         );
     }
     // <BasicBall

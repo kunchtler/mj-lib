@@ -15,7 +15,7 @@ export default defineConfig((config) => {
     // console.log(config);
     return {
         base: "",
-        server: { https: { key: "./musjugvr.key", cert: "./musjugvr.crt" } },
+        server: { https: { key: "./key.pem", cert: "./cert.pem" } },
         build: {
             lib: {
                 entry: "./src/MusicalJuggling.ts",

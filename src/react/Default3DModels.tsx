@@ -1,4 +1,4 @@
-import { RefObject, useEffect, useRef } from "react";
+import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import {
     createBallGeometry,
@@ -29,6 +29,7 @@ import { ThreeElements } from "@react-three/fiber";
 import { Ball } from "./Ball";
 import { Table } from "./Table";
 import { TableUnknownSpot } from "./TableSpot";
+import { Object3D } from "three";
 
 ////////// Juggler //////////
 
@@ -235,14 +236,16 @@ export function BasicBall({
     color ??= DEFAULT_BALL_COLOR;
     // Three fiber sub-scene.
     return (
-        <Ball name={name} id={id} radius={radius} {...props}>
-            <BallMesh
-                radius={radius}
-                widthSegments={widthSegments}
-                heightSegments={heightSegments}
-                color={color}
-            />
-        </Ball>
+        <>
+            <Ball name={name} id={id} radius={radius} {...props}>
+                <BallMesh
+                    radius={radius}
+                    widthSegments={widthSegments}
+                    heightSegments={heightSegments}
+                    color={color}
+                />
+            </Ball>
+        </>
     );
 }
 

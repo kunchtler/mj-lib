@@ -27,7 +27,7 @@
   "include": [
     "src",
     "notes/siteswap",
-    "browserTest",
+//    "browserTest",
     "vite.config.ts",
     "eslint.config.js"
   ],

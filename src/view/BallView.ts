@@ -1,5 +1,7 @@
 import { BallModel } from "../model/BallModel";
 import { BallAudio, BallAudioParams } from "../audio/BallAudio";
+import { Clock } from "../MusicalJuggling";
+import { Vector3 } from "three";
 
 // TODO : CamelCase for every variable.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -34,13 +36,24 @@ export class BallView {
     model: BallModel;
     audio?: BallAudio;
     private _prevTime?: number;
+    curvePoints : Array<Vector3> = [];
     // threeObject: THREE.Object3D;
 
     constructor({ model }: BallViewParams) {
         this.model = model;
         this._prevTime = undefined;
+        this.curvePoints = [];
         // this.audio = audio;
         // this.threeObject = threeObject;
+    }
+
+    initCurve(clock: Clock){
+        const bounds = clock.getBounds() ?? [];
+        const bound = bounds[1] !== undefined ? bounds[1] : 0;
+        const limit = Math.min(clock.getTime()+0.5, bound);
+        for(let t = clock.getTime(); t < limit; t += 0.01){
+            this.curvePoints.push(this.model.position(t));
+        }
     }
 
     fillPositionInfo({ radius }: BallInfo) {
