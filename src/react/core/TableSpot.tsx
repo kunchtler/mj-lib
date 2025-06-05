@@ -17,9 +17,9 @@ export function TableSpot({ ballName, ref, ...props }: TableSpotReactProps) {
             return;
         }
         const spotPosition = spotRef.current.getWorldPosition(new THREE.Vector3());
-        table.model.ballsPlacement.set(ballName, spotPosition);
+        table.model.ballsSpots.set(ballName, spotPosition);
         return () => {
-            table.model.ballsPlacement.delete(ballName);
+            table.model.ballsSpots.delete(ballName);
         };
     }, [table, ballName]);
 
@@ -37,9 +37,9 @@ export function TableUnknownSpot({ ref, ...props }: TableUnknownSpotReactProps) 
         if (table === undefined) {
             return;
         }
-        spotRef.current.getWorldPosition(table.model.unkownBallPosition);
+        spotRef.current.getWorldPosition(table.model.unkownBallSpot);
         return () => {
-            table.model.unkownBallPosition.set(0, 0, 0);
+            table.model.unkownBallSpot.set(0, 0, 0);
         };
     }, [table]);
 

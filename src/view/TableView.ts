@@ -21,8 +21,8 @@ export class TableView {
     }
 
     fillPositionInfo({ ballPlacement, unknownBallPosition }: TableInfo) {
-        this.model.ballsPlacement = ballPlacement;
-        this.model.unkownBallPosition = unknownBallPosition;
+        this.model.ballsSpots = ballPlacement;
+        this.model.unkownBallSpot = unknownBallPosition;
     }
 
     // addSpot(ballName: string, spot: THREE.Vector3) {

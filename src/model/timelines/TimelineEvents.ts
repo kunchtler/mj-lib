@@ -1,7 +1,6 @@
-import { BallModel } from "./BallModel";
-import { HandModel } from "./HandModel";
-import { TableModel } from "./TableModel";
-import { Timeline } from "../utils/Timeline";
+import { BallModel } from "../BallModel";
+import { HandModel } from "../HandModel";
+import { TableModel } from "../TableModel";
 
 // TODO : time redundant if in EventType ? Remove it ?
 // Garbage in, garbage out.
@@ -98,11 +97,11 @@ export interface HandEventInterface extends BaseEvent {
  */
 export class AbstractBallHandEvent implements BallEventInterface, HandEventInterface {
     /**
-     * Internal reference to the ball, as a WeakRef to also garbage collection.
+     * Internal reference to the ball, as a WeakRef to allow garbage collection.
      */
     private _ballRef: WeakRef<BallModel>;
     /**
-     * Internal reference to the hand, as a WeakRef to also garbage collection.
+     * Internal reference to the hand, as a WeakRef to allow garbage collection.
      */
     private _handRef: WeakRef<HandModel>;
     time: number;
@@ -110,13 +109,6 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
     readonly actionDescription: string = "unnamed attribute";
     sound?: EventSound;
 
-    /**
-     * @param param.time - the time the event happens at.
-     * @param param.unitTime - the unit time of the juggler at that time.
-     * @param param.sound - the sound the ball makes at that time.
-     * @param param.ball - the ball involved in that event.
-     * @param param.hand - the hand involved in that event.
-     */
     constructor({
         time,
         unitTime,
@@ -187,7 +179,7 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
             this.sound === undefined
                 ? ""
                 : `emits ${this.sound.loop ? "looping " : ""}sound ${this.sound.name} `;
-        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand ${soundText}(time: ${this.time}s).`;
+        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand() ? "right" : "left"} hand ${soundText}(time: ${this.time}s).`;
     }
 }
 
@@ -196,7 +188,7 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
  */
 export class AbstractHandEvent implements HandEventInterface {
     /**
-     * Internal reference to the hand, as a WeakRef to also garbage collection.
+     * Internal reference to the hand, as a WeakRef to allow garbage collection.
      */
     private _handRef: WeakRef<HandModel>;
     time: number;
@@ -234,7 +226,7 @@ export class AbstractHandEvent implements HandEventInterface {
     }
 
     stringify(): string {
-        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand ? "right" : "left"} hand (time: ${this.time}s).`;
+        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand() ? "right" : "left"} hand (time: ${this.time}s).`;
     }
 }
 
@@ -316,98 +308,14 @@ export class HandMultiEvent<T extends HandEventInterface> extends AbstractHandEv
     }
 }
 
+// export class HandMultiCatchThrowEvent extends HandMultiEvent<CatchEvent | ThrowEvent> {}
+// export class HandMultiTablePutTakeEvent extends HandMultiEvent<TablePutEvent | TableTakeEvent> {}
+// export type HandTimelineEvent = HandMultiCatchThrowEvent | HandMultiTablePutTakeEvent;
+// // Make it so balls are unique in events field in HandMultiCatchThrow, and in HandMultiTakePut.
+
 /** Union of all single-events that a hand can perform in the timeline. */
 export type HandTimelineSingleEvent = CatchEvent | TossEvent | TableTakeEvent | TablePutEvent;
 /** All multi-events that a hand can perform in the timeline. */
 export type HandTimelineEvent = HandMultiEvent<HandTimelineSingleEvent>;
 /** All events a that a ball can perform in the timeline. */
 export type BallTimelineEvent = CatchEvent | TossEvent | TablePutEvent | TableTakeEvent;
-
-// export class HandMultiCatchThrowEvent extends HandMultiEvent<CatchEvent | ThrowEvent> {}
-// export class HandMultiTablePutTakeEvent extends HandMultiEvent<TablePutEvent | TableTakeEvent> {}
-// export type HandTimelineEvent = HandMultiCatchThrowEvent | HandMultiTablePutTakeEvent;
-// // Make it so balls are unique in events field in HandMultiCatchThrow, and in HandMultiTakePut.
-
-/**
- * Represents the timeline of a ball in the model.
- */
-export class BallTimeline extends Timeline<number, BallTimelineEvent> {
-    /**
-     * Add an event in the timeline (at time event.time)
-     * @param ev the event to add.
-     */
-    addEvent(ev: BallTimelineEvent): void {
-        this.setElement(ev.time, ev);
-    }
-
-    /**
-     * Create a string of the whole timeline in a human friendly fashion.
-     * @returns a string.
-     */
-    stringify(): string {
-        return super.stringify(
-            (key) => `${key}s`,
-            (elem) => elem.stringify()
-        );
-    }
-}
-
-/**
- * Represents the timeline of a hand in the model.
- */
-export class HandTimeline extends Timeline<number, HandTimelineEvent> {
-    prevEvent(time: number, strict = false): [number, HandTimelineEvent] | [null, null] {
-        let lastEvent = super.prevEvent(time, strict);
-        while (lastEvent[0] !== null && lastEvent[1].events.length === 0) {
-            // Sanitize the event.
-            this.eraseElementByKey(time);
-            // Look for the previous event.
-            lastEvent = super.prevEvent(lastEvent[0], strict);
-        }
-        return lastEvent;
-    }
-
-    nextEvent(time: number, strict = false): [number, HandTimelineEvent] | [null, null] {
-        let nextEvent = super.nextEvent(time, strict);
-        while (nextEvent[0] !== null && nextEvent[1].events.length === 0) {
-            // Sanitize the event.
-            this.eraseElementByKey(time);
-            // Look for the previous event.
-            nextEvent = super.nextEvent(nextEvent[0], strict);
-        }
-        return nextEvent;
-    }
-
-    /**
-     * Add a single-event in the timeline (at time event.time).
-     * If there were already events happening there, it handles them as
-     * a multi-event.
-     * @param singleEv the single-event to add.
-     */
-    addEvent(singleEv: HandTimelineSingleEvent): void {
-        const it = this.find(singleEv.time);
-        // Case 1: The multi-event doesn't exist, or exists but is empty.
-        if (!it.isAccessible() || it.pointer[1].events.length === 0) {
-            this.setElement(
-                singleEv.time,
-                new HandMultiEvent({
-                    time: singleEv.time,
-                    unitTime: singleEv.unitTime,
-                    hand: singleEv.hand,
-                    events: [singleEv]
-                })
-            );
-        }
-    }
-
-    /**
-     * Create a string of the whole timeline in a human friendly fashion.
-     * @returns a string.
-     */
-    stringify(): string {
-        return super.stringify(
-            (key) => `${key}s`,
-            (elem) => elem.stringify()
-        );
-    }
-}

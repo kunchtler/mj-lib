@@ -1,14 +1,17 @@
 import Fraction from "fraction.js";
-import { FracSortedList, Scheduler, SimulatorEvent } from "../inference/Scheduler";
-import { MusicBeatConverter, MusicTempo, MusicTime } from "../inference/MusicBeatConverter";
+import { FracSortedList, Scheduler, SimulatorEvent } from "./Scheduler";
+import { MusicBeatConverter, MusicTempo, MusicTime } from "./MusicBeatConverter";
 import {
     ParserToSchedulerParams,
     transformParserParamsToSchedulerParams as parserParamsToSchedulerParams
-} from "../inference/ParserToScheduler";
-import { schedulerToModel } from "../inference/SchedulerToModel";
-import { PerformanceModel } from "./PerformanceModel";
-import { RawPreParserEvent, PreParserEvent } from "../inference/ParserToScheduler";
+} from "./ParserToScheduler";
+import { schedulerToModel } from "./SchedulerToModel";
+import { PerformanceModel } from "../model/PerformanceModel";
+import { RawPreParserEvent, PreParserEvent } from "./ParserToScheduler";
 
+//TODO : Silent Throws ?
+//TODO : Have final repr in simulator using only splines ?
+//TODO : Soft errors in simulator ! (with error Logger too ?) HECK YEAH !
 
 export type RawMusicConverter = [
     number,
@@ -21,16 +24,6 @@ export type RawMusicConverter = [
     }
 ][];
 
-//TODO : Table Param ? (impact on scheduler)
-//TODO : Silent Throws ?
-//TODO : Specify Hand site for balls ?
-//TODO : Have final repr in simulator using only splines ?
-//TODO : Soft errors in simulator ! (with error Logger too ?) HECK YEAH !
-//TODO : In Scheduler Ball, rename "name" with "sound" ?
-//TODO : Separate siteswap params from "aesthetic params".
-//TODO : Fix Ball buffer not loaded when sound requested to play. (do this whith by default undefined in buffer, and do not worry if not there.)
-//TODO: Make name optional.
-//TODO: Make table optional (consider it in scheduler) Can not have swap events.
 export interface JugglingPatternRaw {
     jugglers: {
         balls: { id: string; name: string; sound?: string }[];

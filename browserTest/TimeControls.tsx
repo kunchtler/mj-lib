@@ -2,7 +2,7 @@
 /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 /* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
 import { ReactNode, useEffect, useState } from "react";
-import { Clock } from "../src/MusicalJuggling";
+import { Clock } from "../src";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";
 import { IconPlayerPauseFilled, IconPlayerPlayFilled, IconRotate } from "@tabler/icons-react";
 
