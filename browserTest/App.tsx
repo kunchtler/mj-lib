@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, extend, useFrame } from "@react-three/fiber";
 import { Performance } from "../src/react/Performance";
 import {
     BasicBall,
@@ -19,9 +19,14 @@ import { patternToModel } from "../src/model/PatternToModel";
 import { OrbitControls } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import mergeRefs from "merge-refs";
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 
 //TODO : styles ?
 //TODO : clock optional for performance ?
+
+//To extend those components to make them usable with R3F
+extend({ LineMaterial, LineGeometry });
 
 export function App() {
     const [clock] = useState(() => new Clock({bounds: [0, 20]}));
@@ -156,16 +161,16 @@ function CanvasContent({
                     }, ref)}
                     {...props}
                 />
-                <line ref={mergeRefs((elem) => {
+                <mesh ref={mergeRefs((elem) => {
                         if (elem === null) {
                             curvesRef.current.delete(id);
                         } else {
                             curvesRef.current.set(id, elem);
                         }
                     })}>
-                    <bufferGeometry />
-                    <lineBasicMaterial color={props.color}/>
-                </line>
+                    <lineGeometry />
+                    <lineMaterial color={props.color} linewidth={0.002}/>
+                </mesh>
             </>
         );
     }
