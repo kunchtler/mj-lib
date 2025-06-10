@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, extend, useFrame } from "@react-three/fiber";
 import { Performance } from "../src/react/core/Performance";
 import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
 import { BasicJuggler } from "../src/react/examples/BasicJuggler";
@@ -15,7 +15,8 @@ import { patternToModel } from "../src/inference/PatternToModel";
 import { OrbitControls } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import mergeRefs from "merge-refs";
-
+import { LineMaterial } from "three/examples/jsm/Addons.js";
+extend(LineMaterial);
 //TODO : styles ?
 //TODO : clock optional for performance ?
 
