@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Clock } from "../MusicalJuggling";
+import { Clock } from "..";
 import { BallAudio } from "./BallAudio";
 import { PerformanceView } from "../view/PerformanceView";
 

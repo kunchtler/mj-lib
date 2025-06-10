@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { Canvas, extend, useFrame } from "@react-three/fiber";
 import { Performance } from "../src/react/Performance";
 import {
@@ -9,13 +10,22 @@ import {
     BasicTableProps
 } from "../src/react/Default3DModels";
 import { Clock } from "../src/MusicalJuggling";
+=======
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Performance } from "../src/react/core/Performance";
+import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
+import { BasicJuggler } from "../src/react/examples/BasicJuggler";
+import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
+import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
+import { Clock } from "../src";
+>>>>>>> 9f652b34ef2081d103de925490a22b25ad0215de
 import { useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
 import { PerformanceView } from "../src/view/PerformanceView";
 import * as THREE from "three";
 import { pattern } from "./pattern";
-import { patternToModel } from "../src/model/PatternToModel";
+import { patternToModel } from "../src/inference/PatternToModel";
 import { OrbitControls } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import mergeRefs from "merge-refs";

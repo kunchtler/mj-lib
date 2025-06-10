@@ -1,18 +1,18 @@
 import Fraction from "fraction.js";
-import { Hand } from "../simulator/Hand";
-import { Juggler } from "../simulator/Juggler";
-import { Simulator } from "../simulator/Simulator";
-import { Table } from "../simulator/Table";
-import { FracSortedList, SimulatorEvent, Hands } from "./Scheduler";
-import { MusicBeatConverter, MusicTempo } from "./MusicBeatConverter";
+import { Hand } from "./Hand";
+import { Juggler } from "./Juggler";
+import { Simulator } from "./Simulator";
+import { Table } from "./Table";
+import { FracSortedList, SimulatorEvent, Hands } from "../inference/Scheduler";
+import { MusicBeatConverter, MusicTempo } from "../inference/MusicBeatConverter";
 import {
     CatchEvent,
     EventSound,
     TablePutEvent,
     TableTakeEvent,
     ThrowEvent
-} from "../simulator/Timeline";
-import { Ball } from "../simulator/Ball";
+} from "./Timeline";
+import { Ball } from "./Ball";
 import { OrderedSet } from "js-sdsl";
 
 //TODO : In balls, rename "name" to "ID".

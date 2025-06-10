@@ -1,7 +1,7 @@
 import { use, useEffect, useRef } from "react";
 import { HandContext } from "./Context";
 import * as THREE from "three";
-import { HandModel } from "../model/HandModel";
+import { HandModel } from "../../model/HandModel";
 import { ThreeElements } from "@react-three/fiber";
 import mergeRefs from "merge-refs";
 

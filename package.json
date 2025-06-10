@@ -3,12 +3,12 @@
   "description": "Parse, visualise and simulate (musical) juggling patterns.",
   "private": true,
   "version": "0.0.0",
-  "main": "./dist/MusicalJuggling.js",
-  "module": "./dist/MusicalJuggling.js",
-  "types": "./dist/MusicalJuggling.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    "import": "./dist/MusicalJuggling.js",
-    "types": "./dist/MusicalJuggling.d.ts"
+    "import": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "author": {
     "name": "Léo Kulinski",
@@ -69,10 +69,13 @@
     "postcss-simple-vars": "^7.0.1",
     "prettier": "^3.4.1",
     "tsx": "^4.19.2",
+    "typedoc": "^0.28.5",
+    "typedoc-plugin-coverage": "^4.0.1",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.2",
     "vite-plugin-dts": "^4.5.3",
+    "vite-plugin-externalize-deps": "^0.9.0",
     "vitest": "^3.0.5"
   },
   "dependencies": {

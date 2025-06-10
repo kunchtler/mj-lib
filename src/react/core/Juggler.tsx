@@ -1,6 +1,6 @@
 import { use, useEffect, useRef, useState } from "react";
 import { PerformanceContext, JugglerContext } from "./Context";
-import { JugglerView } from "../view/JugglerView";
+import { JugglerView } from "../../view/JugglerView";
 import * as THREE from "three";
 import mergeRefs from "merge-refs";
 import { ThreeElements } from "@react-three/fiber";

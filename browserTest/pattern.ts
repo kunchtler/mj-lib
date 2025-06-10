@@ -1,4 +1,4 @@
-import { JugglingPatternRaw } from "../src/model/PatternToModel";
+import { JugglingPatternRaw } from "../src/inference/PatternToModel";
 
 export const pattern: JugglingPatternRaw = {
     jugglers: [

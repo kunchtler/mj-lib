@@ -32,7 +32,7 @@
     "eslint.config.js"
   ],
   "exclude": [
-    "src/simulator/Interactive_siteswap_player.ts",
+    "src/legacySimulator",
     "notes",
   ]
 }

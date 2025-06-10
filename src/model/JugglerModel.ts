@@ -1,29 +1,54 @@
 import { HandModel } from "./HandModel";
 import { TableModel } from "./TableModel";
-export interface JugglerParamConstructor {
+
+/**
+ * Interface for the constructor of JugglerModel.
+ */
+export interface JugglerModelParams {
+    /**
+     * The juggler's [leftHand, rightHand].
+     */
     hands?: [HandModel, HandModel];
+    /**
+     * The juggler's name.
+     */
     name?: string;
+    /**
+     * A table the juggler puts props onto (if they have one).
+     */
     defaultTable?: TableModel;
 }
 
+/**
+ * A model class that can perform many computations
+ * (position, velocity, ...)  representing a juggler.
+ */
 export class JugglerModel {
     /**
-     * Contains a juggler [leftHand, rightHand].
+     * The juggler's [leftHand, rightHand].
      * Can also be accessed with the attributes leftHand and rightHand.
      *
-     * Tip to remember : the hands are in the same order in the array as your own hands.
-     * The left one is on the left, the right one on the right.
+     * Tip to remember : the left-most element of the array is the left hand.
      */
     readonly hands: [HandModel, HandModel];
+    /**
+     * The juggler's name.
+     */
     name: string;
+    /**
+     * A table the juggler puts props onto (if they have one).
+     */
     defaultTable?: TableModel;
 
-    constructor({ defaultTable, name, hands }: JugglerParamConstructor = {}) {
-        this.hands = hands ?? [new HandModel(), new HandModel()];
+    constructor({ defaultTable, name, hands }: JugglerModelParams = {}) {
+        this.hands = hands ?? [new HandModel({ juggler: this }), new HandModel({ juggler: this })];
         this.name = name ?? "NoName";
         this.defaultTable = defaultTable;
     }
 
+    /**
+     * The juggler's leftHand.
+     */
     get leftHand(): HandModel {
         return this.hands[0];
     }
@@ -32,6 +57,9 @@ export class JugglerModel {
         this.hands[0] = hand;
     }
 
+    /**
+     * The juggler's right hand.
+     */
     get rightHand(): HandModel {
         return this.hands[1];
     }
@@ -40,6 +68,12 @@ export class JugglerModel {
         this.hands[1] = hand;
     }
 
+    /**
+     * Returns the first and last event times in both hands of the juggler's timeline.
+     * @returns
+     * - [null, null] if there are no events.
+     * - [startTime, endTime] otherwise.
+     */
     patternTimeBounds(): [number, number] | [null, null] {
         let startTime: number | null = null;
         let endTime: number | null = null;

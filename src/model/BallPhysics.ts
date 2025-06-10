@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GRAVITY } from "../utils/constants";
 
 /**
- * Given a ball tossed at time t0 from p0 and caught at time t1 from p1,
+ * Given a ball tossed at time t0 from pos0 and caught at time t1 from pos1,
  * computes the position of the ball at time t.
  * @param pos0 the position the ball is tossed from.
  * @param t0 the time the ball is tossed.
@@ -29,7 +29,7 @@ export function ballPosition(
 }
 
 /**
- * Given a ball tossed at time t0 from p0 and caught at time t1 from p1,
+ * Given a ball tossed at time t0 from pos0 and caught at time t1 from pos1,
  * computes the velocity of the ball at t0 or at t1.
  * @param pos0 the position the ball is tossed from.
  * @param t0 the time the ball is tossed.
@@ -56,7 +56,7 @@ export function ballVelocityAtStartEnd(
 }
 
 /**
- * Given a ball tossed at time t0 from p0 and caught at time t1 from p1,
+ * Given a ball tossed at time t0 from pos0 and caught at time t1 from pos1,
  * computes the velocity of the ball at time t.
  * @param pos0 the position the ball is tossed from.
  * @param t0 the time the ball is tossed.
