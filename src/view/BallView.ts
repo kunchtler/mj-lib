@@ -1,6 +1,6 @@
 import { BallModel } from "../model/BallModel";
 import { BallAudio, BallAudioParams } from "../audio/BallAudio";
-import { Clock } from "../MusicalJuggling";
+import { Clock } from "../index";
 import { Vector3 } from "three";
 
 // TODO : CamelCase for every variable.

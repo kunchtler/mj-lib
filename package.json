@@ -40,7 +40,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "vite --port 8080",
+    "dev": "vite --port 8081",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",

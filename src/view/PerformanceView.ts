@@ -6,6 +6,7 @@ import { TableView } from "./TableView";
 import { PerformanceAudio } from "../audio/PerformanceAudio";
 import { ThreeAudio, ThreePositionalAudio } from "../audio/CustomThreeAudio";
 import { immerable } from "immer";
+import { Vector3 } from "three";
 
 export type PerformanceViewParams = {
     // object3D: THREE.Object3D;
@@ -25,6 +26,7 @@ export class PerformanceView {
     balls: Map<string, BallView>;
     tables: Map<string, TableView>;
     private _clock: Clock;
+    position?:number | Vector3 | [x: number, y: number, z: number] | Readonly<Vector3> | readonly [x: number, y: number, z: number];
     // private _clockEventListeners: (() => void)[] = [];
 
     constructor({ model, jugglers, balls, tables, clock }: PerformanceViewParams) {

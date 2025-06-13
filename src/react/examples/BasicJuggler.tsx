@@ -8,6 +8,7 @@ import {
 import { Hand } from "../core/Hand";
 import { TossSpot, CatchSpot, RestSpot } from "../core/HandSpot";
 import { Juggler } from "../core/Juggler";
+import { HandMesh } from "../mesh";
 import { BasicJugglerProps, JugglerMesh } from "../mesh/JugglerMesh";
 
 //TODO : Decompose with BasicHand and center-rest + rest-spot distance ?
@@ -30,7 +31,7 @@ export function BasicJuggler({
 
     // Three Fiber sub-scene.
     return (
-        <Juggler name={name} {...props}>
+        <Juggler name={name} {...props} >
             <JugglerMesh
                 height={juggler.height}
                 width={juggler.width}
@@ -54,7 +55,7 @@ export function BasicJuggler({
                     }
                 }}
             >
-                {/* <HandMesh {...hands} /> */}
+                <HandMesh {...hands} />
                 <TossSpot position={[0, 0, juggler.width / 4]} />
                 <CatchSpot position={[0, 0, -juggler.width / 4]} />
                 <RestSpot position={[0, 0, 0]} />
@@ -76,7 +77,7 @@ export function BasicJuggler({
                     }
                 }}
             >
-                {/* <HandMesh {...hands} /> */}
+                <HandMesh {...hands} />
                 <TossSpot position={[0, 0, -juggler.width / 4]} />
                 <CatchSpot position={[0, 0, juggler.width / 4]} />
                 <RestSpot position={[0, 0, 0]} />

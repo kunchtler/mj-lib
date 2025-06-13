@@ -25,7 +25,7 @@ export function Juggler({ name, ref, ...props }: JugglerReactProps) {
         if (jugglerModel === undefined) {
             return;
         }
-        const newJuggler = new JugglerView({ model: jugglerModel });
+        const newJuggler = new JugglerView({ model: jugglerModel, position: props.position });
         performance.jugglers.set(name, newJuggler);
         // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
         setJuggler(newJuggler);

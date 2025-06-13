@@ -25,6 +25,7 @@ export function BasicBall({
     widthSegments,
     heightSegments,
     color,
+    children,
     ...props
 }: BasicBallProps) {
     //Default values.
@@ -34,13 +35,14 @@ export function BasicBall({
     color ??= DEFAULT_BALL_COLOR;
     // Three fiber sub-scene.
     return (
-        <Ball name={name} id={id} radius={radius} {...props}>
+        <Ball name={name} id={id} radius={radius} {...props} >
             <BallMesh
                 radius={radius}
                 widthSegments={widthSegments}
                 heightSegments={heightSegments}
-                color={color}
+                color={color} 
             />
+            {children}
         </Ball>
     );
 }

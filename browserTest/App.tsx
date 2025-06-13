@@ -1,24 +1,10 @@
-<<<<<<< HEAD
 import { Canvas, extend, useFrame } from "@react-three/fiber";
-import { Performance } from "../src/react/Performance";
-import {
-    BasicBall,
-    BasicBallProps,
-    BasicJuggler,
-    BasicJugglerProps,
-    BasicTable,
-    BasicTableProps
-} from "../src/react/Default3DModels";
-import { Clock } from "../src/MusicalJuggling";
-=======
-import { Canvas, useFrame } from "@react-three/fiber";
 import { Performance } from "../src/react/core/Performance";
 import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
 import { BasicJuggler } from "../src/react/examples/BasicJuggler";
 import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
 import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
 import { Clock } from "../src";
->>>>>>> 9f652b34ef2081d103de925490a22b25ad0215de
 import { useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
@@ -47,7 +33,7 @@ export function App() {
         { id: "Mi?K", color: "yellow" }
     ]);
     const [jugglersData] = useState<BasicJugglerProps[]>([
-        { name: "Kylian", position: [-1, 0, 0] as [number, number, number] }
+        { name: "Kylian", position: [-1,0,0] as [number, number, number] }
     ]);
     const [tablesData] = useState<BasicTableProps[]>([
         { name: "KylianT", position: [0, 0, 0], rotation: [0, Math.PI, 0] }
@@ -55,20 +41,20 @@ export function App() {
 
     return (
         <>
-            <Canvas frameloop="always" camera={{ position: [3, 2, 0] }}>
+            <Canvas frameloop="always" camera={{ position: [6, 2, 0] }}>
                 <color args={[0x444444]} attach={"background"} />
                 <OrbitControls enableDamping={false} target={[-1, 1, 0]} />
                 <ambientLight args={[0xfefded, 2]} />
                 <directionalLight args={[0xfefded, 1]} />
                 <axesHelper args={[1.5]} position={[0, 0.01, 0]} />
                 <gridHelper args={[30, 30]} />
-                <CanvasContent
-                    clock={clock}
-                    model={model}
-                    ballsData={ballsData}
-                    jugglersData={jugglersData}
-                    tablesData={tablesData}
-                />
+                    <CanvasContent
+                        clock={clock}
+                        model={model}
+                        ballsData={ballsData}
+                        jugglersData={jugglersData}
+                        tablesData={tablesData}
+                    />
             </Canvas>
             <div className={styles.timecontrols}>
                 <TimeControls clock={clock} />
@@ -101,21 +87,24 @@ function CanvasContent({
         const time = performance.getClock().getTime();
         // Update the balls' positions.
         for (const [id, ballView] of performance.balls) {
-            const { model, curvePoints, initCurve } = ballView;
+            let { model, curvePoints } = ballView;
             const ballObject = ballsRef.current.get(id);
             const curveObject = curvesRef.current.get(id);
 
             if (curvePoints.length === 0) {
                 ballView.initCurve(performance.getClock());
-                console.log('After initCurve:', curvePoints);
             }
 
             if (ballObject !== undefined) {
                 const pos = model.position(time);
-
+                const o = new THREE.Object3D()
+                if(performance.position){
+                    o.position.set(performance.position[0], performance.position[1], performance.position[2]);
+                }
                 if(!performance.getClock().isPaused()){
                     curvePoints.shift();
                     curvePoints.push(model.position(time+0.81));
+                    curvePoints = curvePoints.map((p) => o.worldToLocal(p.clone()));
 
                     let curve = new THREE.CatmullRomCurve3(curvePoints);
                     curve.closed = false;
@@ -127,7 +116,10 @@ function CanvasContent({
                     curveObject?.geometry.setFromPoints(p);
                 }
 
-                ballObject.position.copy(pos);
+                const localPos = o.worldToLocal(
+                    pos.clone()
+                );
+                ballObject.position.copy(localPos);
             }
 
                       
@@ -135,24 +127,32 @@ function CanvasContent({
 
 
         // Update the hands' positions.
-        // for (const [name, { model }] of performance.jugglers) {
-        //     const jugglerObject = jugglersRef.current.get(name);
-        //     if (jugglerObject !== undefined) {
-        //         if (jugglerObject.leftHand !== null) {
-        //             const localPos = jugglerObject.leftHand.worldToLocal(
-        //                 model.leftHand.position(time).clone()
-        //             );
-        //             // console.log(localPos);
-        //             jugglerObject.leftHand.position.copy(localPos);
-        //         }
-        //         if (jugglerObject.rightHand !== null) {
-        //             const localPos = jugglerObject.rightHand.worldToLocal(
-        //                 model.rightHand.position(time).clone()
-        //             );
-        //             jugglerObject.rightHand.position.copy(localPos);
-        //         }
-        //     }
-        // }
+        for (const [name, { model }] of performance.jugglers) {
+            const jugglerObject = jugglersRef.current.get(name);
+            const jugglerPos = performance.jugglers.get(name)?.position;
+            if (jugglerObject !== undefined) {
+                if (jugglerObject.leftHand !== null) {
+                    const o = new THREE.Object3D()
+                    if(performance.position){
+                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] + jugglerPos[1], performance.position[2] + jugglerPos[2]);
+                    }
+                    const localPos = o.worldToLocal(
+                        model.leftHand.position(time).clone()
+                    );
+                    jugglerObject.leftHand.position.copy(localPos);
+                }
+                if (jugglerObject.rightHand !== null) {
+                    const o = new THREE.Object3D()
+                    if(performance.position){
+                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] + jugglerPos[1], performance.position[2] + jugglerPos[2]);
+                    }
+                    const localPos = o.worldToLocal(
+                        model.rightHand.position(time).clone()
+                    );
+                    jugglerObject.rightHand.position.copy(localPos);
+                }
+            }
+        }
     });
 
     function mapBalls({ id, ref, ...props }: BasicBallProps) {

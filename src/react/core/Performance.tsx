@@ -45,7 +45,9 @@ export function Performance({
     //     // The cleanup happens when a new clock is set.
     //     // TODO : Change this to make it behave more naturally, with cleanup func ?
     // }, [clock, performance.audio]);
-
+    if(props.position){
+        performance.position = props.position;
+    }
     return (
         <PerformanceContext value={performance}>
             {/*@ts-expect-error React 19's refs are weirdly typed*/}

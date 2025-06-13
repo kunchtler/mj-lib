@@ -5,6 +5,7 @@ export interface JugglerViewParams {
     // object3D: THREE.Mesh;
     hands?: [HandView, HandView];
     model: JugglerModel;
+    position?: any;
     // allowAudio?: boolean;
 }
 
@@ -17,16 +18,18 @@ export type JugglerInfo = {
 export class JugglerView {
     model: JugglerModel;
     readonly hands: [HandView, HandView];
+    position: any;
     // object3D: THREE.Object3D;
     // audio: JugglerAudio;
     // gainNode?: GainNode;
 
-    constructor({ hands, model }: JugglerViewParams) {
+    constructor({ hands, model, position }: JugglerViewParams) {
         this.model = model;
         this.hands = hands ?? [
             new HandView({ model: model.hands[0] }),
             new HandView({ model: model.hands[1] })
         ];
+        this.position = position;
         // this.object3D = object3D;
     }
 
