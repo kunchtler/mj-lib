@@ -16,7 +16,8 @@ export default defineConfig((config) => {
     // console.log(config);
     return {
         base: "",
-        server: { https: { key: "./key.pem", cert: "./cert.pem" } },
+        server: { https: { key: "./key.pem", cert: "./cert.pem" },host: '0.0.0.0', 
+			port: 8080 },
         build: {
             lib: {
                 entry: "./src/index.ts",
@@ -59,6 +60,6 @@ export default defineConfig((config) => {
             alias: {
                 "@tabler/icons-react": "@tabler/icons-react/dist/esm/icons/index.mjs"
             }
-        }
+        },
     };
 });

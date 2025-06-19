@@ -4,6 +4,7 @@ import { PerformanceContext } from "./Context";
 import { BallView } from "../../view/BallView";
 import { ThreeElements } from "@react-three/fiber";
 import mergeRefs from "merge-refs";
+import { current } from "immer";
 
 export type BallReactProps = {
     name?: string;

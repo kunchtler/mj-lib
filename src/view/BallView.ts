@@ -50,7 +50,7 @@ export class BallView {
     initCurve(clock: Clock){
         const bounds = clock.getBounds() ?? [];
         const bound = bounds[1] !== undefined ? bounds[1] : 0;
-        const limit = Math.min(clock.getTime()+0.5, bound);
+        const limit = Math.min(clock.getTime()+0.35, bound);
         for(let t = clock.getTime(); t < limit; t += 0.01){
             this.curvePoints.push(this.model.position(t));
         }

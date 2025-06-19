@@ -9,6 +9,7 @@ import {
 import { BallTimeline } from "./timelines/BallTimeline";
 import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
+import { EventDispatcher } from "../utils";
 
 //TODO : Remove ID alltogether in the whole project for balls. We only have the name (which must be unique) and the eventual sound the ball makes.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -42,11 +43,18 @@ interface BallModelParams {
     defaultJuggler?: JugglerModel;
 }
 
+type BallEvent =
+    | "tossed"
+    | "caught"
+    | "put on table" 
+    | "taken from table"
+    ;
+
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a ball.
  */
-export class BallModel {
+export class BallModel extends EventDispatcher<BallEvent>{
     /**
      * The radius of the ball.
      */
@@ -69,6 +77,7 @@ export class BallModel {
     defaultJuggler?: JugglerModel;
 
     constructor({ radius, id, name, timeline, defaultJuggler }: BallModelParams = {}) {
+        super();
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
         this.id = id ?? "None";
@@ -126,6 +135,14 @@ export class BallModel {
         const [, prevEvent] = this.timeline.prevEvent(time);
         const [, nextEvent] = this.timeline.nextEvent(time);
 
+        if(nextEvent?.actionDescription){
+            if(Math.abs((nextEvent?.time ?? 0) - time) < 0.1 && nextEvent?.actionDescription === 'caught'){
+                this.dispatchEvent(nextEvent?.actionDescription);
+            }
+            if(Math.abs((nextEvent?.time ?? 0) - time) < 0.05 && nextEvent?.actionDescription === 'tossed'){
+                this.dispatchEvent(nextEvent?.actionDescription);
+            }
+        }
         if (prevEvent === null) {
             if (nextEvent === null) {
                 // if (this.defaultTable !== undefined) {

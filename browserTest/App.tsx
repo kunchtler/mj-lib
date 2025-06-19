@@ -46,7 +46,6 @@ export function App() {
                 <OrbitControls enableDamping={false} target={[-1, 1, 0]} />
                 <ambientLight args={[0xfefded, 2]} />
                 <directionalLight args={[0xfefded, 1]} />
-                <axesHelper args={[1.5]} position={[0, 0.01, 0]} />
                 <gridHelper args={[30, 30]} />
                     <CanvasContent
                         clock={clock}
@@ -103,7 +102,7 @@ function CanvasContent({
                 }
                 if(!performance.getClock().isPaused()){
                     curvePoints.shift();
-                    curvePoints.push(model.position(time+0.81));
+                    curvePoints.push(model.position(time+0.31));
                     curvePoints = curvePoints.map((p) => o.worldToLocal(p.clone()));
 
                     let curve = new THREE.CatmullRomCurve3(curvePoints);
@@ -133,8 +132,9 @@ function CanvasContent({
             if (jugglerObject !== undefined) {
                 if (jugglerObject.leftHand !== null) {
                     const o = new THREE.Object3D()
+                    console.log(performance);
                     if(performance.position){
-                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] + jugglerPos[1], performance.position[2] + jugglerPos[2]);
+                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] - jugglerPos[1], performance.position[2] - jugglerPos[2]);
                     }
                     const localPos = o.worldToLocal(
                         model.leftHand.position(time).clone()
@@ -144,7 +144,7 @@ function CanvasContent({
                 if (jugglerObject.rightHand !== null) {
                     const o = new THREE.Object3D()
                     if(performance.position){
-                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] + jugglerPos[1], performance.position[2] + jugglerPos[2]);
+                        o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] - jugglerPos[1], performance.position[2] - jugglerPos[2]);
                     }
                     const localPos = o.worldToLocal(
                         model.rightHand.position(time).clone()
@@ -257,9 +257,8 @@ function CanvasContent({
     }
 
     return (
-        <Performance audio={true} clock={clock} performance={performance}>
+        <Performance audio={true} clock={clock} performance={performance} position={[0, 0, 0]}>
             {jugglersData.map((elem) => mapJuggler(elem))}
-            {tablesData.map((elem) => mapTables(elem))}
             {ballsData.map((elem) => mapBalls(elem))}
         </Performance>
     );
