@@ -43,18 +43,11 @@ interface BallModelParams {
     defaultJuggler?: JugglerModel;
 }
 
-type BallEvent =
-    | "tossed"
-    | "caught"
-    | "put on table" 
-    | "taken from table"
-    ;
-
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a ball.
  */
-export class BallModel extends EventDispatcher<BallEvent>{
+export class BallModel{
     /**
      * The radius of the ball.
      */
@@ -77,7 +70,6 @@ export class BallModel extends EventDispatcher<BallEvent>{
     defaultJuggler?: JugglerModel;
 
     constructor({ radius, id, name, timeline, defaultJuggler }: BallModelParams = {}) {
-        super();
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
         this.id = id ?? "None";
@@ -134,15 +126,6 @@ export class BallModel extends EventDispatcher<BallEvent>{
     position(time: number): THREE.Vector3 {
         const [, prevEvent] = this.timeline.prevEvent(time);
         const [, nextEvent] = this.timeline.nextEvent(time);
-
-        if(nextEvent?.actionDescription){
-            if(Math.abs((nextEvent?.time ?? 0) - time) < 0.1 && nextEvent?.actionDescription === 'caught'){
-                this.dispatchEvent(nextEvent?.actionDescription);
-            }
-            if(Math.abs((nextEvent?.time ?? 0) - time) < 0.05 && nextEvent?.actionDescription === 'tossed'){
-                this.dispatchEvent(nextEvent?.actionDescription);
-            }
-        }
         if (prevEvent === null) {
             if (nextEvent === null) {
                 // if (this.defaultTable !== undefined) {

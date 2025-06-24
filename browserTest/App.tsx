@@ -5,7 +5,7 @@ import { BasicJuggler } from "../src/react/examples/BasicJuggler";
 import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
 import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
 import { Clock } from "../src";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
 import { PerformanceView } from "../src/view/PerformanceView";
@@ -17,7 +17,8 @@ import styles from "./simulator.module.css";
 import mergeRefs from "merge-refs";
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-
+import { AlertsTimeline } from "../src/utils/AlertsTimeline";
+import { Alerts } from "../src/utils/Alerts";
 //TODO : styles ?
 //TODO : clock optional for performance ?
 
@@ -25,7 +26,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 extend({ LineMaterial, LineGeometry });
 
 export function App() {
-    const [clock] = useState(() => new Clock({bounds: [0, 20]}));
+    const [clock] = useState(() => new Clock({bounds: [0, 15]}));
     const [model] = useState(() => patternToModel(pattern));
     const [ballsData] = useState<BasicBallProps[]>([
         { id: "Do?K", color: "red" },
@@ -81,6 +82,27 @@ function CanvasContent({
     const jugglersRef = useRef(
         new Map<string, { leftHand: THREE.Object3D | null; rightHand: THREE.Object3D | null }>()
     );
+    
+    useEffect(() => {
+        const alertesTimeline = new AlertsTimeline();
+    
+        model.balls.forEach((ball) => {
+            alertesTimeline.addTimeline(ball.timeline, 0.2)
+            //console.log(ball.timeline.stringify())
+        })
+
+        console.log('----------- ALERTES TIMELINE --------------')
+        alertesTimeline.forEach((a) => {
+            console.log(a[0] + 's ('+ a[1][1] +'): ' +a[1][0].stringify())
+        })
+
+        console.log('----------- ALERTES TIMELINE / WITH CLOCK RUNNING --------------')
+        let alertes = new Alerts(alertesTimeline, clock);
+
+        alertes.addEventListener("sup", (e) => {
+            console.log(e.stringify());
+        })
+    })
 
     useFrame(() => {
         const time = performance.getClock().getTime();
@@ -90,9 +112,7 @@ function CanvasContent({
             const ballObject = ballsRef.current.get(id);
             const curveObject = curvesRef.current.get(id);
 
-            if (curvePoints.length === 0) {
-                ballView.initCurve(performance.getClock());
-            }
+            ballView.calculateCurve(performance.getClock());
 
             if (ballObject !== undefined) {
                 const pos = model.position(time);
@@ -132,7 +152,6 @@ function CanvasContent({
             if (jugglerObject !== undefined) {
                 if (jugglerObject.leftHand !== null) {
                     const o = new THREE.Object3D()
-                    console.log(performance);
                     if(performance.position){
                         o.position.set(performance.position[0] + jugglerPos[0], performance.position[1] - jugglerPos[1], performance.position[2] - jugglerPos[2]);
                     }

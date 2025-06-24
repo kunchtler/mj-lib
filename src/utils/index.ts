@@ -6,6 +6,8 @@ export * from "./SetOperations";
 export * from "./constants";
 export * from "./stringifyEvent";
 export * from "./utils";
+export * from "./Alerts";
+export * from "./AlertsTimeline";
 
 export * from "./spline/index";
 export * from "./three/index";

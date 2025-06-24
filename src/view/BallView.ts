@@ -47,7 +47,8 @@ export class BallView {
         // this.threeObject = threeObject;
     }
 
-    initCurve(clock: Clock){
+    calculateCurve(clock: Clock){
+        this.curvePoints = [];
         const bounds = clock.getBounds() ?? [];
         const bound = bounds[1] !== undefined ? bounds[1] : 0;
         const limit = Math.min(clock.getTime()+0.35, bound);
