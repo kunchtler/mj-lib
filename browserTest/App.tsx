@@ -121,8 +121,6 @@ function CanvasContent({
                     o.position.set(performance.position[0], performance.position[1], performance.position[2]);
                 }
                 if(!performance.getClock().isPaused()){
-                    curvePoints.shift();
-                    curvePoints.push(model.position(time+0.31));
                     curvePoints = curvePoints.map((p) => o.worldToLocal(p.clone()));
 
                     let curve = new THREE.CatmullRomCurve3(curvePoints);
