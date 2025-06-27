@@ -1,7 +1,7 @@
 import { AlertsTimeline } from "./AlertsTimeline";
 import { Clock } from "./Clock";
 import { EventDispatcher } from "./EventDispatcher";
-import { BaseEvent } from "../model";
+import { BallModel, BaseEvent, HandModel } from "../model";
 
 type AlertsEvents =
     | "sup"
@@ -12,6 +12,8 @@ export interface AlertEvent {
     _ballRef: WeakRef<{ id: string }>;
     actionDescription: 'caught' | 'tossed' | string;
     time: number;
+    hand: HandModel;
+    ball: BallModel;
 }
 
 export class Alerts extends EventDispatcher<AlertsEvents> {
