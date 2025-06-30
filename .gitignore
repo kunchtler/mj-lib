@@ -28,3 +28,6 @@ docs
 
 # Custom folders
 **/IGNORE
+
+# Vitest coverage output dir
+coverage
