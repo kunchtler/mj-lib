@@ -1,15 +1,24 @@
+/**
+ * TODO
+ */
 interface Note1 {
     alteration?: string;
     pitch: string;
     height: number;
 }
 
+/**
+ * TODO
+ */
 interface Note2 {
     isSharp: boolean;
     pitch: string;
     height: number;
 }
 
+/**
+ * Map matching a note pitch in german key notation or fixed do key notation to only german key notation
+ */
 const pitchMap = new Map<string, string>([
     ["Do", "C"],
     ["Re", "D"],
@@ -34,12 +43,19 @@ const pitchMap = new Map<string, string>([
     ["G", "G"]
 ]);
 
+/**
+ * All piano notes in order (german key notation).
+ */
 const pianoKeys = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
-
+/**
+ * All possible alterations a note can have (standard notaiton).
+ */
 const alterations = ["bb", "b", "=", "#", "##", ""];
+/**
+ * All possible note heights.
+ */
 const heights = ["0", "1", "2", "3", "4", "5", "6", "7"];
 
-//TODO : Add support for abc notation with E e e' e, ...
 function gatherNoteInfo(note: string): Note1 | undefined {
     let abcAlteration = false;
     let abcHeight: boolean | undefined = undefined;
@@ -172,6 +188,12 @@ function noteToString(note: Note2 | undefined): string {
     return `${note.pitch}${note.height}${note.isSharp ? "#" : ""}`;
 }
 
+/**
+ * Formats a note (given in german key notation, fixed do notation or abc notation) to a
+ * standardized form (in german key notation, with naturals or sharps only)
+ * @param note the name of the note to format
+ * @returns the formatted note.
+ */
 export function formatNote(note: string): string {
     return noteToString(alterationsToSharp(gatherNoteInfo(note)));
 }

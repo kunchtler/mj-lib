@@ -89,6 +89,10 @@ import noteA7s from "../assets/notes/A7s.mp3";
 import noteB7 from "../assets/notes/B7.mp3";
 //TODO : AudioBuffer or AudioBufferSourceNode ?
 //TODO : Change sounds so they are shorter + lighter format.
+
+/**
+ * Map of formatted (standardized) note names to mp3 file paths. 
+ */
 export const notesMap = new Map<string, string>([
     ["A0", noteA0],
     ["A0#", noteA0s],
@@ -179,6 +183,14 @@ export const notesMap = new Map<string, string>([
     ["B7", noteB7]
 ]);
 
+/**
+ * Preloads a music note as an audio buffer.
+ * @param note a note name (using German key notation, fixed do key notation, or abc notation).
+ * @param audioContext an audio context used to decode audio date.
+ * @returns a promise that resolves:
+ * - to an audio buffer with the given sound if found.
+ * - to undefined otherwise.
+ */
 export async function getNoteBuffer(
     note: string,
     audioContext: AudioContext
