@@ -68,12 +68,14 @@ export interface PartialToss2 {
     from: { juggler: string; rightHand: boolean; beat: Fraction };
     to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
     ball: BallI;
+    mode: PartialTossMode;
 }
 
 export interface SimulatorToss<BeatT> {
     from: { juggler: string; rightHand: boolean; beat: BeatT };
     to: { juggler: string; rightHand: boolean; beat: BeatT };
     ball: BallI;
+    mode: PartialTossMode;
 }
 
 export interface SchedulerEvent {
@@ -589,7 +591,8 @@ class JugglerManager {
                     rightHand: fromRightHand
                 },
                 to: { beat: toBeat, juggler: toss.to.juggler, hand: toHand },
-                ball: ball
+                ball: ball,
+                mode: toss.mode
             });
         }
         return { tosses: newTosses, state: state };
@@ -731,7 +734,8 @@ class JugglerManager {
             completedTosses.push({
                 from: toss.from,
                 to: { beat: toBeat, juggler: toss.to.juggler, rightHand: toRightHand },
-                ball: toss.ball
+                ball: toss.ball,
+                mode: toss.mode
             });
         }
         return { tosses: completedTosses, state: state };
