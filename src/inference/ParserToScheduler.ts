@@ -12,7 +12,7 @@ import {
 } from "./Scheduler";
 import { closestWordsTo } from "../utils/LevenshteinDistance";
 import { setIntersection } from "../utils/SetOperations";
-import { TimedErrorLogger } from "../utils/ErrorLogger";
+import { FracTimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyHandSide } from "../utils/stringifyEvent";
 
 //TODO : Rewrite more cleanly with Immer.js ?
@@ -66,7 +66,7 @@ export function transformParserParamsToSchedulerParams({
     // 2. Check if ballIDs correctly refer to ballNames and that they aren't duplicates.
     checkBallNamesAndIDs(ballNames, ballIDs);
 
-    const errorLogger = new TimedErrorLogger();
+    const errorLogger = new FracTimedErrorLogger();
     const newParams: SchedulerParams = { jugglers: new Map() };
     for (const [jugglerName, { balls, events }] of jugglers) {
         // 1. Parse each pattern
@@ -187,8 +187,8 @@ export function transformParserParamsToSchedulerParams({
         // TODO ? checkEventsInRhythm();
 
         // 11. Format the jugglers balls.
-        errorLogger.logErrors();
-        newParams.jugglers.set(jugglerName, { events: events10, balls: balls });
+        errorLogger.printErrorsInConsole();
+        newParams.jugglers.set(jugglerName, events10);
     }
     return newParams;
 }
@@ -205,7 +205,7 @@ function sortEvents<T>(events: FracSortedList<T>): FracSortedList<T> {
 //TODO : ErrorLogger so that if a juggler fails, we can keep going with other juggler.
 function parsePatterns(
     events: FracSortedList<PreParserEvent>,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     jugglerName: string
 ): FracSortedList<Tempo & Partial<NewDefaultHand & Tosses<ParserToss> & Hands<string>>> {
     if (events.length === 0) {
@@ -218,11 +218,11 @@ function parsePatterns(
         }
     }
     if (tempoChangesArray.length === 0) {
-        errorLogger.addError(
-            events[0][0],
-            "CriticalError",
-            `${jugglerName}: Missing starting tempo indication.`
-        );
+        errorLogger.logError({
+            time: events[0][0],
+            severity: "CriticalError",
+            message: `${jugglerName}: Missing starting tempo indication.`
+        });
         return [];
     }
     const tempoChanges = new FracTimeline(tempoChangesArray);
@@ -269,7 +269,7 @@ type NewDefaultHand = { newDefaultHand: "L" | "R" };
 //TODO : Rename newDefaulHand to defaultHand everywhere ?
 function fuseDuplicateBeats<TossT, T extends Partial<Tosses<TossT> & Tempo & NewDefaultHand>>(
     events: FracSortedList<T>,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     jugglerName: string
 ): FracSortedList<T> {
     if (events.length === 0) {
@@ -299,11 +299,11 @@ function fuseDuplicateBeats<TossT, T extends Partial<Tosses<TossT> & Tempo & New
             let newTempo: Fraction | undefined = undefined;
             if (tempo1 !== undefined && tempo2 !== undefined) {
                 if (!tempo1.equals(tempo2)) {
-                    errorLogger.addError(
-                        beat,
-                        "Error",
-                        `${jugglerName}: Two different tempos (${tempo1.toString()} and ${tempo2.toString()})are defined on same beat. Proceeding by taking the first one.`
-                    );
+                    errorLogger.logError({
+                        time: beat,
+                        severity: "Error",
+                        message: `${jugglerName}: Two different tempos (${tempo1.toString()} and ${tempo2.toString()})are defined on same beat. Proceeding by taking the first one.`
+                    });
                 }
                 newTempo = tempo2;
             } else {
@@ -313,11 +313,11 @@ function fuseDuplicateBeats<TossT, T extends Partial<Tosses<TossT> & Tempo & New
             let newNewDefaultHand: "L" | "R" | undefined = undefined;
             if (newDefaultHand1 !== undefined && newDefaultHand2 !== undefined) {
                 if (newDefaultHand1 !== newDefaultHand2) {
-                    errorLogger.addError(
-                        beat,
-                        "Error",
-                        `${jugglerName}: Two different newDefaultHands (${stringifyHandSide(newDefaultHand1)} and ${stringifyHandSide(newDefaultHand2)}) defined on same beat. Proceeding by taking the first one.`
-                    );
+                    errorLogger.logError({
+                        time: beat,
+                        severity: "Error",
+                        message: `${jugglerName}: Two different newDefaultHands (${stringifyHandSide(newDefaultHand1)} and ${stringifyHandSide(newDefaultHand2)}) defined on same beat. Proceeding by taking the first one.`
+                    });
                 }
                 newNewDefaultHand = newDefaultHand2;
             } else {
@@ -338,7 +338,7 @@ function fuseDuplicateBeats<TossT, T extends Partial<Tosses<TossT> & Tempo & New
 //TODO : Make sure empty list events works.
 // function addTempoToAllEvents<T extends Partial<Tempo>>(
 //     events: FracSortedList<T>,
-//     errorLogger: TimedErrorLogger
+//     errorLogger: FracTimedErrorLogger
 // ): FracSortedList<T & Tempo> {
 //     if (events.length === 0) {
 //         return [];
@@ -373,10 +373,10 @@ function addFromBeatToAllEvents<TossT extends Partial<{ from: object }>, T>(
     return newEvents;
 }
 
-//Rename TimedErrorLogger.logError/addError method. Misleading name.
+//Rename FracTimedErrorLogger.logError/addError method. Misleading name.
 function addDefaultHandToAllEvents<T extends Partial<NewDefaultHand> & Tempo>(
     events: FracSortedList<T>,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     jugglerName: string
 ): FracSortedList<T & NewDefaultHand> {
     if (events.length === 0) {
@@ -384,11 +384,11 @@ function addDefaultHandToAllEvents<T extends Partial<NewDefaultHand> & Tempo>(
     }
     let lastDefaultHand: "L" | "R";
     if (events[0][1].newDefaultHand === undefined) {
-        errorLogger.addError(
-            events[0][0],
-            "Warn",
-            `${jugglerName}: No starting hand detected. We assume they will start with their right hand on beat ${events[0][0].toString()}.`
-        );
+        errorLogger.logError({
+            time: events[0][0],
+            severity: "Warn",
+            message: `${jugglerName}: No starting hand detected. We assume they will start with their right hand on beat ${events[0][0].toString()}.`
+        });
         lastDefaultHand = "R";
     } else {
         lastDefaultHand = events[0][1].newDefaultHand;
@@ -471,7 +471,7 @@ function addMissingJugglerNames<TossT, T>(
 function checkJugglerNames<TossT extends TossJuggler, T extends Tosses<TossT>>(
     events: FracSortedList<T>,
     jugglerNames: Set<string>,
-    errorLogger: TimedErrorLogger
+    errorLogger: FracTimedErrorLogger
 ): void {
     for (const [beat, ev] of events) {
         for (const toss of ev.tosses) {
@@ -496,7 +496,7 @@ function formatThrownBalls<TossT, T>(
     events: FracSortedList<T & Tosses<TossT & Partial<TossBall<{ nameOrID: string }>>>>,
     ballNames: Set<string>,
     ballIDs: Map<string, { name: string }>,
-    errorLogger: TimedErrorLogger
+    errorLogger: FracTimedErrorLogger
 ): FracSortedList<T & Tosses<TossT & Partial<TossBall<PartialBall>>>> {
     const newEvents: FracSortedList<T & Tosses<TossT & Partial<TossBall<BallNameAndID>>>> = [];
     for (const [beat, ev] of events) {
@@ -517,7 +517,7 @@ function getBall(
     ballNameOrID: string | undefined,
     ballNames: Set<string>,
     ballIDs: Map<string, { name: string }>,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     beat: Fraction
 ): { name: string; id?: string } | undefined {
     if (ballNameOrID === undefined) {
@@ -540,7 +540,7 @@ function formatHeldBalls<T>(
     events: FracSortedList<T & Partial<Hands<string>>>,
     ballNames: Set<string>,
     ballIDs: Map<string, { name: string }>,
-    errorLogger: TimedErrorLogger
+    errorLogger: FracTimedErrorLogger
 ): FracSortedList<T & Partial<Hands<BallNameAndID>>> {
     const newEvents: FracSortedList<T & Partial<Hands<BallNameAndID>>> = [];
     for (const [beat, ev] of events) {
@@ -568,7 +568,7 @@ function handleUnkownName(
     name: string,
     namesList: Iterable<string>,
     nameCategory: string,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     beat: Fraction
 ): void {
     let text = `Unknown ${nameCategory} : "${name}".`;
@@ -576,7 +576,7 @@ function handleUnkownName(
     if (closeMatches.length > 0) {
         text += ` Did you mean "${closestWordsTo(name, namesList, 2)}" ?`;
     }
-    errorLogger.addError(beat, "CriticalError", text);
+    errorLogger.logError({ time: beat, severity: "CriticalError", message: text });
 }
 
 type FromBeat = { from: { beat: Fraction } };
@@ -617,7 +617,7 @@ function filterEmptyEvents<
 
 function formatMode<TossT, T>(
     events: FracSortedList<T & Tosses<TossT & { mode: ParserTossMode }>>,
-    errorLogger: TimedErrorLogger,
+    errorLogger: FracTimedErrorLogger,
     musicConverter?: MusicBeatConverter
 ): FracSortedList<T & Tosses<TossT & { mode: PartialTossMode }>> {
     const newEvents: FracSortedList<T & Tosses<TossT & { mode: PartialTossMode }>> = [];
@@ -631,11 +631,12 @@ function formatMode<TossT, T>(
                 mode = { type: "Beat", beat: toss.mode.beat };
             } else if (toss.mode.type === "AbsMeasureBeat") {
                 if (musicConverter === undefined) {
-                    errorLogger.addError(
-                        beat,
-                        "CriticalError",
+                    errorLogger.logError({
+                        time: beat,
+                        severity: "CriticalError",
+                        message:
                         "No Signature information was provided to be able to use measures. TODO."
-                    );
+                    });
                     continue;
                 }
                 mode = {
