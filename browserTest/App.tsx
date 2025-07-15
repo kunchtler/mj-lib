@@ -4,8 +4,8 @@ import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
 import { BasicJuggler } from "../src/react/examples/BasicJuggler";
 import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
 import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
-import { Clock } from "../src";
-import { useRef, useState } from "react";
+import { Clock, TossCatchEvent, TossEvent } from "../src";
+import { useEffect, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
 import { PerformanceView } from "../src/view/PerformanceView";
@@ -34,6 +34,14 @@ export function App() {
     const [tablesData] = useState<BasicTableProps[]>([
         { name: "KylianT", position: [0, 0, 0], rotation: [0, Math.PI, 0] }
     ]);
+
+    useEffect(() => {
+        const event = model.balls.get("Do?K")?.timeline.nextEvent(0)[1];
+        if (event instanceof TossCatchEvent) {
+            console.log("Example of fetching siteswap height :");
+            console.log(event.siteswapHeight);
+        }
+    }, [model]);
 
     return (
         <>
