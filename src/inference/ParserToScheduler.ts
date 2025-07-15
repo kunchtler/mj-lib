@@ -188,7 +188,7 @@ export function transformParserParamsToSchedulerParams({
 
         // 11. Format the jugglers balls.
         errorLogger.printErrorsInConsole();
-        newParams.jugglers.set(jugglerName, events10);
+        newParams.jugglers.set(jugglerName, { events: events10, balls: balls });
     }
     return newParams;
 }
