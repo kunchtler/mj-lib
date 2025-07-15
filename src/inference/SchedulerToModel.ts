@@ -85,13 +85,15 @@ export function schedulerToModel({
                     evIdx = toJuggler.events.length - 1;
                 }
                 const toTempo = toJuggler.events[evIdx][1].tempo;
+                const siteswapHeight = toss.mode.type === "Height" ? toss.mode.height : undefined;
                 simulateToss({
                     ball: model.balls.get(toss.ball.id)!,
                     tossInfo: {
                         time: fromTime,
                         hand: fromJuggler.hands[toss.from.rightHand ? 1 : 0],
                         // sound: ballSounds.onToss,
-                        unitTime: fromUnitTime
+                        unitTime: fromUnitTime,
+                        siteswapHeight: siteswapHeight
                     },
                     catchInfo: {
                         time: musicConverter.convertBeatToRealTime(toss.to.beat),
@@ -140,7 +142,13 @@ function simulateToss({
     catchInfo
 }: {
     ball: BallModel;
-    tossInfo: { time: Fraction; hand: HandModel; unitTime: Fraction; sound?: string | EventSound };
+    tossInfo: {
+        time: Fraction;
+        hand: HandModel;
+        unitTime: Fraction;
+        sound?: string | EventSound;
+        siteswapHeight?: number;
+    };
     catchInfo: { time: Fraction; hand: HandModel; unitTime: Fraction; sound?: string | EventSound };
     // ss_height: number,
 }): void {
@@ -151,14 +159,16 @@ function simulateToss({
         unitTime: tossInfo.unitTime.valueOf(),
         sound: tossInfo.sound,
         ball: ball,
-        hand: tossInfo.hand
+        hand: tossInfo.hand,
+        siteswapHeight: tossInfo.siteswapHeight
     });
     const catchEv = new CatchEvent({
         time: catchInfo.time.valueOf(),
         unitTime: catchInfo.unitTime.valueOf(),
         sound: catchInfo.sound,
         ball: ball,
-        hand: catchInfo.hand
+        hand: catchInfo.hand,
+        siteswapHeight: tossInfo.siteswapHeight
     });
     ball.timeline.addEvent(tossEv);
     ball.timeline.addEvent(catchEv);

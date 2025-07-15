@@ -113,7 +113,7 @@ export type AbstractTableEventParams = AbstractEventParams & {
 export type AbstractBallHandEventParams = AbstractBallEventParams & AbstractHandEventParams;
 
 export type AbstractBallHandTableEventParams = AbstractBallEventParams &
-    AbstractHandEvent &
+    AbstractHandEventParams &
     AbstractTableEventParams;
 
 /**
