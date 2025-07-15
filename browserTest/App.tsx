@@ -4,7 +4,7 @@ import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
 import { BasicJuggler } from "../src/react/examples/BasicJuggler";
 import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
 import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
-import { Clock, TossCatchEvent, TossEvent } from "../src";
+import { ballVelocity, Clock, TossCatchEvent, TossEvent } from "../src";
 import { useEffect, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
@@ -38,8 +38,25 @@ export function App() {
     useEffect(() => {
         const event = model.balls.get("Do?K")?.timeline.nextEvent(0)[1];
         if (event instanceof TossCatchEvent) {
-            console.log("Example of fetching siteswap height :");
-            console.log(event.siteswapHeight);
+            console.log(`Example of fetching information at time ${event.time}:`);
+            console.log(`Is event a toss ? : ${event instanceof TossEvent}`);
+            console.log(`Siteswap height : ${event.siteswapHeight}`);
+            console.log(`Time between two successive toss of the juggler : ${event.unitTime}s`);
+            const tossPerMinute = 60 / event.unitTime;
+            console.log(`Number of tosses per minute of the juggler : ${tossPerMinute}`);
+            const tossStartPos = event.ball.positionAtEvent(event);
+            const tossEndPos = event.ball.positionAtEvent(event.nextBallEvent()[1]);
+            console.log(`Toss starting position : ${tossStartPos.toArray()}`);
+            console.log(`Toss ending position : ${tossEndPos.toArray()}`);
+            console.log(
+                "At that tempo, if the starting and ending positions of the toss are the same, here are the velocities the ball should have when tossed at different siteswap heights :\nTODO : Technically, this doesn't take into account the time the ball spends in hand... In order to fix this, interact with the timeline at the event layer, and have dwell time parameter there ?\nTODO : This won't work if the juggler's tempo changes midflight."
+            );
+            for (let i = 1; i < 7; i++) {
+                const flightTime = event.unitTime * i;
+                console.log(
+                    `Siteswap height ${i} :\n\tFlight time ${flightTime}\n\tVelocity vector ${ballVelocity(tossStartPos, 0, tossEndPos, flightTime, 0).toArray()}`
+                );
+            }
         }
     }, [model]);
 
