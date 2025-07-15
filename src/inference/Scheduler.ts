@@ -1,7 +1,7 @@
 import { Timeline } from "../utils/Timeline";
 import Fraction from "fraction.js";
 import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
-import { Severity, TimedErrorLogger } from "../utils/ErrorLogger";
+import { FracTimedErrorLogger, Severity } from "../utils/TimedErrorLogger";
 import { compareEvents } from "./ParserToScheduler";
 
 /*
@@ -68,12 +68,14 @@ export interface PartialToss2 {
     from: { juggler: string; rightHand: boolean; beat: Fraction };
     to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
     ball: BallI;
+    mode: PartialTossMode;
 }
 
 export interface SimulatorToss<BeatT> {
     from: { juggler: string; rightHand: boolean; beat: BeatT };
     to: { juggler: string; rightHand: boolean; beat: BeatT };
     ball: BallI;
+    mode: PartialTossMode;
 }
 
 export interface SchedulerEvent {
@@ -205,7 +207,7 @@ export class Scheduler {
         }
 
         for (const { manager } of this.jugglers.values()) {
-            manager.errorLogger.logErrors();
+            manager.errorLogger.printErrorsInConsole();
         }
         return schedulerRes;
     }
@@ -255,7 +257,7 @@ export function XOR(a: boolean, b: boolean): boolean {
 class JugglerManager {
     name: string;
     events: FracSortedList<SchedulerEvent>;
-    errorLogger: TimedErrorLogger;
+    errorLogger: FracTimedErrorLogger;
     ballsOnTable: BallI[];
     // catches: FracSortedList<SimulatorToss>;
     // beats: FracSortedList<JugglerState>;
@@ -276,7 +278,7 @@ class JugglerManager {
     constructor(name: string, ballsOnTable: BallI[], events: FracSortedList<SchedulerEvent>) {
         this.name = name;
         this.events = events;
-        this.errorLogger = new TimedErrorLogger();
+        this.errorLogger = new FracTimedErrorLogger();
         this.ballsOnTable = ballsOnTable;
     }
 
@@ -314,7 +316,11 @@ class JugglerManager {
     // }
 
     logError(beat: Fraction, severity: Severity, message: string): void {
-        this.errorLogger.addError(beat, severity, `Juggler ${this.name}:\n\t${message}`);
+        this.errorLogger.logError({
+            time: beat,
+            severity: severity,
+            message: `Juggler ${this.name}:\n\t${message}`
+        });
     }
 
     //TODO : consistant evBeat / eventBeat ?
@@ -589,7 +595,8 @@ class JugglerManager {
                     rightHand: fromRightHand
                 },
                 to: { beat: toBeat, juggler: toss.to.juggler, hand: toHand },
-                ball: ball
+                ball: ball,
+                mode: toss.mode
             });
         }
         return { tosses: newTosses, state: state };
@@ -731,7 +738,8 @@ class JugglerManager {
             completedTosses.push({
                 from: toss.from,
                 to: { beat: toBeat, juggler: toss.to.juggler, rightHand: toRightHand },
-                ball: toss.ball
+                ball: toss.ball,
+                mode: toss.mode
             });
         }
         return { tosses: completedTosses, state: state };

@@ -1,5 +1,5 @@
 export * from "./Clock";
-export * from "./ErrorLogger";
+export * from "./TimedErrorLogger";
 export * from "./EventDispatcher";
 export * from "./LevenshteinDistance";
 export * from "./SetOperations";
