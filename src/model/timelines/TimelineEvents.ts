@@ -92,6 +92,30 @@ export interface HandEventInterface extends BaseEvent {
     handMultiEvent(): HandTimelineEvent | null;
 }
 
+export type AbstractEventParams = {
+    time: number;
+    unitTime: number;
+};
+
+export type AbstractBallEventParams = AbstractEventParams & {
+    ball: BallModel;
+    sound?: string | EventSound;
+};
+
+export type AbstractHandEventParams = AbstractEventParams & {
+    hand: HandModel;
+};
+
+export type AbstractTableEventParams = AbstractEventParams & {
+    table: TableModel;
+};
+
+export type AbstractBallHandEventParams = AbstractBallEventParams & AbstractHandEventParams;
+
+export type AbstractBallHandTableEventParams = AbstractBallEventParams &
+    AbstractHandEvent &
+    AbstractTableEventParams;
+
 /**
  * Class used to represent an event involving both a ball and a hand.
  */
@@ -109,19 +133,7 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
     readonly actionDescription: string = "unnamed attribute";
     sound?: EventSound;
 
-    constructor({
-        time,
-        unitTime,
-        sound,
-        ball,
-        hand
-    }: {
-        time: number;
-        unitTime: number;
-        sound?: string | EventSound;
-        ball: BallModel;
-        hand: HandModel;
-    }) {
+    constructor({ time, unitTime, sound, ball, hand }: AbstractBallHandEventParams) {
         this.time = time;
         this.unitTime = unitTime;
         this._ballRef = new WeakRef(ball);
@@ -194,7 +206,7 @@ export class AbstractHandEvent implements HandEventInterface {
     time: number;
     unitTime: number;
 
-    constructor({ time, unitTime, hand }: { time: number; unitTime: number; hand: HandModel }) {
+    constructor({ time, unitTime, hand }: AbstractHandEventParams) {
         this.time = time;
         this._handRef = new WeakRef(hand);
         this.unitTime = unitTime;
@@ -239,25 +251,13 @@ export class AbstractBallTableHandEvent extends AbstractBallHandEvent {
      */
     table: TableModel;
 
-    constructor({
-        time,
-        unitTime,
-        ball,
-        hand,
-        table,
-        sound
-    }: {
-        time: number;
-        unitTime: number;
-        ball: BallModel;
-        hand: HandModel;
-        table: TableModel;
-        sound?: string | EventSound;
-    }) {
+    constructor({ time, unitTime, ball, hand, table, sound }: AbstractBallHandTableEventParams) {
         super({ time, unitTime, ball, hand, sound });
         this.table = table;
     }
 }
+
+
 
 /**
  * Event when a ball is tossed by a hand.
