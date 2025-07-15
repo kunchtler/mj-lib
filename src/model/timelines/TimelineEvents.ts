@@ -257,19 +257,28 @@ export class AbstractBallTableHandEvent extends AbstractBallHandEvent {
     }
 }
 
+export type TossCatchEventParams = AbstractBallHandEventParams & { siteswapHeight?: number };
 
+export class TossCatchEvent extends AbstractBallHandEvent {
+    siteswapHeight?: number;
+
+    constructor({ siteswapHeight, ...args }: TossCatchEventParams) {
+        super(args);
+        this.siteswapHeight = siteswapHeight;
+    }
+}
 
 /**
  * Event when a ball is tossed by a hand.
  */
-export class TossEvent extends AbstractBallHandEvent {
+export class TossEvent extends TossCatchEvent {
     readonly actionDescription = "tossed";
 }
 
 /**
  * Event when a ball is caught by a hand.
  */
-export class CatchEvent extends AbstractBallHandEvent {
+export class CatchEvent extends TossCatchEvent {
     readonly actionDescription = "caught";
 }
 
