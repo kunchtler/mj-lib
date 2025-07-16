@@ -83,9 +83,9 @@ export function stringifyEvent(ev: EventType): string {
 }
 
 export function stringifyBall(
-    ball: { name?: string; id?: string; nameOrID?: string } | undefined
+    ball: { name?: string; id?: string; nameOrID?: string } | undefined | null
 ): string {
-    if (ball === undefined) {
+    if (ball === undefined || ball === null) {
         return "Ball";
     }
     if (ball.nameOrID !== undefined) {
