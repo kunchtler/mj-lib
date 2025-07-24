@@ -32,7 +32,7 @@ export class EventDispatcher<T extends string = string> {
      * @param eventName The name of the event to be removed from.
      * @param callback The callback function to remove (must be the same callback that was added with addEventListener)
      */
-    private removeEventListener(eventName: T, callback: CallbackFunction): void {
+    removeEventListener(eventName: T, callback: CallbackFunction): void {
         let callbacks = this._listeners.get(eventName);
         if (callbacks === undefined) {
             return;
