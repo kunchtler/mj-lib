@@ -1,0 +1,111 @@
+{
+    "balls": [
+        {
+            "name": "Do",
+            "model": {
+                "type": "prefab",
+                "color": "red"
+            },
+            "soundOnCatch": {
+                "type": "prefab",
+                "note": "Do4"
+            },
+            "soundOnToss": "",
+            "soundWhileAriborne": ""
+        },
+        {
+            "name": "Re",
+            "soundOnCatch": true
+        },
+        {
+            "name": "Mi",
+            "soundOnCatch": [
+                {
+                    "type": "custom",
+                    "path": "SonMi1.mp3"
+                },
+                {
+                    "type": "custom",
+                    "path": "SonMi2.mp3"
+                }
+            ]
+        }
+    ],
+    "tables": [
+        {
+            "name": "Piano",
+            "balls": [
+                {
+                    "name": "Do",
+                    "uniqueName": "Do?1",
+                    ""
+                }
+            ]
+        }
+    ],
+    "jugglers": [
+        {
+            "name": "Vincent",
+            "table": {
+                "disposition": "Piano",
+                "ballsIntiallyPresent": [
+                    "Do",
+                    "Do?1", ...
+                ] OU "ballsIntiallyAbsent": [
+                    "Do",
+                    "Do?1", ...
+                ]
+                
+                "distanceFromJuggler": [
+                    0,
+                    1,
+                    2
+                ]
+            },
+            "model": {
+                "type": "prefab",
+                "color": "black",
+                "height": 1.8,
+                "width": 0.6,
+                "depth": 0.1,
+                "catchDistanceFromBodyCentre": 0.7,
+                "halfCircleSize": 0.1
+            },
+            "position": [
+                0,
+                0,
+                0
+            ],
+            "pattern": {
+                //TODO
+            }
+        },
+        {
+            "name": "Nicolas",
+            "table": "Piano",
+            "model": {
+                "type": "prefab",
+                "color": "0xf4f4f4"
+            },
+            "pattern": {
+                //TODO
+            }
+        },
+        {
+            "name": "Florent",
+            "table": "Accordéon",
+            "model": {
+                "type": "custom",
+                "3DmodelPath": "florent.fbx",
+                "catchSite": [
+                    0,
+                    1,
+                    0.2
+                ]
+            }
+            "pattern": {
+                //TODO
+            }
+        }
+    ]
+}
