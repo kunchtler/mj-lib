@@ -1,11 +1,15 @@
-import { Canvas, extend, useFrame } from "@react-three/fiber";
-import { Performance } from "../src/react/core/Performance";
-import { BasicBall, BasicBallProps } from "../src/react/examples/BasicBall";
-import { BasicJuggler } from "../src/react/examples/BasicJuggler";
-import { BasicJugglerProps } from "../src/react/mesh/JugglerMesh";
-import { BasicTable, BasicTableProps } from "../src/react/examples/BasicTable";
-import { ballVelocity, Clock, TossCatchEvent, TossEvent } from "../src";
-import { RefObject, useEffect, useRef, useState } from "react";
+import { Canvas, extend, invalidate, useFrame } from "@react-three/fiber";
+import { BallMesh, BodyMesh, HandMesh, TableMesh } from "../src/react";
+import {
+    Clock,
+    DEFAULT_JUGGLER_CUBE_ARM_LENGTH,
+    DEFAULT_JUGGLER_CUBE_COLOR,
+    DEFAULT_JUGGLER_CUBE_DEPTH,
+    DEFAULT_JUGGLER_CUBE_HEIGHT,
+    DEFAULT_JUGGLER_CUBE_WIDTH,
+    DEFAULT_TABLE_HEIGHT
+} from "../src";
+import { RefObject, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
 import { PerformanceView } from "../src/view/PerformanceView";
@@ -21,13 +25,86 @@ extend(LineMaterial);
 //TODO : clock optional for performance ?
 
 // TODO : Rename "model" to events ???
+// TODO : demand + invalidate.
+// TODO : Store position in JugglerModel
+// TODO : Store position in TableModel
+// TODO : In model we have timeline. We need to have "physicality" in attribute.
+// The addition of both allows to compute into real positions.
+
+type HandDescription = {
+    tossSpot: THREE.Vector3Tuple; // Relative to juggler origin.
+    catchSpot: THREE.Vector3Tuple; // Relative to juggler origin.
+    restSpot: THREE.Vector3Tuple; // Relative to juggler origin.
+};
+
+type BallData = { id: string; color: THREE.ColorRepresentation };
+type JugglerData = {
+    name: string;
+    position: THREE.Vector3Tuple; // Relative to performance origin.
+    rotation?: THREE.Vector3Tuple; // Relative to performance origin.
+    rightHand: HandDescription;
+    leftHand: HandDescription;
+};
+type TableData = {
+    name: string;
+    position: THREE.Vector3Tuple; // Relative to performance origin.
+    rotation?: THREE.Vector3Tuple; // Relative to performance origin.
+    spots: Map<string, THREE.Vector3Tuple>; // Relative to table origin.
+    unknownSpot: THREE.Vector3Tuple; // Relative to table origin.
+};
 
 type performanceDescription = {
-    ballsData: { id: string; color: THREE.ColorRepresentation }[];
+    ballsData: BallData[];
     model: PerformanceModel;
-    jugglersData: { name: string; position: THREE.Vector3Tuple; rotation?: THREE.Vector3Tuple }[];
-    tablesData: { name: string; position: THREE.Vector3Tuple; rotation?: THREE.Vector3Tuple }[];
+    jugglersData: JugglerData[];
+    tablesData: TableData[];
 };
+
+function createHandData(
+    isRight: boolean,
+    juggler?: {
+        armLength?: number; //TODO : Remove (and rather only do with cube dimensions)
+        height?: number;
+        width?: number;
+        depth?: number;
+        color?: THREE.ColorRepresentation;
+    }
+): HandDescription {
+    // Default values
+    juggler ??= {};
+    juggler.armLength ??= DEFAULT_JUGGLER_CUBE_ARM_LENGTH;
+    juggler.height ??= DEFAULT_JUGGLER_CUBE_HEIGHT;
+    juggler.width ??= DEFAULT_JUGGLER_CUBE_WIDTH;
+    juggler.depth ??= DEFAULT_JUGGLER_CUBE_DEPTH;
+    juggler.color ??= DEFAULT_JUGGLER_CUBE_COLOR;
+
+    const sideSign = isRight ? +1 : -1;
+
+    const restSpot: THREE.Vector3Tuple = [
+        juggler.armLength,
+        juggler.height - juggler.armLength * 2,
+        (sideSign * juggler.depth * 2) / 3
+    ];
+    const tossSpot: THREE.Vector3Tuple = [
+        restSpot[0],
+        restSpot[1],
+        restSpot[2] - (sideSign * juggler.width) / 4
+    ];
+    const catchSpot: THREE.Vector3Tuple = [
+        restSpot[0],
+        restSpot[1],
+        restSpot[2] + (sideSign * juggler.width) / 4
+    ];
+    return { restSpot, catchSpot, tossSpot };
+}
+
+// function createTableData(tableHeight: number) {
+//     const spots = new Map<string, THREE.Vector3Tuple>();
+
+//     return { spots, unknownSpot: [0, tableHeight, 0] };
+// }
+
+const model = patternToModel(pattern);
 
 const description: performanceDescription = {
     model: patternToModel(pattern),
@@ -36,9 +113,56 @@ const description: performanceDescription = {
         { id: "Re?K", color: "orange" },
         { id: "Mi?K", color: "yellow" }
     ],
-    jugglersData: [{ name: "Kylian", position: [-1, 0, 0] }],
-    tablesData: [{ name: "KylianT", position: [0, 0, 0], rotation: [0, Math.PI, 0] }]
+    jugglersData: [
+        {
+            name: "Kylian",
+            position: [-1, 0, 0],
+            leftHand: createHandData(false),
+            rightHand: createHandData(true)
+        }
+    ],
+    tablesData: [
+        {
+            name: "KylianT",
+            position: [0, 0, 0],
+            rotation: [0, Math.PI, 0],
+            spots: new Map<string, THREE.Vector3Tuple>([
+                ["Do", [0, DEFAULT_TABLE_HEIGHT, 0]],
+                ["Re", [0, DEFAULT_TABLE_HEIGHT, 0]],
+                ["Mi", [0, DEFAULT_TABLE_HEIGHT, 0]]
+            ]),
+            unknownSpot: [0, DEFAULT_TABLE_HEIGHT, 0]
+        }
+    ]
 };
+
+//TODO : Juggler model have position of the juggler, and position of its hand relative to that ?
+
+// Fill in the model's positional info
+// TODO : Have that info better propagated when reworking of info propagates from the inference.
+for (const { name, position, leftHand, rightHand } of description.jugglersData) {
+    const jugglerModel = model.jugglers.get(name)!;
+    const jugglerPosition = new THREE.Vector3(...position);
+    jugglerModel.leftHand.catchPos = new THREE.Vector3(...leftHand.catchSpot).add(jugglerPosition);
+    jugglerModel.rightHand.catchPos = new THREE.Vector3(...rightHand.catchSpot).add(
+        jugglerPosition
+    );
+    jugglerModel.leftHand.tossPos = new THREE.Vector3(...leftHand.tossSpot).add(jugglerPosition);
+    jugglerModel.rightHand.tossPos = new THREE.Vector3(...rightHand.tossSpot).add(jugglerPosition);
+    jugglerModel.leftHand.restPos = new THREE.Vector3(...leftHand.restSpot).add(jugglerPosition);
+    jugglerModel.rightHand.restPos = new THREE.Vector3(...rightHand.restSpot).add(jugglerPosition);
+}
+for (const { name, position, unknownSpot, spots } of description.tablesData) {
+    const tableModel = model.tables.get(name)!;
+    const tablePosition = new THREE.Vector3(...position);
+    for (const [ballSound, ballPosition] of spots) {
+        tableModel.ballsSpots.set(ballSound, new THREE.Vector3(...ballPosition).add(tablePosition));
+    }
+    tableModel.unkownBallSpot = new THREE.Vector3(...unknownSpot).add(tablePosition);
+}
+
+console.log(model.balls.get("Mi?K")!.timeline.stringify());
+
 const clock = new Clock();
 
 export function App() {
@@ -60,26 +184,24 @@ export function App() {
     );
 }
 
+//TODO : Optimization THREE do not recreate vectors each time but have one that is reused.
+
 function CanvasContent() {
-    const [performance] = useState(
-        () => new PerformanceView({ model: description.model, clock: clock })
-    );
     const ballsRef = useRef(new Map<string, THREE.Object3D>());
     const jugglersRef = useRef(
-        new Map<string, { leftHand: THREE.Object3D | null; rightHand: THREE.Object3D | null }>()
+        new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
 
     useFrame(() => {
-        const time = performance.getClock().getTime();
+        const time = clock.getTime();
 
         // Update the balls' positions.
-        for (const [id, { model }] of performance.balls) {
+        for (const [id, ballMesh] of ballsRef.current) {
             const ballObject = ballsRef.current.get(id);
             if (ballObject !== undefined) {
-                ballObject.position.copy(model.position(time));
+                ballMesh.position.copy(model.balls.get(id)!.position(time));
             }
         }
-
         // Update the hands' positions.
         // for (const [name, { model }] of performance.jugglers) {
         //     const jugglerObject = jugglersRef.current.get(name);
@@ -102,88 +224,109 @@ function CanvasContent() {
     });
 
     return (
-        <Performance audio={true} clock={clock} performance={performance}>
+        <group position={[0, 0, 0]}>
             {description.jugglersData.map((elem) => mapJuggler(elem, jugglersRef))}
             {description.tablesData.map((elem) => mapTables(elem))}
             {description.ballsData.map((elem) => mapBalls(elem, ballsRef))}
-        </Performance>
+        </group>
     );
 }
 
-function mapBalls(
-    { id, ref, ...props }: BasicBallProps,
-    ballsRef: RefObject<Map<string, THREE.Object3D>>
-) {
+function mapBalls({ id, color }: BallData, ballsRef: RefObject<Map<string, THREE.Object3D>>) {
     return (
-        <BasicBall
-            id={id}
+        <BallMesh
             key={id}
-            ref={mergeRefs((elem) => {
-                if (elem === null) {
-                    ballsRef.current.delete(id);
+            color={color}
+            ref={(node) => {
+                if (node !== null) {
+                    ballsRef.current.set(id, node);
                 } else {
-                    ballsRef.current.set(id, elem);
+                    ballsRef.current.delete(id);
                 }
-                /*@ts-expect-error React 19's refs are weirdly typed*/
-            }, ref)}
-            {...props}
+            }}
         />
     );
 }
 
 function mapJuggler(
-    { name, ...props }: BasicJugglerProps,
+    { name, position }: JugglerData,
     jugglersRef: RefObject<
         Map<
             string,
             {
-                leftHand: THREE.Object3D | null;
-                rightHand: THREE.Object3D | null;
+                leftHand?: THREE.Mesh;
+                rightHand?: THREE.Mesh;
+                body?: THREE.Mesh;
             }
         >
     >
 ) {
     return (
-        <BasicJuggler
-            name={name}
-            key={name}
-            rightHandRef={(elem) => {
-                const ref = jugglersRef.current.get(name);
-                if (ref === undefined) {
-                    if (elem !== null) {
-                        jugglersRef.current.set(name, {
-                            rightHand: elem,
-                            leftHand: null
-                        });
-                    }
-                } else {
-                    ref.rightHand = elem;
-                    if (ref.rightHand === null && ref.leftHand === null) {
-                        // jugglersRef.current.delete(name);
-                    }
-                }
-            }}
-            leftHandRef={(elem) => {
-                const ref = jugglersRef.current.get(name);
-                if (ref === undefined) {
-                    if (elem !== null) {
-                        jugglersRef.current.set(name, {
-                            rightHand: null,
-                            leftHand: elem
-                        });
-                    }
-                } else {
-                    ref.leftHand = elem;
-                    if (ref.rightHand === null && ref.leftHand === null) {
-                        // jugglersRef.current.delete(name);
-                    }
-                }
-            }}
-            {...props}
-        />
+        <group position={position} key={name}>
+            <BodyMesh
+                ref={(node) => {
+                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                        juggler.body = node;
+                    });
+                }}
+            />
+            <HandMesh
+                ref={(node) => {
+                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                        juggler.rightHand = node;
+                    });
+                }}
+            />
+            <HandMesh
+                ref={(node) => {
+                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                        juggler.leftHand = node;
+                    });
+                }}
+            />
+        </group>
     );
 }
 
-function mapTables({ name, ...props }: BasicTableProps) {
-    return <BasicTable name={name} key={name} {...props} />;
+function updateJugglersRef(
+    node: THREE.Mesh | null,
+    jugglersRef: RefObject<
+        Map<
+            string,
+            {
+                leftHand?: THREE.Mesh;
+                rightHand?: THREE.Mesh;
+                body?: THREE.Mesh;
+            }
+        >
+    >,
+    name: string,
+    addToRefFunc: (
+        juggler: { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body?: THREE.Mesh },
+        node: THREE.Mesh
+    ) => void
+) {
+    let juggler = jugglersRef.current.get(name);
+    if (node !== null) {
+        // The mesh is being mounted.
+        if (juggler === undefined) {
+            // The juggler doesn't exist yet in the ref, so we create it.
+            juggler = {};
+            jugglersRef.current.set(name, juggler);
+        }
+        // Add the mesh to the specific juggler part.
+        addToRefFunc(juggler, node);
+    } else {
+        // The mesh is being dismounted.
+        if (juggler === undefined) {
+            // The refs have already been cleared.
+            return;
+        }
+        // Clear the whole ref
+        jugglersRef.current.delete(name);
+    }
+}
+
+function mapTables({ position, rotation, name }: TableData) {
+    return <TableMesh position={position} rotation={rotation} key={name} />;
 }

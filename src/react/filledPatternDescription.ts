@@ -7,22 +7,23 @@ import { JSX } from "react";
 // Is the ball model in the jugglers rather, as it is already instanciated. No duplicate three mesh !TODO : A tester.
 export type ReactPatternDescription = {
     balls: {
-        name: string;
+        id: string;
         sounds: {
-            whenCaught: (param: any) => string; // Return audiobuffer ?
-            whenTossed: (param: any) => string;
-            whileAirborne: (param: any) => string;
+            whenCaught: (param: any) => AudioBuffer;
+            whenTossed: (param: any) => AudioBuffer;
+            whileAirborne: (param: any) => AudioBuffer;
         };
         mesh: JSX.Element;
-        updateMesh: (param: any) => void;
+        updateMeshPosition: (param: any) => void;
     }[];
-    soundBuffers: { name: string; buffer: AudioBuffer }[];
-    tables: {}[];
     jugglers: {
-        table: { template: string };
-        initialBalls: {};
-        mesh: JSX.Element;
-        updateMesh: (param: any) => void;
+        // TODO : Make jugglers also have unique ID instead of name ?
+        name: string;
+        table: JSX.Element;
+        bodyMesh: JSX.Element;
+        rightHandMesh: JSX.Element;
+        leftHandMesh: JSX.Element;
+        updateMeshPosition: (param: any) => void;
     }[];
 };
 
