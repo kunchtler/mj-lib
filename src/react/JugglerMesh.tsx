@@ -1,4 +1,4 @@
-import { RefObject } from "react";
+import { Ref } from "react";
 import {
     DEFAULT_JUGGLER_CUBE_ARM_LENGTH,
     DEFAULT_JUGGLER_CUBE_HEIGHT,
@@ -18,7 +18,7 @@ export type JugglerMeshProps = {
     rightHand?: HandMeshProps;
     leftHand?: HandMeshProps;
     armLength?: number;
-    ref?: RefObject<THREE.Object3D>;
+    ref?: Ref<THREE.Object3D>;
 };
 
 // How to get a reference to the juggler's hands ?
