@@ -7,18 +7,17 @@ import {
     DEFAULT_JUGGLER_CUBE_DEPTH,
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH,
-    DEFAULT_TABLE_HEIGHT
+    DEFAULT_TABLE_HEIGHT,
+    PerformanceAudio
 } from "../src";
-import { RefObject, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
-import { PerformanceView } from "../src/view/PerformanceView";
 import * as THREE from "three";
 import { pattern } from "./pattern";
-import { JugglingPatternRaw, patternToModel } from "../src/inference/PatternToModel";
-import { OrbitControls, TorusKnot } from "@react-three/drei";
+import { patternToModel } from "../src/inference/PatternToModel";
+import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import styles from "./simulator.module.css";
-import mergeRefs from "merge-refs";
 import { LineMaterial } from "three/examples/jsm/Addons.js";
 extend(LineMaterial);
 //TODO : styles ?
@@ -169,13 +168,7 @@ export function App() {
     return (
         <>
             <Canvas frameloop="always" camera={{ position: [3, 2, 0] }}>
-                <color args={[0x444444]} attach={"background"} />
-                <OrbitControls enableDamping={false} target={[-1, 1, 0]} />
-                <ambientLight args={[0xfefded, 2]} />
-                <directionalLight args={[0xfefded, 1]} />
-                <axesHelper args={[1.5]} position={[0, 0.01, 0]} />
-                <gridHelper args={[30, 30]} />
-                <CanvasContent />
+                <CanvasContents />
             </Canvas>
             <div className={styles.timecontrols}>
                 <TimeControls clock={clock} />
@@ -184,24 +177,73 @@ export function App() {
     );
 }
 
+function CanvasContents() {
+    const [listener] = useState(new THREE.AudioListener());
+
+    return (
+        <>
+            <color args={[0x444444]} attach={"background"} />
+            <PerspectiveCamera makeDefault position={[6, 2, 3]}>
+                <primitive object={listener} />
+            </PerspectiveCamera>
+            <OrbitControls enableDamping={false} target={[0, 0, 0]} />
+            <ambientLight args={[0xfefded, 2]} />
+            <directionalLight args={[0xfefded, 1]} />
+            <axesHelper args={[1.5]} position={[0, 0.01, 0]} />
+            <gridHelper args={[30, 30]} />
+            <Performance listener={listener} />
+        </>
+    );
+}
+
 //TODO : Optimization THREE do not recreate vectors each time but have one that is reused.
 
-function CanvasContent() {
-    const ballsRef = useRef(new Map<string, THREE.Object3D>());
+// TODO : Test what is happening when the listener changes.
+function Performance({ listener }: { listener: THREE.AudioListener }) {
+    // Previous time
+    const previousTime = useRef<number>(-Infinity);
+    const ballsRef = useRef(new Map<string, { mesh?: THREE.Mesh }>());
     const jugglersRef = useRef(
         new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
+    const [performanceAudio] = useState(() => new PerformanceAudio(listener));
+    // const audioRef = useRef(new PerformanceAudio());
+
+    useEffect(() => {
+        console.log(performanceAudio);
+        const loader = new THREE.AudioLoader();
+        let disposed = false;
+        loader.load("src/assets/notes/A4.mp3", (buffer) => {
+            if (disposed) {
+                return;
+            }
+            performanceAudio.playBallSound("Mi?K", buffer, true);
+            console.log("Playing");
+        });
+        return () => {
+            disposed = true;
+            performanceAudio.stop();
+        };
+    });
 
     useFrame(() => {
         const time = clock.getTime();
 
         // Update the balls' positions.
-        for (const [id, ballMesh] of ballsRef.current) {
+        for (const [id, { mesh }] of ballsRef.current) {
             const ballObject = ballsRef.current.get(id);
-            if (ballObject !== undefined) {
-                ballMesh.position.copy(model.balls.get(id)!.position(time));
+            if (ballObject !== undefined && mesh !== undefined) {
+                mesh.position.copy(model.balls.get(id)!.position(time));
             }
         }
+
+        // Make the balls emit sounds.
+        // for (const [id, {audio}] of performance.balls) {
+        //     if previousTime.current
+        // }
+
+        previousTime.current = time;
+
         // Update the hands' positions.
         // for (const [name, { model }] of performance.jugglers) {
         //     const jugglerObject = jugglersRef.current.get(name);
@@ -227,24 +269,45 @@ function CanvasContent() {
         <group position={[0, 0, 0]}>
             {description.jugglersData.map((elem) => mapJuggler(elem, jugglersRef))}
             {description.tablesData.map((elem) => mapTables(elem))}
-            {description.ballsData.map((elem) => mapBalls(elem, ballsRef))}
+            {description.ballsData.map((elem) =>
+                mapBalls(elem, ballsRef, listener, performanceAudio)
+            )}
         </group>
     );
 }
 
-function mapBalls({ id, color }: BallData, ballsRef: RefObject<Map<string, THREE.Object3D>>) {
+function mapBalls(
+    { id, color }: BallData,
+    ballsRef: RefObject<Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>>,
+    listener: THREE.AudioListener,
+    performanceAudio: PerformanceAudio
+) {
     return (
         <BallMesh
             key={id}
             color={color}
             ref={(node) => {
-                if (node !== null) {
-                    ballsRef.current.set(id, node);
-                } else {
-                    ballsRef.current.delete(id);
-                }
+                updateMapRef<THREE.Mesh, string, { mesh?: THREE.Mesh }>(
+                    node,
+                    ballsRef,
+                    id,
+                    (ball, node) => {
+                        ball.mesh = node;
+                    }
+                );
             }}
-        />
+        >
+            <positionalAudio
+                args={[listener]}
+                ref={(node) => {
+                    if (node !== null) {
+                        performanceAudio.addBallAudio(id, node);
+                    } else {
+                        performanceAudio.deleteBallAudio(id);
+                    }
+                }}
+            />
+        </BallMesh>
     );
 }
 
@@ -265,21 +328,45 @@ function mapJuggler(
         <group position={position} key={name}>
             <BodyMesh
                 ref={(node) => {
-                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                    updateMapRef<
+                        THREE.Mesh,
+                        string,
+                        {
+                            leftHand?: THREE.Mesh;
+                            rightHand?: THREE.Mesh;
+                            body?: THREE.Mesh;
+                        }
+                    >(node, jugglersRef, name, (juggler, node) => {
                         juggler.body = node;
                     });
                 }}
             />
             <HandMesh
                 ref={(node) => {
-                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                    updateMapRef<
+                        THREE.Mesh,
+                        string,
+                        {
+                            leftHand?: THREE.Mesh;
+                            rightHand?: THREE.Mesh;
+                            body?: THREE.Mesh;
+                        }
+                    >(node, jugglersRef, name, (juggler, node) => {
                         juggler.rightHand = node;
                     });
                 }}
             />
             <HandMesh
                 ref={(node) => {
-                    updateJugglersRef(node, jugglersRef, name, (juggler, node) => {
+                    updateMapRef<
+                        THREE.Mesh,
+                        string,
+                        {
+                            leftHand?: THREE.Mesh;
+                            rightHand?: THREE.Mesh;
+                            body?: THREE.Mesh;
+                        }
+                    >(node, jugglersRef, name, (juggler, node) => {
                         juggler.leftHand = node;
                     });
                 }}
@@ -288,42 +375,31 @@ function mapJuggler(
     );
 }
 
-function updateJugglersRef(
-    node: THREE.Mesh | null,
-    jugglersRef: RefObject<
-        Map<
-            string,
-            {
-                leftHand?: THREE.Mesh;
-                rightHand?: THREE.Mesh;
-                body?: THREE.Mesh;
-            }
-        >
-    >,
-    name: string,
-    addToRefFunc: (
-        juggler: { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body?: THREE.Mesh },
-        node: THREE.Mesh
-    ) => void
+// Note : MapValueObject must have all fields optional.
+function updateMapRef<NodeType, MapKey, MapValueObject extends object>(
+    node: NodeType | null,
+    mapRef: RefObject<Map<MapKey, Partial<MapValueObject>>>,
+    key: MapKey,
+    addToRefFunc: (juggler: Partial<MapValueObject>, node: NodeType) => void
 ) {
-    let juggler = jugglersRef.current.get(name);
+    let elem = mapRef.current.get(key);
     if (node !== null) {
-        // The mesh is being mounted.
-        if (juggler === undefined) {
-            // The juggler doesn't exist yet in the ref, so we create it.
-            juggler = {};
-            jugglersRef.current.set(name, juggler);
+        // The node is being mounted.
+        if (elem === undefined) {
+            // The mapRef has not the specified key, so we create it.
+            elem = {};
+            mapRef.current.set(key, elem);
         }
-        // Add the mesh to the specific juggler part.
-        addToRefFunc(juggler, node);
+        // We complete the value object.
+        addToRefFunc(elem, node);
     } else {
-        // The mesh is being dismounted.
-        if (juggler === undefined) {
+        // The node is being dismounted.
+        if (elem === undefined) {
             // The refs have already been cleared.
             return;
         }
         // Clear the whole ref
-        jugglersRef.current.delete(name);
+        mapRef.current.delete(key);
     }
 }
 

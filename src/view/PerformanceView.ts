@@ -4,8 +4,7 @@ import { JugglerView } from "./JugglerView";
 import { BallView } from "./BallView";
 import { TableView } from "./TableView";
 import { PerformanceAudio } from "../audio/PerformanceAudio";
-import { ThreeAudio, ThreePositionalAudio } from "../audio/CustomThreeAudio";
-import { immerable } from "immer";
+import { ThreeAudio, CustomThreePositionalAudio } from "../audio/CustomThreeAudio";
 
 export type PerformanceViewParams = {
     // object3D: THREE.Object3D;
@@ -17,7 +16,6 @@ export type PerformanceViewParams = {
 };
 
 export class PerformanceView {
-    [immerable] = true;
     // object3D: THREE.Object3D;
     model: PerformanceModel;
     audio?: PerformanceAudio;
@@ -59,7 +57,7 @@ export class PerformanceView {
         bufferMap,
         context
     }: {
-        ballsThreeAudio: Map<string, ThreeAudio | ThreePositionalAudio>;
+        ballsThreeAudio: Map<string, ThreeAudio | CustomThreePositionalAudio>;
         bufferMap: Map<string, AudioBuffer>;
         context?: AudioContext;
     }) {

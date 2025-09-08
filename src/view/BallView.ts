@@ -1,5 +1,5 @@
 import { BallModel } from "../model/BallModel";
-import { BallAudio, BallAudioParams } from "../audio/BallAudio";
+import { BallAudio, BallAudioParams } from "../audio/PerformanceAudio";
 
 // TODO : CamelCase for every variable.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?

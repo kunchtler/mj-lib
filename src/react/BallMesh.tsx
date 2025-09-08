@@ -8,6 +8,7 @@ import {
     DEFAULT_BALL_WIDTH_SEGMENT
 } from "../view";
 import { Ref } from "react";
+import { ThreeElements } from "@react-three/fiber";
 
 export type BallMeshProps = {
     radius?: number;
@@ -15,7 +16,7 @@ export type BallMeshProps = {
     heightSegments?: number;
     color?: THREE.ColorRepresentation;
     ref?: Ref<THREE.Mesh>;
-};
+} & ThreeElements["mesh"];
 
 // TODO : Add customization options (striped, with middle band, ...)
 
@@ -24,7 +25,8 @@ export function BallMesh({
     widthSegments = DEFAULT_BALL_WIDTH_SEGMENT,
     heightSegments = DEFAULT_BALL_HEIGHT_SEGMENT,
     color = DEFAULT_BALL_COLOR,
-    ref
+    ref,
+    ...props
 }: BallMeshProps) {
     return (
         <mesh
@@ -35,6 +37,7 @@ export function BallMesh({
             })}
             material={createBallMaterial({ color })}
             ref={ref}
+            {...props}
         />
     );
 }
