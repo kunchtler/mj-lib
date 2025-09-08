@@ -15,7 +15,10 @@ import * as THREE from "three";
 // }
 
 export class PerformanceAudio {
-    private balls: Map<string, { audio: THREE.PositionalAudio; jugglerGain: GainNode }>;
+    private balls: Map<
+        string,
+        { audio: THREE.PositionalAudio; jugglerGain: GainNode; jugglerGainName?: string }
+    >;
     private jugglerVolume: Map<string, number>;
     private performanceGain: GainNode;
     private _playbackRate: number;
@@ -87,11 +90,20 @@ export class PerformanceAudio {
     }
 
     changeBallJuggler(ballID: string, jugglerName: string): void {
+        const ballData = this.balls.get(ballID);
+        if (ballData === undefined) {
+            return;
+        }
+        ballData.jugglerGainName = jugglerName;
         const targetVolume = this.jugglerVolume.get(jugglerName);
         if (targetVolume === undefined) {
             return;
         }
         this.balls.get(ballID)?.jugglerGain.gain.setValueAtTime(targetVolume, 0.01);
+    }
+
+    getBallJuggler(ballID: string): string | undefined {
+        return this.balls.get(ballID)?.jugglerGainName;
     }
 
     setPlaybackRate(rate: number) {

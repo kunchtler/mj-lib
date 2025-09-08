@@ -9,7 +9,8 @@ import {
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH,
     DEFAULT_TABLE_HEIGHT,
-    PerformanceAudio
+    PerformanceAudio,
+    TossEvent
 } from "../src";
 import { RefObject, useEffect, useRef, useState } from "react";
 import { TimeControls } from "./TimeControls";
@@ -240,6 +241,10 @@ function Performance({
     const performanceRef = useRef<THREE.Object3D>(null!);
     // const audioRef = useRef(new PerformanceAudio());
 
+    useEffect(() => {
+        performanceAudio.setPlaybackRate(1);
+    });
+
     // useEffect(() => {
     //     console.log(performanceAudio);
     //     const loader = new THREE.AudioLoader();
@@ -262,13 +267,27 @@ function Performance({
 
         for (const [id, { mesh }] of ballsRef.current) {
             const ballObject = ballsRef.current.get(id);
+
             // Update the balls' positions.
             if (ballObject !== undefined && mesh !== undefined) {
                 mesh.position.copy(model.balls.get(id)!.position(time));
             }
 
-            // Make the ball sound if needed.
+            // Audio
             const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
+
+            // Check if a ball has changed jugglers to change its gain.
+            if (
+                prevEvTime !== null &&
+                prevEv instanceof TossEvent &&
+                previousTime.current < prevEvTime &&
+                prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
+            ) {
+                console.log("changed");
+                performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
+            }
+
+            // Make the ball sound if needed.
             if (
                 prevEvTime !== null &&
                 prevEv instanceof CatchEvent &&
@@ -281,10 +300,10 @@ function Performance({
 
         previousTime.current = time;
 
-        // Update the hands' positions.
-        for (const { name: jugglerName, position: jugglerPosition } of description.jugglersData) {
+        for (const { name: jugglerName } of description.jugglersData) {
             const { body, leftHand, rightHand } = jugglersRef.current.get(jugglerName)!;
             const jugglerModel = model.jugglers.get(jugglerName)!;
+            // Update the hands' positions.
             rightHand?.position.copy(
                 changeCoordinateSystem(
                     jugglerModel.rightHand.position(time),
