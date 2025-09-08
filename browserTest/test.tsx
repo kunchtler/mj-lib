@@ -8,7 +8,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Ref, useEffect, useRef, useState } from "react";
 import { CustomThreePositionalAudio } from "../src";
 import * as THREE from "three";
-import { create } from "zustand";
 
 export function App() {
     // useEffect(() => {

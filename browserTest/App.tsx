@@ -1,6 +1,7 @@
 import { Canvas, extend, invalidate, useFrame } from "@react-three/fiber";
 import { BallMesh, BodyMesh, HandMesh, TableMesh } from "../src/react";
 import {
+    CatchEvent,
     Clock,
     DEFAULT_JUGGLER_CUBE_ARM_LENGTH,
     DEFAULT_JUGGLER_CUBE_COLOR,
@@ -198,6 +199,18 @@ function CanvasContents() {
 
 //TODO : Optimization THREE do not recreate vectors each time but have one that is reused.
 
+const buffersMap = new Map<string, AudioBuffer>();
+const loader = new THREE.AudioLoader();
+loader.load("src/assets/notes/C4.mp3", (buffer) => {
+    buffersMap.set("Do?K", buffer);
+});
+loader.load("src/assets/notes/D4.mp3", (buffer) => {
+    buffersMap.set("Re?K", buffer);
+});
+loader.load("src/assets/notes/E4.mp3", (buffer) => {
+    buffersMap.set("Mi?K", buffer);
+});
+
 // TODO : Test what is happening when the listener changes.
 function Performance({ listener }: { listener: THREE.AudioListener }) {
     // Previous time
@@ -209,38 +222,44 @@ function Performance({ listener }: { listener: THREE.AudioListener }) {
     const [performanceAudio] = useState(() => new PerformanceAudio(listener));
     // const audioRef = useRef(new PerformanceAudio());
 
-    useEffect(() => {
-        console.log(performanceAudio);
-        const loader = new THREE.AudioLoader();
-        let disposed = false;
-        loader.load("src/assets/notes/A4.mp3", (buffer) => {
-            if (disposed) {
-                return;
-            }
-            performanceAudio.playBallSound("Mi?K", buffer, true);
-            console.log("Playing");
-        });
-        return () => {
-            disposed = true;
-            performanceAudio.stop();
-        };
-    });
+    // useEffect(() => {
+    //     console.log(performanceAudio);
+    //     const loader = new THREE.AudioLoader();
+    //     let disposed = false;
+    //     loader.load("src/assets/notes/A4.mp3", (buffer) => {
+    //         if (disposed) {
+    //             return;
+    //         }
+    //         performanceAudio.playBallSound("Mi?K", buffer, true);
+    //         console.log("Playing");
+    //     });
+    //     return () => {
+    //         disposed = true;
+    //         performanceAudio.stop();
+    //     };
+    // });
 
     useFrame(() => {
         const time = clock.getTime();
 
-        // Update the balls' positions.
         for (const [id, { mesh }] of ballsRef.current) {
             const ballObject = ballsRef.current.get(id);
+            // Update the balls' positions.
             if (ballObject !== undefined && mesh !== undefined) {
                 mesh.position.copy(model.balls.get(id)!.position(time));
             }
-        }
 
-        // Make the balls emit sounds.
-        // for (const [id, {audio}] of performance.balls) {
-        //     if previousTime.current
-        // }
+            // Make the ball sound if needed.
+            const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
+            if (
+                prevEvTime !== null &&
+                prevEv instanceof CatchEvent &&
+                previousTime.current < prevEvTime &&
+                !clock.isPaused()
+            ) {
+                performanceAudio.playBallSound(id, buffersMap.get(id)!);
+            }
+        }
 
         previousTime.current = time;
 
