@@ -211,8 +211,25 @@ loader.load("src/assets/notes/E4.mp3", (buffer) => {
     buffersMap.set("Mi?K", buffer);
 });
 
+function changeCoordinateSystem(
+    point: THREE.Vector3,
+    originalObject: THREE.Object3D,
+    targetObject: THREE.Object3D
+): THREE.Vector3 {
+    return targetObject.worldToLocal(originalObject.localToWorld(point.clone()));
+}
+
+const DEFAULT_POSITION: THREE.Vector3Tuple = [0, 0, 0];
+
 // TODO : Test what is happening when the listener changes.
-function Performance({ listener }: { listener: THREE.AudioListener }) {
+// TODO : Have juggler origin in addition to their body mesh.
+function Performance({
+    listener,
+    position = DEFAULT_POSITION
+}: {
+    listener: THREE.AudioListener;
+    position?: THREE.Vector3Tuple;
+}) {
     // Previous time
     const previousTime = useRef<number>(-Infinity);
     const ballsRef = useRef(new Map<string, { mesh?: THREE.Mesh }>());
@@ -220,6 +237,7 @@ function Performance({ listener }: { listener: THREE.AudioListener }) {
         new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
     const [performanceAudio] = useState(() => new PerformanceAudio(listener));
+    const performanceRef = useRef<THREE.Object3D>(null!);
     // const audioRef = useRef(new PerformanceAudio());
 
     // useEffect(() => {
@@ -264,6 +282,25 @@ function Performance({ listener }: { listener: THREE.AudioListener }) {
         previousTime.current = time;
 
         // Update the hands' positions.
+        for (const { name: jugglerName, position: jugglerPosition } of description.jugglersData) {
+            const { body, leftHand, rightHand } = jugglersRef.current.get(jugglerName)!;
+            const jugglerModel = model.jugglers.get(jugglerName)!;
+            rightHand?.position.copy(
+                changeCoordinateSystem(
+                    jugglerModel.rightHand.position(time),
+                    performanceRef.current,
+                    body
+                )
+            );
+            leftHand?.position.copy(
+                changeCoordinateSystem(
+                    jugglerModel.leftHand.position(time),
+                    performanceRef.current,
+                    body
+                )
+            );
+        }
+
         // for (const [name, { model }] of performance.jugglers) {
         //     const jugglerObject = jugglersRef.current.get(name);
         //     if (jugglerObject !== undefined) {
@@ -285,7 +322,7 @@ function Performance({ listener }: { listener: THREE.AudioListener }) {
     });
 
     return (
-        <group position={[0, 0, 0]}>
+        <group position={position} ref={performanceRef}>
             {description.jugglersData.map((elem) => mapJuggler(elem, jugglersRef))}
             {description.tablesData.map((elem) => mapTables(elem))}
             {description.ballsData.map((elem) =>
