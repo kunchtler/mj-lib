@@ -1,11 +1,10 @@
 import { Ref } from "react";
 import {
-    DEFAULT_JUGGLER_CUBE_ARM_LENGTH,
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH,
     DEFAULT_JUGGLER_CUBE_DEPTH,
     DEFAULT_JUGGLER_CUBE_COLOR
-} from "../view";
+} from "./Default3DModels";
 import { BodyMesh, BodyMeshProps } from "./BodyMesh";
 import { HandMesh, HandMeshProps } from "./HandMesh";
 import * as THREE from "three";

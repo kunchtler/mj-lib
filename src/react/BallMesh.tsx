@@ -6,7 +6,7 @@ import {
     DEFAULT_BALL_HEIGHT_SEGMENT,
     DEFAULT_BALL_RADIUS,
     DEFAULT_BALL_WIDTH_SEGMENT
-} from "../view";
+} from "./Default3DModels";
 import { Ref } from "react";
 import { ThreeElements } from "@react-three/fiber";
 

@@ -6,7 +6,7 @@ import {
     DEFAULT_JUGGLER_CUBE_DEPTH,
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH
-} from "../view";
+} from "./Default3DModels";
 import { Ref } from "react";
 
 export type BodyMeshProps = {

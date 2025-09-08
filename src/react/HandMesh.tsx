@@ -6,7 +6,7 @@ import {
     DEFAULT_HAND_HEIGHT_SEGMENT,
     DEFAULT_HAND_RADIUS,
     DEFAULT_HAND_WIDTH_SEGMENT
-} from "../view";
+} from "./Default3DModels";
 import { Ref } from "react";
 
 export type HandMeshProps = {

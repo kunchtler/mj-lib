@@ -6,7 +6,7 @@ import {
     DEFAULT_TABLE_DEPTH,
     DEFAULT_TABLE_HEIGHT,
     DEFAULT_TABLE_WIDTH
-} from "../view";
+} from "./Default3DModels";
 import { Ref } from "react";
 
 export type TableMeshProps = {
