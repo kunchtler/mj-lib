@@ -64,7 +64,6 @@ type performanceDescription = {
 function createHandData(
     isRight: boolean,
     juggler?: {
-        armLength?: number; //TODO : Remove (and rather only do with cube dimensions)
         height?: number;
         width?: number;
         depth?: number;
@@ -73,7 +72,6 @@ function createHandData(
 ): HandDescription {
     // Default values
     juggler ??= {};
-    juggler.armLength ??= DEFAULT_JUGGLER_CUBE_ARM_LENGTH;
     juggler.height ??= DEFAULT_JUGGLER_CUBE_HEIGHT;
     juggler.width ??= DEFAULT_JUGGLER_CUBE_WIDTH;
     juggler.depth ??= DEFAULT_JUGGLER_CUBE_DEPTH;
@@ -82,19 +80,19 @@ function createHandData(
     const sideSign = isRight ? +1 : -1;
 
     const restSpot: THREE.Vector3Tuple = [
-        juggler.armLength,
-        juggler.height - juggler.armLength * 2,
-        (sideSign * juggler.depth * 2) / 3
+        juggler.depth,
+        (juggler.height * 6) / 10,
+        (sideSign * juggler.width * 3) / 4
     ];
     const tossSpot: THREE.Vector3Tuple = [
         restSpot[0],
         restSpot[1],
-        restSpot[2] - (sideSign * juggler.width) / 4
+        restSpot[2] - (sideSign * juggler.width) / 2
     ];
     const catchSpot: THREE.Vector3Tuple = [
         restSpot[0],
         restSpot[1],
-        restSpot[2] + (sideSign * juggler.width) / 4
+        restSpot[2] + (sideSign * juggler.width) / 2
     ];
     return { restSpot, catchSpot, tossSpot };
 }
