@@ -53,10 +53,10 @@ export interface PartialToss {
         hand?: "R" | "L" | "x";
     };
     ball?: PartialBall;
-    mode: PartialTossMode;
+    mode: TossMode;
 }
 
-export type PartialTossMode = { type: "Beat"; beat: Fraction } | { type: "Height"; height: number };
+export type TossMode = { type: "Beat"; beat: Fraction } | { type: "Height"; height: number };
 
 export type Hands<BallT> = [BallT[], BallT[]];
 //TODO : Remove Balls and PartialBallsInHands and replace with Hands<...>.
@@ -68,14 +68,14 @@ export interface PartialToss2 {
     from: { juggler: string; rightHand: boolean; beat: Fraction };
     to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
     ball: BallI;
-    mode: PartialTossMode;
+    mode: TossMode;
 }
 
 export interface SimulatorToss<BeatT> {
     from: { juggler: string; rightHand: boolean; beat: BeatT };
     to: { juggler: string; rightHand: boolean; beat: BeatT };
     ball: BallI;
-    mode: PartialTossMode;
+    mode: TossMode;
 }
 
 export interface SchedulerEvent {

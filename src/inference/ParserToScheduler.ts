@@ -2,7 +2,7 @@ import Fraction from "fraction.js";
 import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
 import { MusicBeatConverter } from "./MusicBeatConverter";
 import {
-    PartialTossMode,
+    TossMode,
     PartialBall,
     FracSortedList,
     XOR,
@@ -109,7 +109,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { hand?: "L" | "R" };
                 to: { juggler?: string; hand?: "L" | "R" | "x" };
                 ball?: { nameOrID: string };
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = formatMode(events3, errorLogger, musicConverter);
 
@@ -122,7 +122,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { hand?: "L" | "R"; beat: Fraction };
                 to: { juggler?: string; hand?: "L" | "R" | "x" };
                 ball?: { nameOrID: string };
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = addFromBeatToAllEvents(events4);
 
@@ -138,7 +138,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { juggler: string; hand?: "L" | "R"; beat: Fraction };
                 to: { juggler: string; hand?: "L" | "R" | "x" };
                 ball?: { nameOrID: string };
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = addMissingJugglerNames(events6, jugglerName);
 
@@ -154,7 +154,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { juggler: string; hand?: "L" | "R"; beat: Fraction };
                 to: { juggler: string; hand?: "L" | "R" | "x" };
                 ball?: { nameOrID: string };
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = formatHeldBalls(events7, ballNames, ballIDs, errorLogger);
 
@@ -167,7 +167,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { juggler: string; hand?: "L" | "R"; beat: Fraction };
                 to: { juggler: string; hand?: "L" | "R" | "x" };
                 ball?: PartialBall;
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = formatThrownBalls(events8, ballNames, ballIDs, errorLogger);
 
@@ -180,7 +180,7 @@ export function transformParserParamsToSchedulerParams({
                 from: { juggler: string; hand?: "L" | "R"; beat: Fraction };
                 to: { juggler: string; hand?: "L" | "R" | "x" };
                 ball?: PartialBall;
-                mode: PartialTossMode;
+                mode: TossMode;
             }[];
         }> = addDefaultHandToAllEvents(events9, errorLogger, jugglerName);
 
@@ -584,11 +584,11 @@ type FromBeat = { from: { beat: Fraction } };
 function filterEmptyEvents<
     HandT,
     TossT,
-    T extends Partial<Tosses<TossT & { mode: PartialTossMode } & FromBeat>> &
+    T extends Partial<Tosses<TossT & { mode: TossMode } & FromBeat>> &
         Partial<Tempo & NewDefaultHand & Hands<HandT>>
 >(events: FracSortedList<T>): FracSortedList<T> {
     // Static function to filter tosses.
-    function keepToss(toss: TossT & { mode: PartialTossMode } & FromBeat): boolean {
+    function keepToss(toss: TossT & { mode: TossMode } & FromBeat): boolean {
         return (
             (toss.mode.type === "Height" && toss.mode.height > 0) ||
             (toss.mode.type === "Beat" && toss.mode.beat.gt(toss.from.beat))
@@ -619,12 +619,12 @@ function formatMode<TossT, T>(
     events: FracSortedList<T & Tosses<TossT & { mode: ParserTossMode }>>,
     errorLogger: FracTimedErrorLogger,
     musicConverter?: MusicBeatConverter
-): FracSortedList<T & Tosses<TossT & { mode: PartialTossMode }>> {
-    const newEvents: FracSortedList<T & Tosses<TossT & { mode: PartialTossMode }>> = [];
+): FracSortedList<T & Tosses<TossT & { mode: TossMode }>> {
+    const newEvents: FracSortedList<T & Tosses<TossT & { mode: TossMode }>> = [];
     for (const [beat, ev] of events) {
-        const newTosses: (TossT & { mode: PartialTossMode })[] = [];
+        const newTosses: (TossT & { mode: TossMode })[] = [];
         for (const toss of ev.tosses) {
-            let mode: PartialTossMode;
+            let mode: TossMode;
             if (toss.mode.type === "Height") {
                 mode = { ...toss.mode };
             } else if (toss.mode.type === "AbsBeat") {
@@ -635,7 +635,7 @@ function formatMode<TossT, T>(
                         time: beat,
                         severity: "CriticalError",
                         message:
-                        "No Signature information was provided to be able to use measures. TODO."
+                            "No Signature information was provided to be able to use measures. TODO."
                     });
                     continue;
                 }

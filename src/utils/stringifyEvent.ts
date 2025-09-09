@@ -1,14 +1,14 @@
 // Printing functions for events.
 import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
-import { FracSortedList, Hands, PartialBall, PartialTossMode } from "../inference/Scheduler";
+import { FracSortedList, Hands, PartialBall, TossMode } from "../inference/Scheduler";
 import { MusicBeatConverter } from "../inference/MusicBeatConverter";
 
 type TossType = {
     from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
     to: { hand?: "L" | "R" | "x"; rightHand?: boolean; juggler?: string; beat?: Fraction };
     ball?: { name: string; id?: string } | { nameOrID?: string };
-    mode?: ParserTossMode | PartialTossMode;
+    mode?: ParserTossMode | TossMode;
 };
 
 //TODO : Find a way to fuse all similar types ?
