@@ -55,6 +55,18 @@ export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventTyp
     }
 
     /**
+     * Transforms an orderedMap into a sorted array.
+     * @returns a sorted array where each element is a 2-tuple [time, event].
+     */
+    toArray(): [TimeType, EventType][] {
+        const arr: [TimeType, EventType][] = [];
+        for (const [time, ev] of this) {
+            arr.push([time, ev]);
+        }
+        return arr;
+    }
+
+    /**
      * Create a string of the whole timeline in a human friendly fashion.
      * @param stringifyTime an optional function to stringify the time.
      * @param stringifyEvent an optional function to stringify the events.
