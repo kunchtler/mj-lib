@@ -61,8 +61,12 @@ export class MusicBeatConverter {
         }
     }
 
-    // Checks if the beat is not outside the range of the measure.
-    validateMusicTime([measure, beat]: MusicTime): boolean {
+    /**
+     * Checks if a beat is inside the range of this measure, ie is in [0, signature[.
+     * @param param0 The [measure, beat] to check for.
+     * @returns whether the beat is within the measure or outside.
+     */
+    isBeatInMeasure([measure, beat]: MusicTime): boolean {
         let signature = this.signatureChanges.prevEvent(measure, false)[1];
         if (signature === null) {
             signature = this.signatureChanges.begin().pointer[1];
@@ -73,7 +77,7 @@ export class MusicBeatConverter {
     //TODO : Change name.
     convertMeasureToBeat(musicTime: MusicTime): Fraction {
         // Initial validation for sanity.
-        if (!this.validateMusicTime(musicTime)) {
+        if (!this.isBeatInMeasure(musicTime)) {
             throw Error("Beat is outside of measure.");
         }
         const [measure, beat] = musicTime;
@@ -217,49 +221,3 @@ export class MusicBeatConverter {
     //     throw new Error("Not Implementsd");
     // }
 }
-
-//TODO : Use testing library ? Vitest ?
-//TODO : Change prettier max char per line (100 is... big !)
-
-// Testing
-// console.log("Tests start.");
-// const converter = new MusicBeatConverter([
-//     [1, new Fraction("3/4")],
-//     [3, new Fraction("1/2")],
-//     [4, new Fraction("3/7")]
-// ]);
-
-// const validateTests: [MusicTime, boolean][] = [
-//     [[-1, new Fraction("0")], true],
-//     [[0, new Fraction("4/4")], false],
-//     [[2, new Fraction("2/5")], true],
-//     [[2, new Fraction("3/4")], false]
-// ];
-// for (const [time, answer] of validateTests) {
-//     if (converter.validateMusicTime(time) !== answer) {
-//         console.log("Error in validate.");
-//     }
-// }
-
-// const convertTests: [MusicTime, Fraction][] = [
-//     [[-1, new Fraction("0")], new Fraction("-3/4")],
-//     [[1, new Fraction("0")], new Fraction("3/4")],
-//     [[2, new Fraction("0")], new Fraction("6/4")],
-//     [[3, new Fraction("0")], new Fraction("9/4")],
-//     [[4, new Fraction("0")], new Fraction("11/4")],
-//     [[5, new Fraction("0")], new Fraction("89/28")],
-//     [[6, new Fraction("0")], new Fraction("101/28")],
-//     [[-1, new Fraction("1/4")], new Fraction("-2/4")],
-//     [[2, new Fraction("1/4")], new Fraction("7/4")],
-//     [[6, new Fraction("1/7")], new Fraction("105/28")]
-// ];
-// for (const [time, absBeat] of convertTests) {
-//     if (!converter.convertMeasureBeat(time).equals(absBeat)) {
-//         console.log("Error in convertMeasureBeat.");
-//     }
-//     const answer = converter.convertAbsoluteBeat(absBeat);
-//     if (!(answer[0] === time[0] && answer[1].equals(time[1]))) {
-//         console.log("Error in convertMeasureBeat.");
-//     }
-// }
-// console.log("Tests end.");
