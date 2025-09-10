@@ -82,17 +82,19 @@ export type RawMusicConverter<FractionType> = {
 
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T
-    color: number | string; //P
+    color?: number | string; //P
     soundOnCatch?: string; //A
     // soundOnToss?: BallSound;
     // soundWhileAirborne?: BallSound;
     // soundOnCatch?: BallSound;
 };
 
+export type ColorDescription = number | string;
+
 export type HandDescription = {
     tossSpot: [number, number, number]; // Relative to juggler origin. //P
     catchSpot: [number, number, number]; // Relative to juggler origin. //P
-    restSpot: [number, number, number]; // Relative to juggler origin. //P
+    restSpot?: [number, number, number]; // Relative to juggler origin. //P
     visible?: boolean; //P
 };
 
@@ -100,33 +102,33 @@ export type BodyDescription = {
     height?: number; //P
     width?: number; //P
     depth?: number; //P
-    color?: number | string; //P
+    color?: ColorDescription; //P
     visible?: boolean; //P
 };
 
-export type BallOnTable = {
-    ballName: string; //T
-    id?: string; //T
-    spot?: string; //T
-};
+export type BallOnTable = //T
 
-export type Ball = {
-    template: string; //T
-    id?: string; //T
-};
+        | {
+              ballName: string;
+              spot?: string;
+          }
+        | {
+              ballID: string;
+              spot?: string;
+          };
 
 export type JugglerDescription<PatternTimeType, FractionType> = {
     name: string; //T
     // id?: string; //TODO : Name should already be unique (else how can we pass ?) //T
-    position: [number, number, number]; // Relative to performance origin. //P
+    position?: [number, number, number]; // Relative to performance origin. //P
     rotation?: [number, number, number]; // Relative to performance origin. //P
     scale?: number; //P
-    leftHand: HandDescription; //P
-    rightHand: HandDescription; //P
-    body: BodyDescription; //P
+    leftHand?: HandDescription; //P
+    rightHand?: HandDescription; //P
+    body?: BodyDescription; //P
     table?: TableDescription; //T+P
-    ballsHeldAtStart: [Ball[], Ball[]]; //T
-    pattern: [PatternTimeType, SubPattern<FractionType>][]; //T
+    ballsHeldAtStart?: [BallNameOrID[], BallNameOrID[]]; //T
+    pattern?: [PatternTimeType, SubPattern<FractionType>][]; //T
     // defaultTossOrder: ;
     // defaultCatchOrder: ;
 };
@@ -137,7 +139,7 @@ export type JugglerDescription<PatternTimeType, FractionType> = {
 
 export type SpotDescription = {
     name: string; //T
-    acceptedBall: string; //T
+    acceptedBallName?: string; //T
     position: [number, number, number]; // Relative to table origin. //P
 };
 
@@ -152,27 +154,35 @@ export type TableTemplate = {
 
 export type TableDescription = {
     // id?: string; //T //Not needed because juggler name is good enough.
-    spotsTemplate: string; //T
-    position: [number, number, number]; // Relative to performance origin. //P
+    template: string; //T
+    position?: [number, number, number]; // Relative to performance origin. //P
     rotation?: [number, number, number]; // Relative to performance origin. //P
     scale?: number; //P
-    ballsOnTableAtStart: BallOnTable[]; //T
+    ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
 export type SubPattern<FractionType> = {
     withTempo?: FractionType; //T
-    setupHands?: [{ ball: string; fromSpot?: string }[], { ball: string; fromSpot?: string }[]]; //T
+    setupHands?: [
+        ({ ballName: string; fromSpot?: string } | { ballID: string })[],
+        ({ ballName: string; fromSpot?: string } | { ballID: string })[]
+    ]; //T
     pattern?: string; //T
-    thenPlace?: {
-        ball: string; //T
-        fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
-        toSpot: string; //T
-        //handSpotNumber: number
-    }[];
+    thenPlace?: (
+        | {
+              ballName: string; //T
+              fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
+              toSpot: string; //T
+              //handSpotNumber: number
+          }
+        | { ballID: string; toSpot: string }
+    )[];
 };
 
+// TODO : Performance instead of Pattern
+
 /** The exhaustive description of a juggling pattern. */
-export type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
+export type PerformanceDescriptionGenerics<PatternTimeType, FractionType> = {
     /** Each  */
     ballTemplates: BallTemplate[];
     jugglers: JugglerDescription<PatternTimeType, FractionType>[];
@@ -186,26 +196,35 @@ export type FractionObject = { n: bigint; d: bigint };
 export type ScoreTime<FractionType> = { bar: number; beat: FractionType };
 export type JSONTime = number | FractionObject | ScoreTime<FractionObject>;
 
-export type JSONPatternDescription = PatternDescriptionGenerics<JSONTime, FractionObject>;
+export type JSONPerformanceDescription = PerformanceDescriptionGenerics<JSONTime, FractionObject>;
 
-export type PatternDescription = PatternDescriptionGenerics<Fraction, Fraction>;
+export type PerformanceDescription = PerformanceDescriptionGenerics<Fraction, Fraction>;
+
+export type PartialBall = { name: string; id?: string };
+export type BallNameOrID =
+    | {
+          ballName: string;
+      }
+    | {
+          ballID: string;
+      };
 
 type PatternEventsDescriptionGenerics<PatternTimeType, FractionType> = {
     ballTemplates: { name: string }[];
     jugglers: {
         name: string;
         table?: {
-            spotsTemplate: string;
-            ballsOnTableAtStart: BallOnTable[];
+            template: string;
+            ballsOnTableAtStart?: BallOnTable[];
         };
-        ballsHeldAtStart: [Ball[], Ball[]];
-        pattern: [PatternTimeType, SubPattern<FractionType>][];
+        ballsHeldAtStart?: [BallNameOrID[], BallNameOrID[]];
+        pattern?: [PatternTimeType, SubPattern<FractionType>][];
     }[];
     tableTemplates?: {
         name: string;
         spots: {
             name: string;
-            acceptedBall: string;
+            acceptedBallName?: string;
         }[];
     }[];
     musicBeatConverter?: RawMusicConverter<FractionType>[];
@@ -216,25 +235,25 @@ export type JSONPatternEventsDescription = PatternEventsDescriptionGenerics<
     FractionObject
 >;
 
-export type PatternEventsDescription = PatternEventsDescriptionGenerics<Fraction, Fraction>;
+export type PerformanceEventsDescription = PatternEventsDescriptionGenerics<Fraction, Fraction>;
 
-export type PatternViewDescription = {
+export type PerformanceViewDescription = {
     ballTemplates: {
         name: string;
-        color: string | number;
+        color?: ColorDescription;
         soundOnCatch?: string;
     }[];
     jugglers: {
         name: string;
-        position: [number, number, number];
+        position?: [number, number, number];
         rotation?: [number, number, number];
         scale?: number;
-        leftHand: HandDescription;
-        rightHand: HandDescription;
-        body: BodyDescription;
+        leftHand?: HandDescription;
+        rightHand?: HandDescription;
+        body?: BodyDescription;
         table?: {
-            id?: string;
-            position: [number, number, number];
+            template: string;
+            position?: [number, number, number];
             rotation?: [number, number, number];
             scale?: number;
         };
@@ -252,6 +271,8 @@ export type PatternViewDescription = {
     }[];
 };
 
-// function foo(x: PatternEventsDescription) {}
-// let a: PatternDescription;
+// function foo(x: PerformanceEventsDescription) {}
+// function goo(x: PerformanceViewDescription) {}
+// let a: PerformanceDescription;
 // foo(a);
+// goo(a);
