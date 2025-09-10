@@ -45,7 +45,7 @@ import Fraction from "fraction.js";
 // - Separate pattern from JugglerDescription ? Instead have name of the juggler in the pattern and lex/parse it ?
 // - Map sound name -> AudioBuffer ?
 
-// TODO : Rename MusciBeatConverter to ScoreRhythmConverter and measure to bar.
+// TODO : Rename MusciBeatConverter to ScoreConverter and measure to bar.
 
 // export type RawPreParserEvent = {
 //     tempo?: string;
@@ -59,7 +59,7 @@ import Fraction from "fraction.js";
 //     pattern?: string /*; useHand?: "L" | "R" */;
 // };
 
-export type RawMusicConverter<FractionType> = {
+export type ScoreConverterGenerics<FractionType> = {
     bar: number;
     /**
      * The current signature of the measure.
@@ -187,7 +187,7 @@ export type PerformanceDescriptionGenerics<PatternTimeType, FractionType> = {
     ballTemplates: BallTemplate[];
     jugglers: JugglerDescription<PatternTimeType, FractionType>[];
     tableTemplates?: TableTemplate[];
-    musicBeatConverter?: RawMusicConverter<FractionType>[];
+    scoreConverter?: ScoreConverterGenerics<FractionType>[];
 };
 // TODO ? (less clearer when we look for a ingle object to generate everything)
 // type PatternDescriptionGenerics<PatternTimeType, FractionType> = PatternEventsDescriptionGenerics<PatternTimeType, FractionType> & PatternViewDescription;
@@ -226,7 +226,7 @@ type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
             acceptedBallName?: string;
         }[];
     }[];
-    musicBeatConverter?: RawMusicConverter<FractionType>[];
+    scoreConverter?: ScoreConverterGenerics<FractionType>[];
 };
 
 export type JSONPatternDescription = PatternDescriptionGenerics<JSONTime, FractionObject>;

@@ -29,7 +29,7 @@ export type MusicTempo = { note: Fraction; bpm: number };
 
 //TODO : Change Name.
 //TODO : More efficient to store Measure first beat as key instead of measure number ?
-export class MusicBeatConverter {
+export class ScoreConverter {
     readonly signatureChanges: Timeline<number, Fraction>;
     readonly tempoChanges: Timeline<number, MusicTempo>;
 
