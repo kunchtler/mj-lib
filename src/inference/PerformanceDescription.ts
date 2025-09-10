@@ -200,7 +200,6 @@ export type JSONPerformanceDescription = PerformanceDescriptionGenerics<JSONTime
 
 export type PerformanceDescription = PerformanceDescriptionGenerics<Fraction, Fraction>;
 
-export type PartialBall = { name: string; id?: string };
 export type BallNameOrID =
     | {
           ballName: string;
@@ -209,7 +208,7 @@ export type BallNameOrID =
           ballID: string;
       };
 
-type PatternEventsDescriptionGenerics<PatternTimeType, FractionType> = {
+type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
     ballTemplates: { name: string }[];
     jugglers: {
         name: string;
@@ -230,14 +229,11 @@ type PatternEventsDescriptionGenerics<PatternTimeType, FractionType> = {
     musicBeatConverter?: RawMusicConverter<FractionType>[];
 };
 
-export type JSONPatternEventsDescription = PatternEventsDescriptionGenerics<
-    JSONTime,
-    FractionObject
->;
+export type JSONPatternDescription = PatternDescriptionGenerics<JSONTime, FractionObject>;
 
-export type PerformanceEventsDescription = PatternEventsDescriptionGenerics<Fraction, Fraction>;
+export type PatternDescription = PatternDescriptionGenerics<Fraction, Fraction>;
 
-export type PerformanceViewDescription = {
+export type ViewDescription = {
     ballTemplates: {
         name: string;
         color?: ColorDescription;
@@ -271,8 +267,8 @@ export type PerformanceViewDescription = {
     }[];
 };
 
-// function foo(x: PerformanceEventsDescription) {}
-// function goo(x: PerformanceViewDescription) {}
+// function foo(x: PatternDescription) {}
+// function goo(x: ViewDescription) {}
 // let a: PerformanceDescription;
 // foo(a);
 // goo(a);
