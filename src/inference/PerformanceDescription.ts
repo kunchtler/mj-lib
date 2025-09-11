@@ -111,8 +111,8 @@ export type BodyDescription = {
 };
 
 export type BallOnTable = {
-    ballName: string;
-    ballID?: string;
+    name: string;
+    id?: string;
     spot?: string;
 };
 
@@ -205,8 +205,8 @@ export type JSONPerformanceDescription = PerformanceDescriptionGenerics<
 export type PerformanceDescription = PerformanceDescriptionGenerics<JugglingPhrase, ScoreConverter>;
 
 export type BallDescription = {
-    ballName: string;
-    ballID?: string;
+    name: string;
+    id?: string;
 };
 
 export type JugglingScoreGenerics<JugglingPhraseType, ScoreConverterType> = {
