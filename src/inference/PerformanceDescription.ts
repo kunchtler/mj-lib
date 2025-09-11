@@ -13,6 +13,7 @@
  * @module my-module
  */
 import Fraction from "fraction.js";
+import { ScoreConverter } from "./ScoreConverter";
 
 //TODO : add beat to the object rather than have a 2-array element.
 //TODO : useHand ?
@@ -46,6 +47,7 @@ import Fraction from "fraction.js";
 // - Map sound name -> AudioBuffer ?
 
 // TODO : Rename MusciBeatConverter to ScoreConverter and measure to bar.
+// TODO : Also rename all coreesponding variables.
 
 // export type RawPreParserEvent = {
 //     tempo?: string;
@@ -59,12 +61,12 @@ import Fraction from "fraction.js";
 //     pattern?: string /*; useHand?: "L" | "R" */;
 // };
 
-export type ScoreConverterGenerics<FractionType> = {
+export type ScoreConverterGenerics<TimeSignatureType, NoteLengthType> = {
     bar: number;
     /**
      * The current signature of the measure.
      */
-    timeSignature?: FractionType;
+    timeSignature?: TimeSignatureType;
     /**
      * The current tempo of the measure.
      */
@@ -72,13 +74,15 @@ export type ScoreConverterGenerics<FractionType> = {
         /**
          * A fraction corresponding to the note that we wish to specify the tempo for.
          */
-        note: FractionType;
+        note: NoteLengthType;
         /**
          * A number corresponding to how many times the tempo's note occurs in a beat.
          */
         bpm: number;
     };
 }[];
+
+export type JSONScoreConverter = ScoreConverterGenerics<FractionObject, FractionObject>;
 
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T
@@ -106,18 +110,13 @@ export type BodyDescription = {
     visible?: boolean; //P
 };
 
-export type BallOnTable = //T
+export type BallOnTable = {
+    ballName: string;
+    ballID?: string;
+    spot?: string;
+};
 
-        | {
-              ballName: string;
-              spot?: string;
-          }
-        | {
-              ballID: string;
-              spot?: string;
-          };
-
-export type JugglerDescription<PatternTimeType, FractionType> = {
+export type JugglerDescription<JugglingPhraseType> = {
     name: string; //T
     // id?: string; //TODO : Name should already be unique (else how can we pass ?) //T
     position?: [number, number, number]; // Relative to performance origin. //P
@@ -127,8 +126,8 @@ export type JugglerDescription<PatternTimeType, FractionType> = {
     rightHand?: HandDescription; //P
     body?: BodyDescription; //P
     table?: TableDescription; //T+P
-    ballsHeldAtStart?: [BallNameOrID[], BallNameOrID[]]; //T
-    pattern?: [PatternTimeType, SubPattern<FractionType>][]; //T
+    ballsHeldAtStart?: [BallDescription[], BallDescription[]]; //T
+    jugglingPhrases?: JugglingPhraseType[]; //T
     // defaultTossOrder: ;
     // defaultCatchOrder: ;
 };
@@ -161,13 +160,14 @@ export type TableDescription = {
     ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
-export type SubPattern<FractionType> = {
+export type JugglingPhraseGenerics<PatternTimeType, FractionType> = {
+    startTime: PatternTimeType;
     withTempo?: FractionType; //T
     setupHands?: [
         ({ ballName: string; fromSpot?: string } | { ballID: string })[],
         ({ ballName: string; fromSpot?: string } | { ballID: string })[]
     ]; //T
-    pattern?: string; //T
+    siteswap?: string; //T
     thenPlace?: (
         | {
               ballName: string; //T
@@ -182,33 +182,34 @@ export type SubPattern<FractionType> = {
 // TODO : Performance instead of Pattern
 
 /** The exhaustive description of a juggling pattern. */
-export type PerformanceDescriptionGenerics<PatternTimeType, FractionType> = {
+export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterType> = {
     /** Each  */
     ballTemplates: BallTemplate[];
-    jugglers: JugglerDescription<PatternTimeType, FractionType>[];
+    jugglers: JugglerDescription<JugglingPhraseType>[];
     tableTemplates?: TableTemplate[];
-    scoreConverter?: ScoreConverterGenerics<FractionType>[];
+    scoreConverter?: ScoreConverterType;
 };
 // TODO ? (less clearer when we look for a ingle object to generate everything)
 // type PatternDescriptionGenerics<PatternTimeType, FractionType> = PatternEventsDescriptionGenerics<PatternTimeType, FractionType> & PatternViewDescription;
 
 export type FractionObject = { n: bigint; d: bigint };
 export type ScoreTime<FractionType> = { bar: number; beat: FractionType };
-export type JSONTime = number | FractionObject | ScoreTime<FractionObject>;
+export type FractionParam = number | string;
+export type JSONTime = number | string | ScoreTime<FractionParam>;
 
-export type JSONPerformanceDescription = PerformanceDescriptionGenerics<JSONTime, FractionObject>;
+export type JSONPerformanceDescription = PerformanceDescriptionGenerics<
+    JSONJugglingPhrase,
+    JSONScoreConverter
+>;
 
-export type PerformanceDescription = PerformanceDescriptionGenerics<Fraction, Fraction>;
+export type PerformanceDescription = PerformanceDescriptionGenerics<JugglingPhrase, ScoreConverter>;
 
-export type BallNameOrID =
-    | {
-          ballName: string;
-      }
-    | {
-          ballID: string;
-      };
+export type BallDescription = {
+    ballName: string;
+    ballID?: string;
+};
 
-type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
+export type JugglingScoreGenerics<JugglingPhraseType, ScoreConverterType> = {
     ballTemplates: { name: string }[];
     jugglers: {
         name: string;
@@ -216,8 +217,8 @@ type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
             template: string;
             ballsOnTableAtStart?: BallOnTable[];
         };
-        ballsHeldAtStart?: [BallNameOrID[], BallNameOrID[]];
-        pattern?: [PatternTimeType, SubPattern<FractionType>][];
+        ballsHeldAtStart?: [BallDescription[], BallDescription[]];
+        jugglingPhrases?: JugglingPhraseType[];
     }[];
     tableTemplates?: {
         name: string;
@@ -226,14 +227,16 @@ type PatternDescriptionGenerics<PatternTimeType, FractionType> = {
             acceptedBallName?: string;
         }[];
     }[];
-    scoreConverter?: ScoreConverterGenerics<FractionType>[];
+    scoreConverter?: ScoreConverterType;
 };
 
-export type JSONPatternDescription = PatternDescriptionGenerics<JSONTime, FractionObject>;
+export type JSONJugglingPhrase = JugglingPhraseGenerics<JSONTime, number | string | FractionObject>;
+export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
 
-export type PatternDescription = PatternDescriptionGenerics<Fraction, Fraction>;
+export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
+export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
 
-export type ViewDescription = {
+export type MiseEnScene = {
     ballTemplates: {
         name: string;
         color?: ColorDescription;
@@ -267,8 +270,13 @@ export type ViewDescription = {
     }[];
 };
 
-// function foo(x: PatternDescription) {}
-// function goo(x: ViewDescription) {}
+// Uncomment to see if typescript complains about incompatible types.
+
+// function foo(x: JugglingScore) {}
+// function fooJSON(x: JSONJugglingScore) {}
+// function goo(x: MiseEnScene) {}
 // let a: PerformanceDescription;
 // foo(a);
 // goo(a);
+// let aJSON: JSONPerformanceDescription;
+// fooJSON(aJSON);
