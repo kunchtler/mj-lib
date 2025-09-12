@@ -1,4 +1,11 @@
 // From https://github.com/gustf/js-levenshtein/issues/19
+
+/**
+ * Computes the Levenshtein distance between two words. It gives a good idea of how many mistakes a human would have made to type word b instead of word a.
+ * @param a a word.
+ * @param b another word.
+ * @returns the distance between both words.
+ */
 export function levenshteinDistance(a: string, b: string): number {
     if (a === b) {
         return 0;
@@ -92,15 +99,22 @@ function _min(d0: number, d1: number, d2: number, bx: number, ay: number) {
     return d0 < d1 || d2 < d1 ? (d0 > d2 ? d2 + 1 : d0 + 1) : bx === ay ? d1 : d1 + 1;
 }
 
+/**
+ * Compute all closest match to a word. 
+ * @param targetWord the word to check for. 
+ * @param acceptedWords a list of accepted words to compare to.
+ * @param maxDistance a maximal distance (in the Levenshtein sense) to use when comparing the target to the accepted words list. 
+ * @returns a list of all accepted words at minimal distance from the target word.
+ */
 export function closestWordsTo(
-    target: string,
-    words: Iterable<string>,
+    targetWord: string,
+    acceptedWords: Iterable<string>,
     maxDistance?: number
 ): string[] {
     let minDistance: number | undefined = undefined;
     let minWords: string[] = [];
-    for (const word of words) {
-        const dist = levenshteinDistance(target, word);
+    for (const word of acceptedWords) {
+        const dist = levenshteinDistance(targetWord, word);
         if (maxDistance !== undefined && dist >= maxDistance) {
             continue;
         }
