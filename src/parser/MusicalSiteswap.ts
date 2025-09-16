@@ -28,7 +28,7 @@ import {
     TossVanillaContext
 } from "./output/MJSiteswapParser";
 import Fraction from "fraction.js";
-import { MusicTime } from "../inference/MusicBeatConverter";
+import { MusicTime } from "../inference/ScoreConverter";
 
 //TODO : useRightHand ambiguity : is it in the throws or not ?
 // When L/R is specified -> gets fed in the event.
@@ -59,7 +59,7 @@ export type ParserTossMode =
     | { type: "RelBeat"; beat: Fraction };
 
 export type ParserJugglingEvent = {
-    newDefaultHand?: "L" | "R";
+    defaultHand?: "L" | "R";
     tosses?: ParserToss[];
 };
 
@@ -68,8 +68,8 @@ export class MJSVisitor extends MJSiteswapParserVisitor<any> {
     events: ParserJugglingEvent[] = [];
     private _lastTossSyncRhythm = false;
 
-    addTossToEvents(tosses: ParserToss[], newDefaultHand?: "L" | "R"): void {
-        this.events.push({ newDefaultHand: newDefaultHand, tosses: tosses });
+    addTossToEvents(tosses: ParserToss[], defaultHand?: "L" | "R"): void {
+        this.events.push({ defaultHand: defaultHand, tosses: tosses });
         if (this._lastTossSyncRhythm) {
             this.events.push({});
         }
@@ -164,9 +164,9 @@ export class MJSVisitor extends MJSiteswapParserVisitor<any> {
     };
 
     visitToss = (ctx: TossContext): void => {
-        const newDefaultHand = ctx.HAND_MOD()?.getText() as undefined | "L" | "R";
+        const defaultHand = ctx.HAND_MOD()?.getText() as undefined | "L" | "R";
         const tosses = this.visit(ctx.getChild(ctx.getChildCount() - 1)) as ParserToss[];
-        this.addTossToEvents(tosses, newDefaultHand);
+        this.addTossToEvents(tosses, defaultHand);
     };
 
     visitMeasure = (ctx: MeasureContext): number => {

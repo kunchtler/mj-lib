@@ -160,23 +160,35 @@ export type TableDescription = {
     ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
+export type TakeBall = { ballName: string; fromSpot?: string } | { ballID: string };
+
+export type PutBall = { toSpot?: string } & (
+    | {
+          ballName: string; //T
+          fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
+          //handSpotNumber: number
+      }
+    | { ballID: string }
+);
+
+export type HandsInstructions = {
+    /**
+     * All balls that are specified as being put on a particular table spot.
+     * It happens before taking new balls in hand, before making any toss.
+     */
+    place?: PutBall[];
+    /**
+     * The balls held in hands just after having (possibly) put balls on the table,
+     * and just before tossing the balls.
+     */
+    have?: [TakeBall[], TakeBall[]];
+};
+
 export type JugglingPhraseGenerics<PatternTimeType, FractionType> = {
     startTime: PatternTimeType;
     withTempo?: FractionType; //T
-    setupHands?: [
-        ({ ballName: string; fromSpot?: string } | { ballID: string })[],
-        ({ ballName: string; fromSpot?: string } | { ballID: string })[]
-    ]; //T
-    siteswap?: string; //T
-    thenPlace?: (
-        | {
-              ballName: string; //T
-              fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
-              toSpot: string; //T
-              //handSpotNumber: number
-          }
-        | { ballID: string; toSpot: string }
-    )[];
+    setupHands?: HandsInstructions; //T
+    pattern?: string; //T
 };
 
 // TODO : Performance instead of Pattern

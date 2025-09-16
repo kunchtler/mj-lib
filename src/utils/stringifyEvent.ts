@@ -1,8 +1,8 @@
 // Printing functions for events.
 import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
-import { FracSortedList, Hands, PartialBall, TossMode } from "../inference/Scheduler";
-import { MusicBeatConverter } from "../inference/MusicBeatConverter";
+import { FracSortedList, Hands, PartialBall, TossMode } from "../inference/old_Scheduler";
+import { ScoreConverter } from "../inference/ScoreConverter";
 
 type TossType = {
     from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
@@ -21,7 +21,7 @@ type EventType = {
 
 export function stringifyEvents<T extends EventType>(
     events: FracSortedList<T> | T[],
-    musicConverter?: MusicBeatConverter
+    musicConverter?: ScoreConverter
 ): string {
     if (events.length === 0) {
         return "";

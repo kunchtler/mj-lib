@@ -1,8 +1,9 @@
 import { Timeline } from "../utils/Timeline";
 import Fraction from "fraction.js";
-import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
+import { stringifyBall, stringifyHand } from "../utils/stringifyEvent";
 import { FracTimedErrorLogger, Severity } from "../utils/TimedErrorLogger";
-import { compareEvents } from "./ParserToScheduler";
+import { compareEvents } from "./old_ParserToScheduler";
+import { HandsInstructions, PutBall, TakeBall } from "./PerformanceDescription";
 
 /*
 The time between two tosses / catches of the juggler is called its unit
@@ -24,94 +25,156 @@ follow suit. If this is undesired, the unit value should be changed in
 the juggling pattern's data.
 */
 
-//TODO : Replace all [Fraction, event][] by this ?
-export type FracSortedList<T> = [Fraction, T][];
+//TODO : add beat to the object rather than have a 2-array element.
+//TODO : Report some type explanation from Scheduler2 to Scheduler3 / PatternDescription.
+//TODO : Fuse redundant types with those from Pattern Description ?
+//TODO : One day, change types [Fraction, x] to {...x, beat: Fraction}
+//TODO : Another class that given a table and balls on that table has method to
+// give all spots of one type, if they are occupied or not, etc...
+//TODO : swap all interfaces for types in all files
+//TODO : Rename some stuff
+// Question : what may we want to manipulate or have acces to ?
+// Answer 1 : The JSONScore
+// Answer 1.5 : The score (not JSON)
+// Answer 2 : the events post parser, but without completing tempo / default hand everywhere (indeed, changing one somewhere would change all that comes after). But completing so that no element is undefined is fine.
+// So we should have a function that returns that. And this really is the result from parsing... the score !!
+// Answer 3 : the events post scheduler (don't care necessarily about having access to the fully compleated one, but we could just in case have a function for taht.)
+// TODO : add the unit time, and the sound to be played in that one. In the previous one too ?
+// How are all of these called ?
+// JSONJugglingScore, JugglingScore, JugglingScoreDecomposed (JugglingScore2), JugglingEvents (JugglingScore3)
 
-//TODO : Rename or add namesapces.
+///////////////////// Types for the Scheduler /////////////////////
 
-export class FracTimeline<EventType> extends Timeline<Fraction, EventType> {
-    static cmp = (x: Fraction, y: Fraction) => x.compare(y);
-    constructor(container?: [Fraction, EventType][]) {
-        super(container, FracTimeline.cmp);
-    }
-}
+/**
+ * A sorted array-encoded timeline.
+ */
+export type SchedulerParams = {
+    /**
+     * A map that to each ballID give its corresponding kind.
+     */
+    ballIDMap: Map<string, string>;
+    /**
+     * A map of all the jugglers.
+     */
+    jugglers: Map<string, JugglerSchedulerInfo>;
+};
 
-export interface BallI {
+export type JugglerSchedulerInfo = {
     name: string;
-    id: string;
-}
+    table?: { spotName: string; acceptedBallName?: string; ballAtStart?: BallID };
+    ballsHeldAtStart?: [BallID[], BallID[]];
+    events: SchedulerEvent[];
+};
 
-export interface PartialBall {
-    name: string;
-    id?: string;
-}
+export type BallID = string;
+export type BallName = string;
 
-export interface PartialToss {
-    from: { juggler: string; hand?: "R" | "L"; beat: Fraction };
+export type SchedulerEvent = {
+    beat: Fraction;
+    tempo: Fraction;
+    defaultHand: "L" | "R";
+    tosses: PartialToss[];
+    setupHands?: HandsInstructions;
+};
+
+export type PartialToss = {
+    from: { juggler: string; hand?: "R" | "L" };
     to: {
         juggler: string;
         hand?: "R" | "L" | "x";
     };
-    ball?: PartialBall;
+    ball?: { id: BallID } | { name: BallName } | undefined;
     mode: TossMode;
-}
+};
 
+/**
+ * Siteswap height information about the toss if it exists, or the beat it should be caught at.
+ */
 export type TossMode = { type: "Beat"; beat: Fraction } | { type: "Height"; height: number };
 
-export type Hands<BallT> = [BallT[], BallT[]];
-//TODO : Remove Balls and PartialBallsInHands and replace with Hands<...>.
-export type BallsInHands = Hands<BallI>;
-export type PartialBallsInHands = Hands<PartialBall>;
-
-// TODO: Rename
-export interface PartialToss2 {
-    from: { juggler: string; rightHand: boolean; beat: Fraction };
-    to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
-    ball: BallI;
-    mode: TossMode;
-}
-
-export interface SimulatorToss<BeatT> {
-    from: { juggler: string; rightHand: boolean; beat: BeatT };
-    to: { juggler: string; rightHand: boolean; beat: BeatT };
-    ball: BallI;
-    mode: TossMode;
-}
-
-export interface SchedulerEvent {
-    tosses: PartialToss[];
-    tempo: Fraction;
-    hands?: PartialBallsInHands;
-    newDefaultHand: "L" | "R";
-}
-
-export interface SimulatorEvent<T> {
-    tosses: SimulatorToss<T>[];
-    tempo: Fraction;
-    hands?: { old: BallsInHands; new: BallsInHands };
-}
-
-//TODO : Create custom errors for Jugglers and scheduler.
-export class SchedulerError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = "SchedulerError";
-    }
-}
-
-interface JugglerCache {
-    state: JugglerState;
-    nextEventIdx: number;
-}
-
-export interface SchedulerParams {
-    jugglers: Map<string, { events: FracSortedList<SchedulerEvent>; balls: BallI[] }>;
-}
+/**
+ * A 2-element array  [leftHand, rightHand].
+ */
+export type Hands<ContentType> = [ContentType[], ContentType[]];
 
 export type SchedulerRes = Map<
     string,
-    { events: FracSortedList<SimulatorEvent<Fraction>>; states: FracSortedList<JugglerState> }
+    { events: SimulatorEvent<Fraction>[]; states: JugglerState }
 >;
+
+///////////////////// Scheduler internal types /////////////////////
+
+/**
+ * Partially completed information about a toss, halfway through the scheduler.
+ * This type is used when jugglers have tossed their balls, but they haven't appeared yet
+ * in the airborne state of the jugglers that will catch taht ball.
+ */
+type HalfCompletedToss = {
+    from: { juggler: string; rightHand: boolean; beat: Fraction };
+    to: { juggler: string; hand?: "R" | "L" | "x"; beat: Fraction };
+    ballID: BallID;
+    mode: TossMode;
+};
+
+type JugglerCache = {
+    state: JugglerState;
+    nextEventIdx: number;
+};
+
+///////////////////// Simulator types /////////////////////
+
+export type SimulatorToss<BeatT> = {
+    from: { juggler: string; rightHand: boolean; beat: BeatT };
+    to: { juggler: string; rightHand: boolean; beat: BeatT };
+    ballID: BallID;
+    mode: TossMode;
+};
+
+export type SimulatorEvent<BeatType> = {
+    tosses: SimulatorToss<BeatType>[];
+    tempo: Fraction;
+    hands?: SimulatorHands;
+};
+
+export type SimulatorHands = {
+    old: Hands<SimulatorPutBall>;
+    new: Hands<SimulatorTakeBall>;
+};
+
+export type SimulatorPutBall = {
+    ballID: BallID;
+    to:
+        | { type: "tableSpot"; spot?: string }
+        | { type: "hand"; rightHand: boolean; position: number };
+};
+
+export type SimulatorTakeBall = {
+    ballID: BallID;
+    from: { type: "tableSpot"; spot?: string } | { type: "hand" };
+};
+
+///////////////////// Other types /////////////////////
+
+// export type FracSortedList<T> = [Fraction, T][];
+
+/**
+ * TODO
+ */
+// export type BallID = {
+//     name: string;
+//     id: string;
+// };
+
+/**
+ * TODO
+ */
+// export type BallName = {
+//     name: string;
+//     id?: string;
+//     // TODO : field position in hand ?
+// };
+
+//TODO : exprugate "PartialBall".
 //TODO : Document that by default hands have LIFO structure.
 //TODO : Make Generic version for the fun of it ?
 //TODO : Rename partialEvents (clashes with JS events ?)
@@ -121,13 +184,41 @@ export type SchedulerRes = Map<
 //TODO : Fuse events before calling scheduler.
 //TODO : Save Line / Col to pinpoint error ?
 //TODO : Document what events must be (sorted, no duplicate, names ok, etc)
+/**
+ * A scheduler class, that compu
+ * TODO : What this does, mention cache.
+ */
 export class Scheduler {
     jugglers: Map<string, { manager: JugglerManager; cache: JugglerCache }>;
 
     constructor({ jugglers }: SchedulerParams) {
         this.jugglers = new Map();
-        for (const [name, { balls, events }] of jugglers) {
-            const manager = new JugglerManager(name, balls, events);
+
+        // Create an ID for each ball used in the performance,
+        // and setup one JugglerManager per juggler.
+        const ballsNb = new Map<string, number>();
+        for (const [name, { occupiedSpotsAtStart, events, tableSpots }] of jugglers) {
+            // Generate an ID per ball.
+            const ballsOnTableAtStart = new Map<string, BallID | undefined>();
+            for (const [spot, ballName] of tableSpots) {
+                if (occupiedSpotsAtStart.has(spot)) {
+                    if (!ballsNb.has(ballName)) {
+                        ballsNb.set(ballName, 0);
+                    }
+                    const ballID = `${ballName}?${ballsNb.get(ballName)!}`;
+                    ballsOnTableAtStart.set(spot, { name: ballName, id: ballID });
+                } else {
+                    ballsOnTableAtStart.set(spot, undefined);
+                }
+            }
+
+            // Create a manager for each juggler.
+            const manager = new JugglerManager(
+                name,
+                tableSpots,
+                { namedSpot: ballsOnTableAtStart, unknown: new Set() },
+                events
+            );
             const cache = manager.generateInitialCache();
             this.jugglers.set(name, { manager: manager, cache: cache });
         }
@@ -135,8 +226,8 @@ export class Scheduler {
 
     //TODO : Handle errors.
     //TODO : Add arguments from / to ?
-    //TODO : Add Return type.
     //TODO : State copy to not have problems ?
+    // TODO : Change name.
     validatePattern(): SchedulerRes {
         // First reset the cache.
         for (const [, juggler] of this.jugglers) {
@@ -172,7 +263,7 @@ export class Scheduler {
             }
 
             // For all jugglers having a close beat, gather the balls they toss.
-            const tossedTo = new Map<string, PartialToss2[]>();
+            const tossedTo = new Map<string, HalfCompletedToss[]>();
             for (const name of this.jugglers.keys()) {
                 tossedTo.set(name, []);
             }
@@ -213,25 +304,71 @@ export class Scheduler {
     }
 }
 
-interface JugglerState {
-    airborne: Map<
-        string,
-        {
-            toRightHand: boolean;
-            ball: BallI;
-            catchBeat: Fraction;
-            throwBeat: Fraction;
-        }
-    >;
-    held: BallsInHands;
-    onTable: Map<string, BallI>;
-}
+/**
+ * The state of a juggler at any given time.
+ * TODO : include tempo ?
+ */
 
+export type JugglerStateAirborne = Map<
+    string,
+    {
+        /**
+         * Whether the ball will fall in the right or left hand.
+         */
+        toRightHand: boolean;
+        /**
+         * The ball that is to be caught.
+         */
+        ball: BallID;
+        /**
+         * The time when then ball will be caught.
+         */
+        catchBeat: Fraction;
+        /**
+         * The time the ball was thrown.
+         */
+        throwBeat: Fraction;
+    }
+>;
+
+export type JugglerState = {
+    /**
+     * A map of all the balls in the air that are to be caught by this juggler. The keys are the balls IDs.
+     */
+    airborne: JugglerStateAirborne;
+    /**
+     * An array of two arrays, listing all balls in the left hand and all balls in the right hand.
+     * For each of those arrays, the element in position 0 is the oldest ball and the element in the last position is the newest.
+     */
+    held: Hands<BallID>;
+    /**
+     * The table and the balls that are on it.
+     */
+    table: {
+        /**
+         * A map of all spots on the table, and whether they contain a ball or not.
+         */
+        namedSpot: Map<string, BallID | undefined>;
+        /**
+         * A set of all the balls that are not on a named spot.
+         */
+        unknown: Set<BallID>;
+    };
+};
+
+/**
+ * Clones the state by reusing as much memory as possible. For instance, balls aren't cloned, as they won't be changed, but maps are.
+ * @param state the state to clone.
+ * @returns the clone.
+ */
 function cloneState(state: JugglerState): JugglerState {
     return {
         airborne: new Map(state.airborne),
         held: [[...state.held[0]], [...state.held[1]]],
-        onTable: new Map(state.onTable)
+        table: {
+            namedSpot: new Map(state.table.namedSpot),
+            unknown: new Set(state.table.unknown)
+        }
     };
 }
 
@@ -239,8 +376,53 @@ export function isInRhythm(beat: Fraction, startBeat: Fraction, tempo: Fraction)
     return beat.sub(startBeat).divisible(tempo);
 }
 
+/**
+ * Performs a XOR on two boolean values.
+ * @param a a boolean.
+ * @param b a boolean.
+ * @returns a XOR b
+ */
 export function XOR(a: boolean, b: boolean): boolean {
     return a !== b;
+}
+
+/**
+ * Pops a given index from the list.
+ * @param list the list.
+ * @param index the index to remove.
+ * @returns the value of the returned element if the index was in the list's bounds, undefined otherwise.
+ */
+export function popOneIndexFromList<T>(list: T[], index: number): T | undefined {
+    const spliced = list.splice(index, 1);
+    return spliced.length === 0 ? undefined : spliced[0];
+}
+
+/**
+ * Checks whether an array has only non-undefined elements, which typescript will know about.
+ * @param array the array to check.
+ * @returns whether the array has no undefined values or not.
+ */
+export function hasNoUndefined<T>(array: (T | undefined)[]): array is T[] {
+    for (const elem of array) {
+        if (elem === undefined) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Find the key that was inserted last in a map.
+ * @param map the map in question.
+ * @returns undefined if the map is empty, otherwise the lastly inserted element in the form [key, value].
+ */
+export function getLastInsertedInMap<KeyType, ValueType>(
+    map: Map<KeyType, ValueType>
+): [KeyType, ValueType] | undefined {
+    // We use the fact that maps in JS preserve insertion order.
+    let element: [KeyType, ValueType] | undefined = undefined;
+    for (element of map);
+    return element;
 }
 
 //TODO : Fuse "beat" with BeatInfo / State ? to avoid events[0][0/1] ? YES URGENT ?
@@ -254,11 +436,17 @@ export function XOR(a: boolean, b: boolean): boolean {
 //TODO : Array instead of timeline at some points ?
 //TODO : ErrorLogger !
 //TODO : Instead of having error text clutter code and its comprehension, make special error classes that will format that given message.
+/**
+ *
+ * In order to be a bit more efficient, most functions can be supplied with an event index. TODO : Explain better.
+ *
+ */
 class JugglerManager {
     name: string;
     events: FracSortedList<SchedulerEvent>;
     errorLogger: FracTimedErrorLogger;
-    ballsOnTable: BallI[];
+    tableSpots: Map<string, string>;
+    ballsOnTableAtStart: { namedSpot: Map<string, BallID | undefined>; unknown: Set<BallID> };
     // catches: FracSortedList<SimulatorToss>;
     // beats: FracSortedList<JugglerState>;
     // private _currentTempo: Fraction;
@@ -267,27 +455,31 @@ class JugglerManager {
     // private _nextEventIdx: number;
     // private _hasProcessedFirstBeat = false;
 
-    //TODO : FOr the packages in pnpm, if they have modular install, use it !
-    //TODO : When only siteswap height 3 was given, should we deafult to:
     //TODO : Document that currentbeat : state does not exist yet. But info on tempo and usehand might ! Misleading name ?
+    //TODO : When only siteswap height 3 was given, should we deafult to:
     // - 3 beats (even if the tempo then gets shorter ?)
     // - 3 * current unit value (possibly falling outside of rhythm)
     // FIRST ANSWER, reason : to keep the symbolic of the height (hand changing etc)
     //+ Easier to understand in practice (number of actions done before catching it).
     //TODO: Reorder constructor code.
-    constructor(name: string, ballsOnTable: BallI[], events: FracSortedList<SchedulerEvent>) {
+    constructor(
+        name: string,
+        tableSpots: Map<string, string>,
+        ballsOnTableAtStart: { namedSpot: Map<string, BallID | undefined>; unknown: Set<BallID> },
+        events: FracSortedList<SchedulerEvent>
+    ) {
         this.name = name;
         this.events = events;
         this.errorLogger = new FracTimedErrorLogger();
-        this.ballsOnTable = ballsOnTable;
+        this.tableSpots = tableSpots;
+        this.ballsOnTableAtStart = ballsOnTableAtStart;
     }
 
     generateIntialState(): JugglerState {
-        const ballsOnTableMap: [string, BallI][] = this.ballsOnTable.map((ball) => [ball.id, ball]);
         return {
             airborne: new Map(),
             held: [[], []],
-            onTable: new Map(ballsOnTableMap)
+            table: this.ballsOnTableAtStart
         };
     }
 
@@ -305,6 +497,11 @@ class JugglerManager {
         return this.events[eventIdx][0];
     }
 
+    /**
+     *
+     * @param eventIdx
+     * @returns
+     */
     hasReachedEnd(eventIdx: number): boolean {
         return eventIdx >= this.events.length;
     }
@@ -437,8 +634,8 @@ class JugglerManager {
         // Identify caught balls by hand and by catch time.
         state = cloneState(state);
         const handCatches: [
-            [Fraction, { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]][],
-            [Fraction, { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]][]
+            [Fraction, { ball: BallID; catchBeat: Fraction; throwBeat: Fraction }[]][],
+            [Fraction, { ball: BallID; catchBeat: Fraction; throwBeat: Fraction }[]][]
         ] = [[], []];
         for (const { catchBeat, throwBeat, toRightHand, ball } of state.airborne.values()) {
             if (catchBeat.lte(toBeat)) {
@@ -447,7 +644,7 @@ class JugglerManager {
                 if (foundIdx === -1) {
                     const caught: [
                         Fraction,
-                        { ball: BallI; catchBeat: Fraction; throwBeat: Fraction }[]
+                        { ball: BallID; catchBeat: Fraction; throwBeat: Fraction }[]
                     ] = [catchBeat, [{ ball: ball, catchBeat: catchBeat, throwBeat: throwBeat }]];
                     catches.push(caught);
                 } else {
@@ -487,7 +684,7 @@ class JugglerManager {
     }
 
     defaultCatchWithRightHand(beat: Fraction, eventIdx: number): boolean {
-        const [eventBeat, { tempo, newDefaultHand }] = this.events[eventIdx];
+        const [eventBeat, { tempo, defaultHand: newDefaultHand }] = this.events[eventIdx];
         const nbSteps = beat.sub(eventBeat).div(tempo);
         if (!nbSteps.divisible(1)) {
             throw Error("Souldn't happen (sanity check).");
@@ -506,10 +703,10 @@ class JugglerManager {
         state: JugglerState,
         beat: Fraction,
         eventIdx: number
-    ): { tosses: PartialToss2[]; state: JugglerState } {
+    ): { tosses: HalfCompletedToss[]; state: JugglerState } {
         state = cloneState(state);
         const defaultCatchWithRightHand = this.defaultCatchWithRightHand(beat, eventIdx);
-        const newTosses: PartialToss2[] = [];
+        const newTosses: HalfCompletedToss[] = [];
         for (const toss of tosses) {
             // Compute the throwing hand.
             let fromRightHand: boolean;
@@ -521,7 +718,7 @@ class JugglerManager {
             const tossHand = state.held[fromRightHand ? 1 : 0];
 
             // Compute the ball thrown.
-            let ball: BallI;
+            let ball: BallID;
             if (toss.ball === undefined) {
                 if (tossHand.length === 0) {
                     this.logError(
@@ -532,21 +729,21 @@ class JugglerManager {
                     continue;
                 }
                 ball = tossHand.pop()!;
-            } else if (toss.ball.id !== undefined) {
-                const ballIdx = tossHand.findIndex((ball) => ball.id === toss.ball!.id);
-                if (ballIdx === -1) {
-                    this.logError(
-                        beat,
-                        "Error",
-                        `Can't toss ball ${stringifyBall(toss.ball)} from the ${fromRightHand ? "right" : "left"} hand as it is not there.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinues without tossing a ball.`
-                    );
-                    continue;
-                }
-                // Remove the ball from tossHand and store it.
-                ball = tossHand.splice(ballIdx, 1)[0];
+                // } else if (toss.ball.id !== undefined) {
+                //     const ballIdx = tossHand.findIndex((ball) => ball.id === toss.ball!.id);
+                //     if (ballIdx === -1) {
+                //         this.logError(
+                //             beat,
+                //             "Error",
+                //             `Can't toss ball ${stringifyBall(toss.ball)} from the ${fromRightHand ? "right" : "left"} hand as it is not there.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinues without tossing a ball.`
+                //         );
+                //         continue;
+                //     }
+                //     // Remove the ball from tossHand and store it.
+                //     ball = tossHand.splice(ballIdx, 1)[0];
             } else {
                 // We look for the ball with the right name
-                const matches: BallI[] = [];
+                const matches: BallID[] = [];
                 for (const ball of tossHand) {
                     if (ball.name === toss.ball.name) {
                         matches.push(ball);
@@ -595,7 +792,7 @@ class JugglerManager {
                     rightHand: fromRightHand
                 },
                 to: { beat: toBeat, juggler: toss.to.juggler, hand: toHand },
-                ball: ball,
+                ballID: ball,
                 mode: toss.mode
             });
         }
@@ -606,62 +803,660 @@ class JugglerManager {
     // TODO : Lefthand / Righthand : make Array. It is simpler to manipulate.
     // and document the convention that left cell = left, right cell = right.
     // TODO : Unify some of the behaviour here with tossBalls ?
-    swapBalls(beat: Fraction, state: JugglerState, newHands: PartialBallsInHands): JugglerState {
-        state = cloneState(state);
-        // 1. Put all held balls on the table.
-        for (const hand of state.held) {
-            for (const ball of hand) {
-                state.onTable.set(ball.id, ball);
+
+    swapBalls(
+        beat: Fraction,
+        state: JugglerState,
+        handsSetup: HandsInstructions
+    ): { state: JugglerState; handsSimulatorInfo: SimulatorHands } {
+        /**
+         * Find all unoccupied spots on the table.
+         * @param spots a map of spots, where :
+         * - the key is the spot's name.
+         * - the value is either :
+         *     - a ball if there is a ball in that spot.
+         *     - undefined if there is nothing in that spot.
+         * @returns an array of all spot names that have no ball, in the order they were defined in.
+         */
+        function findFreeTableSpots(spots: Map<string, BallID | undefined>): string[] {
+            // We use the fact that maps and sets iterate over their elements
+            // in the order they were added.
+            const freeTableSpots: string[] = [];
+            for (const [spot, ball] of spots) {
+                if (ball === undefined) {
+                    freeTableSpots.push(spot);
+                }
+            }
+            return freeTableSpots;
+        }
+
+        /**
+         * Given some objects created in this function, recreate a JugglerState.
+         * @param spotsBySound A map, per sound, of all spots on the table and the ball they contain.
+         * @param tableSpots the spots the table allows.
+         * @param handsSetupNew the compute balls in the new hand.
+         * @param state the initial state.
+         * @returns
+         */
+        function reconstructState(
+            spotsBySound: Map<
+                string,
+                { tableSpots: { named: Map<string, BallID | undefined>; unnamed: BallID[] } }
+            >,
+            tableSpots: Map<string, string>,
+            handsSetupNew: Hands<SimulatorTakeBall>,
+            state: JugglerState
+        ): JugglerState {
+            state = cloneState(state);
+
+            // 1. Reconstruct the table.
+            const table = {
+                namedSpot: new Map<string, BallID | undefined>(),
+                unknown: new Set<BallID>()
+            };
+            // Add balls from named spots.
+            // We iterate through tableSpots to reclaim the disposition order from the table.
+            for (const [spot, ballName] of tableSpots) {
+                const ball = spotsBySound.get(ballName)?.tableSpots.named.get(spot);
+                table.namedSpot.set(spot, ball);
+            }
+            // Add balls from unnamed spots.
+            for (const { tableSpots: spotsBallType } of spotsBySound.values()) {
+                for (const ball of spotsBallType.unnamed) {
+                    table.unknown.add(ball);
+                }
+            }
+
+            // 2. Reconstruct the hands.
+            const hands: Hands<BallID> = [[], []];
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const { ballID: ball } of handsSetupNew[handIdx]) {
+                    hands[handIdx].push(ball);
+                }
+            }
+
+            state.table = table;
+            state.held = hands;
+
+            return state;
+        }
+
+        // TODO : Better error messages. Indicate state ?
+        // TODO : Isn't the position field reversed ?
+        // TODO : Take into consideration we may want to put multiple balls of the same name on different spots.
+
+        // Create the variables used in the returned value.
+        // "undefined" means the ball's information has yet to be computed.
+        // Oh, so this is why you should use null. a.pop() will return undefined either if a was empty, or if a had "undefined" as its last element.
+        const handsSetupOld: Hands<SimulatorPutBall | undefined> = [
+            Array<SimulatorPutBall | undefined>(state.held[0].length),
+            Array<SimulatorPutBall | undefined>(state.held[1].length)
+        ];
+
+        const ballsLocationBySound = new Map<
+            string,
+            {
+                tableSpots: { named: Map<string, BallID | undefined>; unnamed: BallID[] };
+                oldHands: Hands<{ ballIdx: number; ball: BallID }>;
+                newHands: Hands<number>;
+            }
+        >();
+
+        // Fill in hands map.
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (let ballIdx = 0; ballIdx < state.held[handIdx].length; ballIdx++) {
+                const ball = state.held[handIdx][ballIdx];
+                if (!ballsLocationBySound.has(ball.name)) {
+                    ballsLocationBySound.set(ball.name, {
+                        tableSpots: { named: new Map(), unnamed: [] },
+                        oldHands: [[], []],
+                        newHands: [[], []]
+                    });
+                }
+                ballsLocationBySound.get(ball.name)!.oldHands[handIdx].push({ ballIdx, ball });
             }
         }
-        state.held = [[], []];
+        // Fill in table map with named spots.
+        for (const [spotName, ball] of state.table.namedSpot) {
+            const spotSound = this.tableSpots.get(spotName)!;
+            if (!ballsLocationBySound.has(spotSound)) {
+                ballsLocationBySound.set(spotSound, {
+                    tableSpots: { named: new Map(), unnamed: [] },
+                    oldHands: [[], []],
+                    newHands: [[], []]
+                });
+            }
+            const namedSpots = ballsLocationBySound.get(spotSound)!.tableSpots.named;
+            namedSpots.set(spotName, ball);
+        }
+        // Fill in table map with unnamed spots.
+        for (const ball of state.table.unknown) {
+            if (!ballsLocationBySound.has(ball.name)) {
+                ballsLocationBySound.set(ball.name, {
+                    tableSpots: { named: new Map(), unnamed: [] },
+                    oldHands: [[], []],
+                    newHands: [[], []]
+                });
+            }
+            const unnamedSpots = ballsLocationBySound.get(ball.name)!.tableSpots.unnamed;
+            unnamedSpots.push(ball);
+        }
+        // Add possible missing keys with ball sounds from handsSetup.
+        if (handsSetup.place !== undefined) {
+            for (const putBall of handsSetup.place) {
+                if (!ballsLocationBySound.has(putBall.ballName)) {
+                    ballsLocationBySound.set(putBall.ballName, {
+                        tableSpots: { named: new Map(), unnamed: [] },
+                        oldHands: [[], []],
+                        newHands: [[], []]
+                    });
+                }
+            }
+        }
+        if (handsSetup.have !== undefined) {
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const { ballName: ballName } of handsSetup.have[handIdx]) {
+                    if (!ballsLocationBySound.has(ballName)) {
+                        ballsLocationBySound.set(ballName, {
+                            tableSpots: { named: new Map(), unnamed: [] },
+                            oldHands: [[], []],
+                            newHands: [[], []]
+                        });
+                    }
+                }
+            }
+        }
 
-        // 2. Put the according balls from the table in the hands.
-        for (let i = 0; i < 2; i++) {
-            for (const ballPartial of newHands[i] as PartialBall[]) {
-                let ball: BallI;
-                if (ballPartial.id !== undefined) {
-                    if (!state.onTable.has(ballPartial.id)) {
+        // 1. Put all balls that have been specified to go on the table, on the table.
+        if (handsSetup.place !== undefined) {
+            for (const putBall of handsSetup.place) {
+                const { oldHands: matchingBallsInHands, tableSpots: matchingBallsInSpots } =
+                    ballsLocationBySound.get(putBall.ballName)!;
+
+                // Choose which ball should be put on the table : First compute the hand
+                let chosenHandIdx: number;
+                if (putBall.fromHand !== undefined) {
+                    chosenHandIdx = putBall.fromHand === "left" ? 0 : 1;
+                } else if (
+                    matchingBallsInHands[0].length === 0 &&
+                    matchingBallsInHands[1].length === 0
+                ) {
+                    // If no hand holds the requested ball, we error that situation.
+                    this.logError(
+                        beat,
+                        "Warn",
+                        `Can't put a ball ${putBall.ballName} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as none is found in hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                    );
+                    continue;
+                } else if (
+                    matchingBallsInHands[0].length > 0 &&
+                    matchingBallsInHands[1].length > 0
+                ) {
+                    // If the ball has been found in both hands, we arbitrarily take the left hand.
+                    chosenHandIdx = 0;
+                    this.logError(
+                        beat,
+                        "Warn",
+                        `Ambiguity while putting ball ${putBall.ballName} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as it is found in both hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by choosing the left hand.`
+                    );
+                } else {
+                    // The ball has only been found in one hand, so we pick it.
+                    chosenHandIdx = matchingBallsInHands[0].length > 0 ? 0 : 1;
+                }
+
+                // Choose which ball should be put on the table : Now compute the ball.
+                if (matchingBallsInHands[chosenHandIdx].length === 0) {
+                    // If the hand does not have the requested ball, issue warning and carry on.
+                    this.logError(
+                        beat,
+                        "Warn",
+                        `Can't put a ball ${putBall.ballName} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as none is held.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                    );
+                    continue;
+                }
+
+                const { ball: chosenBall, ballIdx: chosenBallIdx } =
+                    matchingBallsInHands[chosenHandIdx][matchingBallsInHands.length - 1];
+                if (matchingBallsInHands[chosenHandIdx].length > 1) {
+                    // If the hand has multiple balls to choose from, arbitrarily take the most recent one and issue a warning.
+                    this.logError(
+                        beat,
+                        "Warn",
+                        `Ambiguity while putting ball ${putBall.ballName} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as it is found multiple times.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by putting the most recently received ball, ie ${stringifyBall(chosenBall)}.`
+                    );
+                }
+
+                // Find the free unoccupied requested ball spot on the table.
+                const freeTableSpots = findFreeTableSpots(matchingBallsInSpots.named);
+
+                // Compute the spot on which to put the ball.
+                let spotName: string | undefined;
+
+                if (freeTableSpots.length === 0) {
+                    // If all spots the ball could be put on are occupied, put the ball in the unkown table spot.
+                    spotName = undefined;
+                    this.logError(
+                        beat,
+                        "Error",
+                        `All spots where ball ${stringifyBall(chosenBall)} could go are occupied. ${putBall.toSpot === undefined ? "" : `Can't put in on user-defined "${putBall.toSpot}" spot. `}\nContinue by putting ball anywhere on the table.`
+                    );
+                } else if (putBall.toSpot !== undefined) {
+                    // TODO : make it null rather to clearly separate : It will be found as the spot names should already have been verified.
+                    const ballOnSpot = matchingBallsInSpots.named.get(putBall.toSpot);
+                    if (ballOnSpot !== undefined) {
+                        // The spot has been specified by the user, but it is already occupied on the table.
+                        // Take the first available spot instead.
+                        spotName = freeTableSpots[0];
                         this.logError(
                             beat,
                             "Error",
-                            `Can't take ${stringifyBall(ballPartial)} from the table.\nTable's content: ${stringifyTable(state.onTable)}\nContinues without tossing a ball.`
+                            `Can't put ball ${stringifyBall(chosenBall)} on user-defined "${putBall.toSpot}" spot as it is already occupied by ball ${stringifyBall(ballOnSpot)}.\nContinue by putting it on spot "${spotName}".`
                         );
-                        continue;
+                    } else {
+                        // The spot has been specified by the user, and it is available.
+                        spotName = putBall.toSpot;
                     }
-                    ball = state.onTable.get(ballPartial.id)!;
                 } else {
-                    const matches: BallI[] = [];
-                    for (const ball of state.onTable.values()) {
-                        if (ball.name === ballPartial.name) {
-                            matches.push(ball);
+                    // No spot has been specified by the user, so take the first free available spot.
+                    spotName = freeTableSpots[0];
+                }
+
+                // Put the ball on the table : Remove it from the hands.
+                popOneIndexFromList(matchingBallsInHands[chosenHandIdx], chosenBallIdx);
+                // Put the ball on the table : Add it to the table.
+                if (spotName === undefined) {
+                    matchingBallsInSpots.unnamed.push(chosenBall);
+                } else {
+                    matchingBallsInSpots.named.set(spotName, chosenBall);
+                }
+
+                // Modify the returned value to indicate this choice (and that this ball has been
+                // already handled.
+                handsSetupOld[chosenHandIdx][chosenBallIdx] = {
+                    ballID: chosenBall,
+                    to: { type: "tableSpot", spot: spotName }
+                };
+            }
+        }
+
+        // 2. If no new hands are specified, we stop there.
+        if (handsSetup.have === undefined) {
+            // Prepare the return values.
+            const handsSetupOld2: Hands<SimulatorPutBall> = [[], []];
+            const handsSetupNew2: Hands<SimulatorTakeBall> = [[], []];
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (let ballIdx = 0; ballIdx < handsSetupOld[handIdx].length; ballIdx++) {
+                    const info = handsSetupOld[handIdx][ballIdx];
+                    if (info === undefined) {
+                        // The ball hasn't bee handled yet, so it should remain in hand
+                        const ball = state.held[handIdx][ballIdx];
+                        handsSetupNew2[handIdx].push({ ballID: ball, from: { type: "hand" } });
+                        handsSetupOld2[handIdx].push({
+                            ballID: ball,
+                            to: {
+                                type: "hand",
+                                rightHand: handIdx === 1,
+                                position: handsSetupNew2.length - 1
+                            }
+                        });
+                    } else {
+                        handsSetupOld2[handIdx].push(info);
+                    }
+                }
+            }
+            state = reconstructState(ballsLocationBySound, this.tableSpots, handsSetupNew2, state);
+            return {
+                state: state,
+                handsSimulatorInfo: { old: handsSetupOld2, new: handsSetupNew2 }
+            };
+        }
+
+        // 3. For all balls in the new hands, identify where they come from
+        // ie in order of priority :
+        // - from the table if they have a user defined "take from" spot.
+        // - from the same hand if there was one.
+        // - from the other hand if there was one.
+        // - from the table.
+
+        // Create new hands variable to help build the return value.
+        // "undefined" means the exact ball hasn't been computed.
+        const handsSetupNew: Hands<SimulatorTakeBall | undefined> = [
+            Array<SimulatorTakeBall | undefined>(state.held[0].length).fill(undefined),
+            Array<SimulatorTakeBall | undefined>(state.held[1].length).fill(undefined)
+        ];
+
+        for (const [
+            ballName,
+            { oldHands: ballsInOldHands, newHands: ballsInNewHands, tableSpots: ballsOnTableSpots }
+        ] of ballsLocationBySound) {
+            // 4. For each hand, simulate the number of balls that will remain there, that will swap hands,
+            // and that will be put on the table in user-sepcific spots or not.
+            // We stop that simulation when we managed to maximize the number of user-specific take from balls in that
+            // configuration.
+            // We don't check yet that there are enough balls overall for us to take them all.
+            const freeTableSpotsBefore = findFreeTableSpots(ballsOnTableSpots.named);
+
+            // This variables indicates what ball can successfully take from a user-defined.
+            let ballsWithTakeFrom: [Map<number, string>, Map<number, string>] = [
+                new Map(),
+                new Map()
+            ];
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (let ballIdx = handsSetup.have[handIdx].length; ballIdx >= 0; ballIdx--) {
+                    const spot = handsSetup.have[handIdx][ballIdx].fromSpot;
+                    if (spot !== undefined) {
+                        ballsWithTakeFrom[handIdx].set(ballIdx, spot);
+                    }
+                }
+            }
+
+            let nbBallsFromSameHand: [number, number];
+            let nbBallsFromOtherHand: [number, number];
+            while (true) {
+                // A.  Compute the number of balls that remain in hand, change hand, be on the table
+                // (on a user specific spot and not).
+
+                //  A.I Compute the number of balls that will remain in the same hand.
+                // The number of balls that still need attribution in each hand.
+                let nbBallsNeeded: [number, number] = [
+                    ballsInNewHands[0].length - ballsWithTakeFrom[0].size,
+                    ballsInNewHands[1].length - ballsWithTakeFrom[1].size
+                ];
+                // The number of balls that each old hand have that haven't been attributed.
+                let nbBallsAvailable: [number, number] = [
+                    ballsInOldHands[0].length,
+                    ballsInOldHands[1].length
+                ];
+
+                nbBallsFromSameHand = [
+                    Math.min(nbBallsNeeded[0], nbBallsAvailable[0]),
+                    Math.min(nbBallsNeeded[1], nbBallsAvailable[1])
+                ];
+
+                //  A.II Compute the number of balls that will switch hands.
+                nbBallsNeeded = [
+                    nbBallsNeeded[0] - nbBallsFromSameHand[0],
+                    nbBallsNeeded[1] - nbBallsFromSameHand[1]
+                ];
+                nbBallsAvailable = [
+                    nbBallsAvailable[0] - nbBallsFromSameHand[0],
+                    nbBallsAvailable[1] - nbBallsFromSameHand[1]
+                ];
+
+                nbBallsFromOtherHand = [
+                    Math.min(nbBallsNeeded[0], nbBallsAvailable[1]),
+                    Math.min(nbBallsNeeded[1], nbBallsAvailable[0])
+                ];
+
+                //  A.III Compute the number of balls that will be taken from the table.
+                nbBallsNeeded = [
+                    nbBallsNeeded[0] - nbBallsFromOtherHand[0],
+                    nbBallsNeeded[1] - nbBallsFromOtherHand[1]
+                ];
+                nbBallsAvailable = [
+                    nbBallsAvailable[0] - nbBallsFromOtherHand[1],
+                    nbBallsAvailable[1] - nbBallsFromOtherHand[0]
+                ];
+
+                // nbBallsFromTableWithoutTakeFrom = [nbBallsNeeded[0], nbBallsNeeded[1]];
+                // const nbBallsFromTableWithTakeFrom = [ballsWithTakeFrom[0].length, ballsWithTakeFrom[1].length]
+                // const nbBallsFromTable = [nbBallsFromTableWithTakeFrom[0] + nbBallsFromTableWithoutTakeFrom[0], nbBallsFromTableWithTakeFrom[1] + nbBallsFromTableWithoutTakeFrom[1]]
+
+                // B. In the old hand, each ball that isn't kept or goes to the other hand goes on tha table.
+                // Simulate how the tables spots fill.
+                const nbBallsPutOnTable = nbBallsAvailable;
+                const freeTableSpotsAfter = new Set(
+                    freeTableSpotsBefore.slice(0, nbBallsPutOnTable[0] + nbBallsPutOnTable[1])
+                );
+
+                // C. In the new hand, for each ball that must be taken from a specific spot,
+                // check whether that spot is available or not.
+                const takeFromSpotsWithNoBall: { handIdx: number; ballIdx: number }[] = [];
+
+                for (let handIdx = 0; handIdx < 2; handIdx++) {
+                    for (const [ballIdx, spot] of ballsWithTakeFrom[handIdx]) {
+                        if (freeTableSpotsAfter.has(spot)) {
+                            // The spot has no ball on it, and we know that it never will in the next while iterations.
+                            // We remove the spot from the ones we'll put in their user-specific spot, and error out.
+                            // (the while loop has a variant : the number of balls put on user-defined spots decreases strictly.
+                            // Thus, the number of balls put on the table also decreases (non striclty).
+                            // Thus, a spot that has no ball on it can't have a ball on it in later iterations).
+                            takeFromSpotsWithNoBall.push({ handIdx, ballIdx });
+                            this.logError(
+                                beat,
+                                "Warn",
+                                `Can't take ball ${ballName} from spot "${spot}" into hand ${handIdx} in position ${ballIdx} as it has no ball.`
+                            );
+                        } else {
+                            // We add this spot to the free spots in case two balls take from the *same* spot.
+                            freeTableSpotsAfter.add(spot);
                         }
                     }
-                    if (matches.length === 0) {
-                        this.logError(
-                            beat,
-                            "Error",
-                            `Can't take ${stringifyBall(ballPartial)} from the table.\nTable's content: ${stringifyTable(state.onTable)}\nContinues without tossing a ball.`
-                        );
-                        continue;
-                    } else if (matches.length > 1) {
+                }
+
+                // If all balls with user-defined spots can be taken from the table, we can leave the loop.
+                if (takeFromSpotsWithNoBall.length === 0) {
+                    break;
+                }
+
+                // Else we remove them, and loop once more.
+                for (const { handIdx, ballIdx } of takeFromSpotsWithNoBall) {
+                    ballsWithTakeFrom[handIdx].delete(ballIdx);
+                }
+            }
+
+            // 4. Use the computed number of attributions to complete the old and new hands.
+
+            // 4.1 Attribute what balls goes and comes from where.
+            // The element in position 0 in each hand is the most recent ball.
+            const oldIdxToSameHand: Hands<number> = [[], []];
+            const oldIdxToOtherHand: Hands<number> = [[], []];
+            const oldIdxToTable: Hands<number> = [[], []];
+            const newIdxFromSameHand: Hands<number> = [[], []];
+            const newIdxFromOtherHand: Hands<number> = [[], []];
+            const newIdxFromTableWithTakeFrom: Hands<number> = [[], []];
+            const newIdxFromTableNoTakeFrom: Hands<number> = [[], []];
+
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                const otherHandIdx = (handIdx + 1) % 2;
+                for (
+                    let arrayIdx = ballsInOldHands[handIdx].length - 1;
+                    arrayIdx >= 0;
+                    arrayIdx--
+                ) {
+                    const { ballIdx } = ballsInOldHands[handIdx][arrayIdx];
+                    const count = ballsInOldHands[handIdx].length - 1 - arrayIdx;
+                    if (count < nbBallsFromSameHand[handIdx]) {
+                        oldIdxToSameHand[handIdx].push(ballIdx);
+                    } else if (
+                        count <
+                        nbBallsFromSameHand[handIdx] + nbBallsFromOtherHand[otherHandIdx]
+                    ) {
+                        oldIdxToOtherHand[handIdx].push(ballIdx);
+                    } else {
+                        oldIdxToTable[handIdx].push(ballIdx);
+                    }
+                }
+                let count = 0;
+                for (
+                    let arrayIdx = ballsInNewHands[handIdx].length - 1;
+                    arrayIdx >= 0;
+                    arrayIdx--
+                ) {
+                    const ballIdx = ballsInNewHands[handIdx][arrayIdx];
+                    const userDefinedSpot = ballsWithTakeFrom[handIdx].get(ballIdx);
+                    if (userDefinedSpot !== undefined) {
+                        newIdxFromTableWithTakeFrom[handIdx].push(ballIdx);
+                    } else if (count < nbBallsFromSameHand[handIdx]) {
+                        newIdxFromSameHand[handIdx].push(ballIdx);
+                        count++;
+                    } else if (
+                        count <
+                        nbBallsFromSameHand[handIdx] + nbBallsFromOtherHand[handIdx]
+                    ) {
+                        newIdxFromOtherHand[handIdx].push(ballIdx);
+                    } else {
+                        newIdxFromTableNoTakeFrom[handIdx].push(ballIdx);
+                    }
+                }
+            }
+
+            //Sanity check
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                const otherHandIdx = (handIdx + 1) % 2;
+                if (
+                    oldIdxToSameHand[handIdx] !== newIdxFromSameHand[handIdx] ||
+                    oldIdxToOtherHand[handIdx] !== newIdxFromOtherHand[otherHandIdx]
+                ) {
+                    console.error("Something went wrong. Assertion failed.");
+                }
+            }
+
+            // 4.2 Handle all balls that remain in hand.
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (let arrayIdx = 0; arrayIdx < oldIdxToSameHand[handIdx].length; arrayIdx++) {
+                    const oldBallIdx = oldIdxToSameHand[handIdx][arrayIdx];
+                    const newBallIdx = newIdxFromSameHand[handIdx][arrayIdx];
+                    const ball = state.held[handIdx][oldBallIdx];
+                    handsSetupOld[handIdx][oldBallIdx] = {
+                        ballID: ball,
+                        to: { type: "hand", rightHand: handIdx === 1, position: newBallIdx }
+                    };
+                    handsSetupNew[handIdx][newBallIdx] = { ballID: ball, from: { type: "hand" } };
+                }
+            }
+
+            //4.3 Handle balls that change hands.
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                const otherHandIdx = (handIdx + 1) % 2;
+                for (let arrayIdx = 0; arrayIdx < oldIdxToOtherHand[handIdx].length; arrayIdx++) {
+                    const oldBallIdx = oldIdxToOtherHand[handIdx][arrayIdx];
+                    const newBallIdx = newIdxFromOtherHand[otherHandIdx][arrayIdx];
+                    const ball = state.held[handIdx][oldBallIdx];
+                    handsSetupOld[handIdx][oldBallIdx] = {
+                        ballID: ball,
+                        to: { type: "hand", rightHand: otherHandIdx === 1, position: newBallIdx }
+                    };
+                    handsSetupNew[otherHandIdx][newBallIdx] = {
+                        ballID: ball,
+                        from: { type: "hand" }
+                    };
+                }
+            }
+
+            // 4.4 Put old balls on the table.
+            const freeTableSpots = findFreeTableSpots(ballsOnTableSpots.named);
+            let spotIdx = 0;
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const oldBallIdx of oldIdxToTable[handIdx]) {
+                    const ball = state.held[handIdx][oldBallIdx];
+                    let spot: undefined | string;
+                    if (spotIdx >= freeTableSpots.length) {
+                        // There is no more room on the table.
+                        ballsOnTableSpots.unnamed.push(ball);
+                        spot = undefined;
                         this.logError(
                             beat,
                             "Warn",
-                            `Multiple balls ${stringifyBall(ballPartial)} can be taken from the table. This ambiguity may have consequences later.\nTable's content: ${stringifyTable(state.onTable)}\n${stringifyBall(matches[matches.length - 1])}.`
+                            `Can't put ball ${stringifyBall(ball)} on table as all spots are already occupied.\n Continue by putting it somewhere on the table.`
                         );
+                    } else {
+                        // There is room on the table.
+                        spot = freeTableSpots[spotIdx];
+                        ballsOnTableSpots.named.set(spot, ball);
+                        spotIdx++;
                     }
-                    ball = matches[0];
+                    // Indicate the ball has been handled.
+                    handsSetupOld[handIdx][oldBallIdx] = {
+                        ballID: ball,
+                        to: { type: "tableSpot", spot }
+                    };
                 }
-                state.onTable.delete(ball.id);
-                state.held[i].push(ball);
+            }
+
+            // 4.5 Take the new balls with user-defined spots from the table.
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const newBallIdx of newIdxFromTableWithTakeFrom[handIdx]) {
+                    const spot = handsSetup.have[handIdx][newBallIdx].fromSpot!;
+                    const ball = ballsOnTableSpots.named.get(spot)!;
+                    ballsOnTableSpots.named.set(spot, undefined);
+                    handsSetupNew[handIdx][newBallIdx] = {
+                        ballID: ball,
+                        from: { type: "tableSpot", spot }
+                    };
+                }
+            }
+
+            // 4.6 Take the rest of the new balls from the table.
+            // Create list of all available spots (named and unnamed).
+            const occupiedSpots: { where: string | number; ball: BallID }[] = [];
+            for (const [spot, ball] of ballsOnTableSpots.named) {
+                if (ball !== undefined) {
+                    occupiedSpots.push({ where: spot, ball });
+                }
+            }
+            for (let ballIdx = ballsOnTableSpots.unnamed.length; ballIdx >= 0; ballIdx = 0) {
+                const ball = ballsOnTableSpots.unnamed[ballIdx];
+                const spot = ballIdx;
+                occupiedSpots.push({ where: spot, ball });
+            }
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (
+                    let arrayIdx = 0;
+                    arrayIdx < newIdxFromTableNoTakeFrom[handIdx].length;
+                    arrayIdx++
+                ) {
+                    const newBallIdx = newIdxFromTableNoTakeFrom[handIdx][arrayIdx];
+                    if (arrayIdx === occupiedSpots.length) {
+                        // There are no more balls fetchable from the table. Error out.
+                        this.logError(
+                            beat,
+                            "Error",
+                            `Too few balls "${ballName}" are available both in hands and on table to form the specified new hand. Right hand contained : [${stringifyHand(state.held[0])}].\nLeft hand contained : [${stringifyHand(state.held[1])}].\nTable contained: ${stringifyTable(state.table)}.\nTODO : new hand ? Continue withtout taking that ball.`
+                        );
+                    } else if (arrayIdx < occupiedSpots.length) {
+                        const { where, ball } = occupiedSpots[arrayIdx];
+                        let spot: string | undefined;
+                        if (typeof where === "number") {
+                            popOneIndexFromList(ballsOnTableSpots.unnamed, where);
+                            spot = undefined;
+                        } else {
+                            ballsOnTableSpots.named.set(where, undefined);
+                            spot = where;
+                        }
+                        handsSetupNew[handIdx][newBallIdx] = {
+                            ballID: ball,
+                            from: { type: "tableSpot", spot }
+                        };
+                    }
+                }
             }
         }
-        return state;
+
+        // Sanity check : we have no undefined if handsSetupOld and handsSetupNew.
+        const handsSetupOld2: Hands<SimulatorPutBall> = [[], []];
+        const handsSetupNew2: Hands<SimulatorTakeBall> = [[], []];
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (const info of handsSetupOld[handIdx]) {
+                if (info === undefined) {
+                    console.error("Assumption is false. Something has gone very wrong.");
+                } else {
+                    handsSetupOld2[handIdx].push(info);
+                }
+            }
+            for (const info of handsSetupNew[handIdx]) {
+                if (info === undefined) {
+                    console.error("Assumption is false. Something has gone very wrong.");
+                } else {
+                    handsSetupNew2[handIdx].push(info);
+                }
+            }
+        }
+        state = reconstructState(ballsLocationBySound, this.tableSpots, handsSetupNew2, state);
+        return { state: state, handsSimulatorInfo: { old: handsSetupOld2, new: handsSetupNew2 } };
     }
 
     //TODO : Rename method.
-    //TODO : Make it so it is the scheduler that stores the last state and event idx ?
     //TODO : Change this.events type to only hold nexecaary things.
     //TODO : In all methods, check if what is needed is prevEventIdx or the currentEventIdx we're handling ?
     //TODO : If needs be, also return the event idx to save a bit of calculation time.
@@ -670,22 +1465,21 @@ class JugglerManager {
         nextEventIdx: number,
         state: JugglerState
     ): {
-        tosses: PartialToss2[];
+        tosses: HalfCompletedToss[];
         state: JugglerState;
         nextEventIdx: number;
-        hands?: { old: BallsInHands; new: BallsInHands };
+        hands?: SimulatorHands;
         tempo: Fraction;
     } {
         // Manage state.
         const eventBeat = this.events[nextEventIdx][0];
-        const { hands, tosses, tempo } = this.events[nextEventIdx][1];
-        let handsInfo: { old: BallsInHands; new: BallsInHands } | undefined = undefined;
+        const { handsSetup, tosses, tempo } = this.events[nextEventIdx][1];
+        let handsInfo: SimulatorHands | undefined = undefined;
         state = this.descendAirborneBalls(eventBeat, state);
-        if (hands !== undefined) {
-            const oldHands = [[...state.held[0]], [...state.held[1]]] as BallsInHands;
-            state = this.swapBalls(eventBeat, state, hands);
-            const newHands = [[...state.held[0]], [...state.held[1]]] as BallsInHands;
-            handsInfo = { old: oldHands, new: newHands };
+        if (handsSetup !== undefined) {
+            const res = this.swapBalls(eventBeat, state, handsSetup);
+            state = res.state;
+            handsInfo = res.handsSimulatorInfo;
         }
         const res = this.tossBalls(tosses, state, eventBeat, nextEventIdx);
         return {
@@ -698,7 +1492,7 @@ class JugglerManager {
     }
 
     addTossesToState(
-        tosses: PartialToss2[],
+        tosses: HalfCompletedToss[],
         state: JugglerState
     ): { tosses: SimulatorToss<Fraction>[]; state: JugglerState } {
         state = cloneState(state);
@@ -717,7 +1511,7 @@ class JugglerManager {
                 this.logError(
                     toss.to.beat,
                     "Error",
-                    `Ball ${stringifyBall(toss.ball)} is caught off-beat.\n${this.name}'s previous beat: ${prevBeat.toString()}.\nBall caught beat: ${toss.to.beat.toString()}.\nNext beat: ${toBeat}.`
+                    `Ball ${stringifyBall(toss.ballID)} is caught off-beat.\n${this.name}'s previous beat: ${prevBeat.toString()}.\nBall caught beat: ${toss.to.beat.toString()}.\nNext beat: ${toBeat}.`
                 );
             }
             // Compute catching hand.
@@ -729,8 +1523,8 @@ class JugglerManager {
             } else {
                 toRightHand = toss.to.hand === "R";
             }
-            state.airborne.set(toss.ball.id, {
-                ball: toss.ball,
+            state.airborne.set(toss.ballID.id, {
+                ball: toss.ballID,
                 catchBeat: toBeat,
                 throwBeat: toss.from.beat,
                 toRightHand: toRightHand
@@ -738,7 +1532,7 @@ class JugglerManager {
             completedTosses.push({
                 from: toss.from,
                 to: { beat: toBeat, juggler: toss.to.juggler, rightHand: toRightHand },
-                ball: toss.ball,
+                ballID: toss.ballID,
                 mode: toss.mode
             });
         }
@@ -761,8 +1555,6 @@ class JugglerManager {
     // //TODO.
     // resetFrom(beat: Fraction): void {}
 }
-
-//TODO : Messages d'erreurs avec position.
 
 /** @constant
 The epsilon value to use for comparisons ont the timeline.
@@ -828,3 +1620,25 @@ Two events apart by less than 0.0001 s are considered to be the same.
 //     }
 //     return music;
 // }
+
+function stringifyTable(table: {
+    namedSpot: Map<string, BallID | undefined>;
+    unknown: Set<BallID>;
+}): string {
+    let text = "";
+    for (const [spot, ball] of table.namedSpot) {
+        if (ball !== undefined) {
+            text += `Spot ${spot} : ${stringifyBall(ball)}\n`;
+        }
+    }
+    text = text.slice(0, -2);
+    if (table.unknown.size !== 0) {
+        text += "\nUnnamed spot : ";
+        for (const ball of table.unknown) {
+            text += `${stringifyBall(ball)}, `;
+        }
+        text = text.slice(0, -2);
+        text += ".";
+    }
+    return text;
+}

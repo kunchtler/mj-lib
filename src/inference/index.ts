@@ -1,4 +1,5 @@
-export * from "./MusicBeatConverter";
-export * from "./ParserToScheduler";
+export * from "./ScoreConverter";
+export * from "./old_ParserToScheduler";
 export * from "./Scheduler";
 export * from "./SchedulerToModel";
+export * from "./PerformanceDescription";
