@@ -17,7 +17,7 @@ import { TimeControls } from "./TimeControls";
 import { PerformanceModel } from "../src/model/PerformanceModel";
 import * as THREE from "three";
 import { pattern } from "./pattern";
-import { patternToModel } from "../src/inference/PatternToModel";
+import { JSONJugglingScoreToModel } from "../src/inference/PatternToModel";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import { LineMaterial } from "three/examples/jsm/Addons.js";
@@ -103,10 +103,10 @@ function createHandData(
 //     return { spots, unknownSpot: [0, tableHeight, 0] };
 // }
 
-const model = patternToModel(pattern);
+const model = JSONJugglingScoreToModel(pattern);
 
 const description: performanceDescription = {
-    model: patternToModel(pattern),
+    model: JSONJugglingScoreToModel(pattern),
     ballsData: [
         { id: "Do?K", color: "red" },
         { id: "Re?K", color: "orange" },

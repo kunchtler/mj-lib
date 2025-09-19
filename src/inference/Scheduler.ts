@@ -1,7 +1,7 @@
 import { Timeline } from "../utils/Timeline";
 import Fraction from "fraction.js";
 import { stringifyBall, stringifyHand } from "../utils/stringifyEvent";
-import { FracTimedErrorLogger, Severity } from "../utils/TimedErrorLogger";
+import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { compareEvents } from "./old_ParserToScheduler";
 import { HandsInstructions, PutBall, TakeBall } from "./PerformanceDescription";
 
@@ -56,12 +56,12 @@ export type SchedulerParams = {
     /**
      * A map of all the jugglers.
      */
-    jugglers: Map<string, JugglerSchedulerInfo>;
+    jugglers: Map<string, SchedulerJuggler>;
 };
 
-export type JugglerSchedulerInfo = {
-    name: string;
-    table?: { spotName: string; acceptedBallName?: string; ballAtStart?: BallID };
+export type SchedulerJuggler = {
+    // name: string;
+    table?: Map<string, {acceptedBallName?: string; ballAtStart?: BallID }>;
     ballsHeldAtStart?: [BallID[], BallID[]];
     events: SchedulerEvent[];
 };
@@ -71,19 +71,19 @@ export type BallName = string;
 
 export type SchedulerEvent = {
     beat: Fraction;
-    tempo: Fraction;
-    defaultHand: "L" | "R";
     tosses: PartialToss[];
     setupHands?: HandsInstructions;
 };
 
+// TODO : Remove from.juggler (redundant), and compute before scheduler from.hand.
+
 export type PartialToss = {
-    from: { juggler: string; hand?: "R" | "L" };
+    from: { hand: "R" | "L" };
     to: {
         juggler: string;
         hand?: "R" | "L" | "x";
     };
-    ball?: { id: BallID } | { name: BallName } | undefined;
+    ball?: { id: BallID } | { name: BallName };
     mode: TossMode;
 };
 
@@ -121,7 +121,7 @@ type JugglerCache = {
     nextEventIdx: number;
 };
 
-///////////////////// Simulator types /////////////////////
+///////////////////// Symbolic Events Layer types //////////////////////
 
 export type SimulatorToss<BeatT> = {
     from: { juggler: string; rightHand: boolean; beat: BeatT };
@@ -133,25 +133,39 @@ export type SimulatorToss<BeatT> = {
 export type SimulatorEvent<BeatType> = {
     tosses: SimulatorToss<BeatType>[];
     tempo: Fraction;
-    hands?: SimulatorHands;
+    hands?: SimulatorHandsInstructions[];
 };
 
-export type SimulatorHands = {
-    old: Hands<SimulatorPutBall>;
-    new: Hands<SimulatorTakeBall>;
-};
+export type SimulatorHandsInstructions =
+    | PutBallOnTable
+    | TakeBallFromTable
+    | ExchangeBallFromHands
+    | ChangeBallPositionInHand;
 
-export type SimulatorPutBall = {
-    ballID: BallID;
-    to:
-        | { type: "tableSpot"; spot?: string }
-        | { type: "hand"; rightHand: boolean; position: number };
-};
+export type PutBallOnTable = { type: "put"; ballID: string; spotName: string };
 
-export type SimulatorTakeBall = {
-    ballID: BallID;
-    from: { type: "tableSpot"; spot?: string } | { type: "hand" };
-};
+export type TakeBallFromTable = { type: "take"; ballID: string };
+
+export type ExchangeBallFromHands = { type: "exchange"; ballID: string; toPosition: number };
+
+export type ChangeBallPositionInHand = { type: "rotate"; ballID: string; toPosition: number };
+
+// export type SimulatorHands = {
+//     old: Hands<SimulatorPutBall>;
+//     new: Hands<SimulatorTakeBall>;
+// };
+
+// export type SimulatorPutBall = {
+//     ballID: BallID;
+//     to:
+//         | { type: "tableSpot"; spot?: string }
+//         | { type: "hand"; rightHand: boolean; position: number };
+// };
+
+// export type SimulatorTakeBall = {
+//     ballID: BallID;
+//     from: { type: "tableSpot"; spot?: string } | { type: "hand" };
+// };
 
 ///////////////////// Other types /////////////////////
 
@@ -174,6 +188,31 @@ export type SimulatorTakeBall = {
 //     // TODO : field position in hand ?
 // };
 
+class TableTmp {
+    private spotsByBallTemplate: Map<string, string[] | undefined>;
+    private acceptedBallTemplateBySpot: Map<string, string | undefined>; 
+
+    constructor(tableMap: Map<string, string | undefined>) {
+        this.acceptedBallTemplateBySpot = tableMap;
+        this.spotsByBallTemplate = new Map();
+        for (const [spot, ballTemplate] of tableMap) {
+            if (ballTemplate === undefined) {
+                continue;
+            }
+            let spots = this.spotsByBallTemplate.get(ballTemplate);
+            if (spots === undefined) {
+                spots = []
+                this.spotsByBallTemplate.set(ballTemplate, spots);
+            }
+            spots.push(spot);
+        }
+    }
+
+    
+
+    
+}
+
 //TODO : exprugate "PartialBall".
 //TODO : Document that by default hands have LIFO structure.
 //TODO : Make Generic version for the fun of it ?
@@ -191,14 +230,20 @@ export type SimulatorTakeBall = {
 export class Scheduler {
     jugglers: Map<string, { manager: JugglerManager; cache: JugglerCache }>;
 
-    constructor({ jugglers }: SchedulerParams) {
+    constructor({ jugglers, ballIDMap }: SchedulerParams) {
         this.jugglers = new Map();
 
-        // Create an ID for each ball used in the performance,
-        // and setup one JugglerManager per juggler.
-        const ballsNb = new Map<string, number>();
-        for (const [name, { occupiedSpotsAtStart, events, tableSpots }] of jugglers) {
-            // Generate an ID per ball.
+        // Setup one JugglerManager per juggler.
+        for (const [jugglerName, {events, ballsHeldAtStart, table}] of jugglers) {
+            
+            if (table !== undefined) {
+                const ballsOnTableAtStart = new Map<string, string | undefined>();
+                const tableSpotsAccetedBalls = new Map<string, string>
+            }
+            const initialState: JugglerState = {airborne: new Map(), held: ballsHeldAtStart ?? [[], []], table: }
+
+
+
             const ballsOnTableAtStart = new Map<string, BallID | undefined>();
             for (const [spot, ballName] of tableSpots) {
                 if (occupiedSpotsAtStart.has(spot)) {
@@ -319,7 +364,7 @@ export type JugglerStateAirborne = Map<
         /**
          * The ball that is to be caught.
          */
-        ball: BallID;
+        ballID: BallID;
         /**
          * The time when then ball will be caught.
          */
@@ -327,7 +372,7 @@ export type JugglerStateAirborne = Map<
         /**
          * The time the ball was thrown.
          */
-        throwBeat: Fraction;
+        tossBeat: Fraction;
     }
 >;
 
@@ -344,7 +389,7 @@ export type JugglerState = {
     /**
      * The table and the balls that are on it.
      */
-    table: {
+    table?: {
         /**
          * A map of all spots on the table, and whether they contain a ball or not.
          */
@@ -443,8 +488,8 @@ export function getLastInsertedInMap<KeyType, ValueType>(
  */
 class JugglerManager {
     name: string;
-    events: FracSortedList<SchedulerEvent>;
-    errorLogger: FracTimedErrorLogger;
+    events: SchedulerEvent[];
+    errorLogger: TimedErrorLogger<Fraction>;
     tableSpots: Map<string, string>;
     ballsOnTableAtStart: { namedSpot: Map<string, BallID | undefined>; unknown: Set<BallID> };
     // catches: FracSortedList<SimulatorToss>;
@@ -637,7 +682,7 @@ class JugglerManager {
             [Fraction, { ball: BallID; catchBeat: Fraction; throwBeat: Fraction }[]][],
             [Fraction, { ball: BallID; catchBeat: Fraction; throwBeat: Fraction }[]][]
         ] = [[], []];
-        for (const { catchBeat, throwBeat, toRightHand, ball } of state.airborne.values()) {
+        for (const { catchBeat, tossBeat: throwBeat, toRightHand, ballID: ball } of state.airborne.values()) {
             if (catchBeat.lte(toBeat)) {
                 const catches = handCatches[toRightHand ? 1 : 0];
                 const foundIdx = catches.findIndex((value) => value[0].equals(catchBeat));
@@ -808,7 +853,7 @@ class JugglerManager {
         beat: Fraction,
         state: JugglerState,
         handsSetup: HandsInstructions
-    ): { state: JugglerState; handsSimulatorInfo: SimulatorHands } {
+    ): { state: JugglerState; handsSimulatorInfo: SimulatorHandsInstructions } {
         /**
          * Find all unoccupied spots on the table.
          * @param spots a map of spots, where :
@@ -1468,13 +1513,13 @@ class JugglerManager {
         tosses: HalfCompletedToss[];
         state: JugglerState;
         nextEventIdx: number;
-        hands?: SimulatorHands;
+        hands?: SimulatorHandsInstructions;
         tempo: Fraction;
     } {
         // Manage state.
         const eventBeat = this.events[nextEventIdx][0];
         const { handsSetup, tosses, tempo } = this.events[nextEventIdx][1];
-        let handsInfo: SimulatorHands | undefined = undefined;
+        let handsInfo: SimulatorHandsInstructions | undefined = undefined;
         state = this.descendAirborneBalls(eventBeat, state);
         if (handsSetup !== undefined) {
             const res = this.swapBalls(eventBeat, state, handsSetup);
@@ -1500,7 +1545,7 @@ class JugglerManager {
         for (const toss of tosses) {
             // Check if the ball would be received off-beat.
             let prevEventIdx = this.getPreviousEventIdx(toss.to.beat);
-            const [eventBeat, { tempo }] = this.events[prevEventIdx];
+            const [eventBeat, { beat, tempo }] = this.events[prevEventIdx];
             let toBeat = toss.to.beat;
             if (!isInRhythm(toBeat, eventBeat, tempo)) {
                 const correction = this.correctOffbeatBeat(toBeat, prevEventIdx);
@@ -1524,9 +1569,9 @@ class JugglerManager {
                 toRightHand = toss.to.hand === "R";
             }
             state.airborne.set(toss.ballID.id, {
-                ball: toss.ballID,
+                ballID: toss.ballID,
                 catchBeat: toBeat,
-                throwBeat: toss.from.beat,
+                tossBeat: toss.from.beat,
                 toRightHand: toRightHand
             });
             completedTosses.push({

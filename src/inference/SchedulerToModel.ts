@@ -1,6 +1,6 @@
 import Fraction from "fraction.js";
-import { FracSortedList, SimulatorEvent, Hands } from "./Scheduler";
-import { MusicBeatConverter, MusicTempo } from "./MusicBeatConverter";
+import { FracSortedList, SimulatorEvent, Hands } from "./old_Scheduler";
+import { ScoreConverter, MusicTempo } from "./ScoreConverter";
 import {
     CatchEvent,
     EventSound,
@@ -26,7 +26,7 @@ export type PostSchedulerParams = {
             events: FracSortedList<SimulatorEvent<Fraction>>;
         }
     >;
-    musicConverter: MusicBeatConverter;
+    musicConverter: ScoreConverter;
     ballIDSounds: Map<
         string,
         {
@@ -39,7 +39,7 @@ export type PostSchedulerParams = {
 };
 
 //TODO : Properly add support for sounds on balls, presence or absence of table, world info ?
-export function schedulerToModel({
+export function simulateEvents({
     jugglers,
     ballIDSounds,
     musicConverter

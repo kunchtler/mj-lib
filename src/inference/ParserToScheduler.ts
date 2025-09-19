@@ -8,12 +8,11 @@ import { TossMode, XOR, SchedulerEvent } from "./Scheduler";
 import { produce } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
 
-//TODO : Rewrite more cleanly with Immer.js ?
 //TODO : Expurge FracSortedList.
 //TODO : Handle error on creation of ScoreConverter (in case no tempo or other) by putting one by default. Either have no error or keep error but provide default value when calling the class ?
 
 type HybridToss = {
-    from: { juggler?: string; hand?: "L" | "R" };
+    from: { hand?: "L" | "R" };
     to: { juggler?: string; hand?: "L" | "R" | "x" };
     ball?: { nameOrID: string } | { name: string } | { id: string };
     mode: ParserTossMode | TossMode;
@@ -28,18 +27,15 @@ type HybridEvent = {
     tosses?: HybridToss[];
 };
 
-//Add to Raw -> Not Raw that time can be a Fraction already, or a normal number, or a bigint.
-
 //TODO: signature -> timesignature.
 // TODO : Handle Error flow.
 // TODO : Is in rhythm ?
 
 //TODO : What about params ? Rather pass the same thing than the preivous step ?
 //TODO : Check the comments.
-//TODO : ErrorScheduler and juggler name in all functions ?
 
-export function parseJugglerPhrases(
-    jugglingPhrases: JugglingPhrase[],
+export function formatJugglerPhrasesForScheduler(
+    jugglingPhrase: JugglingPhrase[],
     jugglerName: string,
     ballTemplateNames: Set<string>,
     ballUserIDs: Map<string, string>,
@@ -47,29 +43,44 @@ export function parseJugglerPhrases(
     errorLogger: TimedErrorLogger<Fraction>,
     scoreConverter?: ScoreConverter
 ): SchedulerEvent[] | undefined {
-    // 1. Parse each pattern
+    // 1. Sort the events array.
+    const sortedPhrases = copyAndSort(jugglingPhrase, (a, b) => a.startTime.compare(b.startTime));
+
+    // 2. Find the initial tempo.
+    const startingTempo = findOrCreateStartingTempo(sortedPhrases, jugglerName, errorLogger);
+
+    // 3. Parse each pattern
     // + order them chronologically, and group them if needed.
-    // + add the right beat / tempo information.
-    let events = parseJugglingPhrases(jugglingPhrases, errorLogger, jugglerName);
+    let events = parseJugglingPhrases(sortedPhrases, startingTempo, jugglerName, errorLogger);
+
+    if (errorLogger.hasCriticalError()) {
+        return undefined;
+    }
+
+    const startingHand = findOrCreateStartingHand(events, jugglerName, errorLogger);
 
     // 1.5. In case some events are duplicated, attempt to fuse them. NOW IMPOSSIBLE
     // const events2 = fuseDuplicateBeats(events1, errorLogger, jugglerName);
 
-    // 2. Add empty tosses array if event has no tosses.
+    // 4. Add empty tosses array if event has no tosses.
     events = addTossesToAllEvents(events);
 
-    // 3. Transform the mode into a height / target beat.
+    // 5. Transform the mode into a height / target beat.
     events = formatMode(events, errorLogger, scoreConverter);
+
+    if (errorLogger.hasCriticalError()) {
+        return undefined;
+    }
 
     // 4. Add from beat field. HAS BEEN REMOVED.
 
-    // 5. Some events may be useless (height 0 for instance). Remove them.
+    // 6. Some events may be useless (height 0 for instance). Remove them.
     events = filterUselessTossesAndEvents(events);
 
-    // 6. If a juggler name is missing, fill it in with the current juggler.
-    events = addMissingJugglerNames(events, jugglerName);
+    // 7. If a juggler name is missing, fill it in with the current juggler.
+    events = addMissingToJuggler(events, jugglerName);
 
-    // 7. Check if the juggler names are valid juggler names.
+    // 8. Check if the juggler names are valid juggler names.
     checkJugglerNames(events, jugglerNames, errorLogger);
 
     // 8. Identify if the held balls string refer to a ball name or a ball ID. NOT NEEDED NOW as Id or Name must be explicitely mentioned in the description.
@@ -79,15 +90,18 @@ export function parseJugglerPhrases(
     events = formatThrownBalls(events, ballTemplateNames, ballUserIDs, jugglerName, errorLogger);
 
     // 10. Infer the default hand on all events.
-    events = addDefaultHandToAllEvents(events, jugglerName, errorLogger);
+    events = addTempoAndDefaultHandAndFromHand(
+        events,
+        startingTempo,
+        startingHand,
+        jugglerName,
+        errorLogger
+    );
 
-    // 11. Add tempo to all events.
-    events = addTempoToAllEvents(events, jugglerName, errorLogger);
+    // 11. Add tempo to all events. DONE In previous step.
+    // events = addTempoToAllEvents(events, startingTempo);
 
     // Check if the error logger has failed critically, and exit with nothing.
-    if (errorLogger.hasCriticalError()) {
-        return undefined;
-    }
 
     if (!areHybridEventsSchedulerEvents(events)) {
         throw Error("Wrong hybrid to scheduler events conversion. Shouldn't happen.");
@@ -96,26 +110,9 @@ export function parseJugglerPhrases(
     return events;
 }
 
-// export function compareEvents<T>(ev1: [Fraction, T], ev2: [Fraction, T]) {
-//     return ev1[0].compare(ev2[0]);
-// }
-
-// function sortEvents<T>(events: FracSortedList<T>): FracSortedList<T> {
-//     return [...events].sort(compareEvents);
-// }
-
 function copyAndSort<T>(array: T[], compare: (a: T, b: T) => number) {
     return [...array].sort(compare);
 }
-
-// function findInitialTempoIdx(jugglingPhrases: HybridEvent[]): number | undefined {
-//     for (let i = 0; i < jugglingPhrases.length; i++) {
-//         if (jugglingPhrases[i].tempo !== undefined) {
-//             return i;
-//         }
-//     }
-//     return undefined;
-// }
 
 /**
  * Parse the jugglingPhrases and return a list of events (that should be completed later).
@@ -126,44 +123,14 @@ function copyAndSort<T>(array: T[], compare: (a: T, b: T) => number) {
  */
 function parseJugglingPhrases(
     jugglingPhrases: JugglingPhrase[],
-    errorLogger: FracTimedErrorLogger,
-    jugglerName: string
+    startingTempo: Fraction,
+    jugglerName: string,
+    errorLogger: FracTimedErrorLogger
 ): HybridEvent[] {
-    // Base case when jugglingPhrases is empty.
-    if (jugglingPhrases.length === 0) {
-        return [];
-    }
-
-    // Sort the array.
-    copyAndSort(jugglingPhrases, (a, b) => a.startTime.compare(b.startTime));
-
-    let baseTempoIdx: number | undefined = undefined;
-    for (let i = 0; i < jugglingPhrases.length; i++) {
-        if (jugglingPhrases[i].withTempo !== undefined) {
-            baseTempoIdx = i;
-        }
-    }
-
-    // If there was no tempo indication at all, we create an initial one.
-    if (baseTempoIdx === undefined) {
-        errorLogger.logError({
-            severity: "Warn",
-            message: `${jugglerName}: Missing starting tempo indication. Continue by giving it a default value of 1.`
-        });
-        baseTempoIdx = 0;
-        jugglingPhrases[0].withTempo = jugglingPhrases[baseTempoIdx].withTempo!;
-    }
-
-    // If the first tempo indication isn't on the first juggling phrase, we move it there.
-    if (jugglingPhrases[0].withTempo === undefined) {
-        jugglingPhrases[0].withTempo = jugglingPhrases[baseTempoIdx].withTempo;
-        jugglingPhrases[baseTempoIdx].withTempo = undefined;
-    }
-
     const jugglingEvents: HybridEvent[] = [];
     // Keeps track of the beat to add events on the right time.
     // Is also used to confirm that two phrases don't end up intertwined.
-    let currentTempo = jugglingPhrases[0].withTempo!;
+    let currentTempo = startingTempo;
     let currentBeat: Fraction | undefined = undefined;
     for (const phrase of jugglingPhrases) {
         const phraseEvents: HybridEvent[] = [];
@@ -203,6 +170,12 @@ function parseJugglingPhrases(
         // Finally add all of this phrase's events to the big list.
         jugglingEvents.push(...phraseEvents);
     }
+
+    // Add the startingTempo to the first event.
+    if (jugglingEvents.length === 0) {
+        return [{ beat: new Fraction(0), tempo: startingTempo }];
+    }
+    jugglingEvents[0].tempo ??= startingTempo;
     return jugglingEvents;
 }
 
@@ -221,10 +194,9 @@ function isHybridEventASchedulerEvent(ev: HybridEvent): ev is SchedulerEvent {
     if (ev.defaultHand === undefined || ev.tempo === undefined || ev.tosses === undefined) {
         return false;
     }
-    for (const toss of ev.tosses) {
+    for (const toss of ev.tosses ?? []) {
         if (
             (toss.ball !== undefined && "nameOrID" in toss.ball) ||
-            toss.from.juggler === undefined ||
             toss.to.juggler === undefined ||
             toss.mode.type === "AbsBeat" ||
             toss.mode.type === "AbsMeasureBeat" ||
@@ -304,28 +276,17 @@ function isHybridEventASchedulerEvent(ev: HybridEvent): ev is SchedulerEvent {
 //     return newEvents;
 // }
 
-function addTempoToAllEvents(
-    events: HybridEvent[],
-    jugglerName: string,
-    errorLogger: FracTimedErrorLogger
-): HybridEvent[] {
-    return produce(events, (draft) => {
-        if (draft[0].tempo === undefined) {
-            errorLogger.logError({
-                severity: "CriticalError",
-                message: `Juggler ${jugglerName}. Missing starting tempo indication`
-            });
-            return;
-        }
-        let tempo = draft[0].tempo;
-        for (const ev of draft) {
-            if (ev.tempo !== undefined) {
-                tempo = ev.tempo;
-            }
-            ev.tempo = tempo;
-        }
-    });
-}
+// function addTempoToAllEvents(events: HybridEvent[], startingTempo: Fraction): HybridEvent[] {
+//     return produce(events, (draft) => {
+//         let tempo = startingTempo;
+//         for (const ev of draft) {
+//             if (ev.tempo !== undefined) {
+//                 tempo = ev.tempo;
+//             }
+//             ev.tempo = tempo;
+//         }
+//     });
+// }
 
 // function addFromBeatToAllEvents(events: HybridEvent[]): HybridEvent[] {
 //     return produce(events, (draft) => {
@@ -337,49 +298,173 @@ function addTempoToAllEvents(
 //     });
 // }
 
-function addDefaultHandToAllEvents(
+function findOrCreateStartingTempo(
+    jugglingPhrases: JugglingPhrase[],
+    jugglerName: string,
+    errorLogger: TimedErrorLogger<Fraction>
+): Fraction {
+    const startingTempoIdx = jugglingPhrases.findIndex((phrase) => {
+        return phrase.withTempo !== undefined;
+    });
+
+    if (startingTempoIdx === -1) {
+        errorLogger.logError({
+            severity: "Warn",
+            message: `${jugglerName}: Missing starting tempo indication. Continue by giving it a default value of "1".`
+        });
+        return new Fraction(1);
+    }
+
+    return jugglingPhrases[startingTempoIdx].withTempo!;
+}
+
+function findOrCreateStartingHand(
     events: HybridEvent[],
+    // startingTempo: Fraction,
+    jugglerName: string,
+    errorLogger: TimedErrorLogger<Fraction>
+): "R" | "L" {
+    if (events[0].defaultHand === undefined) {
+        errorLogger.logError({
+            severity: "Warn",
+            message: `${jugglerName}: Missing starting hand indication. The first toss will be made from the right hand. If you wish to change this behaviour, put that information in the siteswap by starting it with an L.`
+        });
+        return "R";
+    }
+    return events[0].defaultHand;
+    // const startingHandIdx = events.findIndex((phrase) => {
+    //     return phrase.defaultHand !== undefined;
+    // });
+
+    // // No default starting hand exist
+    // if (startingHandIdx === -1) {
+    //     errorLogger.logError({
+    //         severity: "Warn",
+    //         message: `${jugglerName}: Missing starting hand indication. The first toss will be made from the right hand. If you wish to change this behaviour, put that information in the siteswap by starting it with an L.`
+    //     });
+    //     return "R";
+    // }
+
+    // // There is a default starting hand, but it could have been defined very late
+    // // in the pattern. So we need to compute (backwards) what the first hand
+    // // would have been.
+
+    // let nbSiteswapSteps = 0;
+    // let lastTempo = startingTempo;
+    // for (let i = 1; i < startingHandIdx + 1; i++) {
+    //     const currentBeat = events[i].beat;
+    //     const lastBeat = events[i - 1].beat;
+    //     const nbStepsSinceLastEvent = currentBeat.sub(lastBeat).div(lastTempo);
+    //     if (!nbStepsSinceLastEvent.divisible(1)) {
+    //         const prevBeat = ev.beat.add(nbSteps.floor().mul(lastTempo));
+    //         errorLogger.logError({
+    //             severity: "Error",
+    //             message: `${jugglerName}: beat ${stringifyFraction(ev.beat)} is offbeat.\n Previous beat: ${stringifyFraction(prevBeat)}.\nTempo: ${stringifyFraction(lastTempo)}.\nNumber of time steps between the previous beat and this beat: ${stringifyFraction(nbSteps)}.\n Hands may not alternate correctly.`
+    //         });
+    //     }
+    //     nbSiteswapSteps = nbSiteswapSteps.add(nbStepsSinceLastEvent);
+    // }
+
+    // return jugglingPhrases[startingTempoIdx].withTempo!;
+}
+
+// function findInitialTempoIdx(jugglingPhrases: HybridEvent[]): number | undefined {
+//     for (let i = 0; i < jugglingPhrases.length; i++) {
+//         if (jugglingPhrases[i].tempo !== undefined) {
+//             return i;
+//         }
+//     }
+//     return undefined;
+// }
+
+// function addFromHandToAllEvents(
+//     events: HybridEvent[],
+//     jugglerName: string,
+//     errorLogger: TimedErrorLogger<Fraction>
+// ): HybridEvent[] {
+//     return produce(events, (draft) => {
+//         let lastDefaultHand: "L" | "R";
+//         if (draft[0].defaultHand === undefined) {
+//             errorLogger.logError({
+//                 severity: "Log",
+//                 message: `${jugglerName}: No starting hand detected. Assume they will start with their right hand on beat ${draft[0].beat.toString()}.`,
+//                 time: draft[0].beat
+//             });
+//             lastDefaultHand = "R";
+//         } else {
+//             lastDefaultHand = draft[0].defaultHand;
+//         }
+//         let lastBeat = draft[0].beat;
+//         if (draft[0].tempo === undefined) {
+//             errorLogger.logError({
+//                 severity: "CriticalError",
+//                 message: `No initial tempo indication. TODO`
+//             });
+//             return;
+//         }
+//         let lastTempo = draft[0].tempo;
+//         for (const ev of draft) {
+//             if (ev.defaultHand !== undefined) {
+//                 lastDefaultHand = ev.defaultHand;
+//             } else {
+//                 const nbSteps = ev.beat.sub(lastBeat).div(lastTempo);
+//                 if (!nbSteps.divisible(1)) {
+//                     const prevBeat = ev.beat.add(nbSteps.floor().mul(lastTempo));
+//                     errorLogger.logError({
+//                         severity: "Error",
+//                         message: `${jugglerName}: beat ${stringifyFraction(ev.beat)} is offbeat.\n Previous beat: ${stringifyFraction(prevBeat)}.\nTempo: ${stringifyFraction(lastTempo)}.\nNumber of time steps between the previous beat and this beat: ${stringifyFraction(nbSteps)}.\n Hands may not alternate correctly.`
+//                     });
+//                 }
+//                 lastDefaultHand = XOR(nbSteps.divisible(2), lastDefaultHand === "R") ? "L" : "R";
+//             }
+//             ev.defaultHand = lastDefaultHand;
+//             lastBeat = ev.beat;
+//             lastTempo = ev.tempo ?? lastTempo;
+//         }
+//     });
+// }
+
+function addTempoAndDefaultHandAndFromHand(
+    events: HybridEvent[],
+    startingTempo: Fraction,
+    startingHand: "L" | "R",
     jugglerName: string,
     errorLogger: TimedErrorLogger<Fraction>
 ): HybridEvent[] {
     return produce(events, (draft) => {
-        let lastDefaultHand: "L" | "R";
-        if (draft[0].defaultHand === undefined) {
-            errorLogger.logError({
-                severity: "Log",
-                message: `${jugglerName}: No starting hand detected. Assume they will start with their right hand on beat ${draft[0].beat.toString()}.`,
-                time: draft[0].beat
-            });
-            lastDefaultHand = "R";
-        } else {
-            lastDefaultHand = draft[0].defaultHand;
-        }
-        let lastBeat = draft[0].beat;
-        if (draft[0].tempo === undefined) {
-            errorLogger.logError({
-                severity: "CriticalError",
-                message: `No initial tempo indication. TODO`
-            });
+        if (draft.length === 0) {
             return;
         }
-        let lastTempo = draft[0].tempo;
-        for (const ev of draft) {
-            if (ev.defaultHand !== undefined) {
-                lastDefaultHand = ev.defaultHand;
-            } else {
-                const nbSteps = ev.beat.sub(lastBeat).div(lastTempo);
+        draft[0].tempo = startingTempo;
+        draft[0].defaultHand = startingHand;
+        for (let i = 1; i < draft.length; i++) {
+            const lastTempo = draft[i - 1].tempo!;
+            const lastDefaultHand = draft[i - 1].defaultHand!;
+            const lastBeat = draft[i - 1].beat;
+            const currentBeat = draft[i].beat;
+
+            // Set the tempo if undefined.
+            draft[i].tempo ??= lastTempo;
+
+            // Set the defaultHand if undefined.
+            if (draft[i].defaultHand === undefined) {
+                const nbSteps = currentBeat.sub(lastBeat).div(lastTempo);
+                const newDefaultHand = XOR(nbSteps.ceil().divisible(2), lastDefaultHand === "R")
+                    ? "L"
+                    : "R";
                 if (!nbSteps.divisible(1)) {
-                    const prevBeat = ev.beat.add(nbSteps.floor().mul(lastTempo));
                     errorLogger.logError({
                         severity: "Error",
-                        message: `${jugglerName}: beat ${stringifyFraction(ev.beat)} is offbeat.\n Previous beat: ${stringifyFraction(prevBeat)}.\nTempo: ${stringifyFraction(lastTempo)}.\nNumber of time steps between the previous beat and this beat: ${stringifyFraction(nbSteps)}.\n Hands may not alternate correctly.`
+                        message: `${jugglerName}: Can't infer tossing hand at event on ${stringifyFraction(currentBeat)} because it is offbeat.\n Previous event at beat ${stringifyFraction(lastBeat)} tosses with ${lastDefaultHand === "R" ? "right" : "left"} hand.\nTempo: ${stringifyFraction(lastTempo)}.\nNumber of time steps between the previous event beat and this event beat: ${stringifyFraction(nbSteps)}.\n Hands may not alternate correctly.\n Continue by tossing with the hand the next (correct) beat would have : ${newDefaultHand === "R" ? "right" : "left"}.`
                     });
                 }
-                lastDefaultHand = XOR(nbSteps.divisible(2), lastDefaultHand === "R") ? "L" : "R";
+                draft[i].defaultHand = newDefaultHand;
             }
-            ev.defaultHand = lastDefaultHand;
-            lastBeat = ev.beat;
-            lastTempo = ev.tempo ?? lastTempo;
+
+            // Set the tossing hand if undefined.
+            for (const toss of draft[i].tosses ?? []) {
+                toss.from.hand ??= draft[i].defaultHand!;
+            }
         }
     });
 }
@@ -392,12 +477,12 @@ function addTossesToAllEvents(events: HybridEvent[]): HybridEvent[] {
     });
 }
 
-function addMissingJugglerNames(events: HybridEvent[], defaultJugglerName: string): HybridEvent[] {
+function addMissingToJuggler(events: HybridEvent[], defaultJugglerName: string): HybridEvent[] {
     return produce(events, (draft) => {
         for (const ev of draft) {
             for (const toss of ev.tosses ?? []) {
                 toss.to.juggler ??= defaultJugglerName;
-                toss.from.juggler ??= defaultJugglerName;
+                // toss.from.juggler ??= defaultJugglerName;
             }
         }
     });
@@ -410,15 +495,15 @@ function checkJugglerNames(
 ): void {
     for (const ev of events) {
         for (const toss of ev.tosses ?? []) {
-            if (toss.from.juggler !== undefined) {
-                handleIfNameUnknown({
-                    name: toss.from.juggler,
-                    namesList: jugglerNames,
-                    errorMessage: `Unkown juggler name "${toss.from.juggler}" in TODO`,
-                    errorLogger: errorLogger,
-                    time: ev.beat
-                });
-            }
+            // if (toss.from.juggler !== undefined) {
+            //     handleIfNameUnknown({
+            //         name: toss.from.juggler,
+            //         namesList: jugglerNames,
+            //         errorMessage: `Unkown juggler name "${toss.from.juggler}" in TODO`,
+            //         errorLogger: errorLogger,
+            //         time: ev.beat
+            //     });
+            // }
             if (toss.to.juggler !== undefined) {
                 handleIfNameUnknown({
                     name: toss.to.juggler,

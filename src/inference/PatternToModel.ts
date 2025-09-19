@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { FracSortedList, Scheduler, SimulatorEvent } from "./Scheduler";
+import { FracSortedList, Scheduler, SimulatorEvent } from "./old_Scheduler";
 import { ScoreConverter, MusicTempo, MusicTime } from "./ScoreConverter";
 import { simulateEvents } from "./SchedulerToModel";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -15,7 +15,7 @@ import {
     JugglingScoreGenerics
 } from ".";
 import { produce } from "immer";
-import { parseJugglerPhrases } from "./ParserToScheduler";
+import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -61,8 +61,9 @@ export function JSONJugglingScoreToModel(
     const ballIDs = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
 
     // 4. Parse each juggling phrase and format them.
+    // Complete each information we can by looking at jugglers individually.
     for (const juggler of jugglingScore.jugglers) {
-        parseJugglerPhrases(
+        formatJugglerPhrasesForScheduler(
             juggler.jugglingPhrases ?? [],
             juggler.name,
             ballTemplateNames,

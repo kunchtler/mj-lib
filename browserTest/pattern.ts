@@ -1,10 +1,10 @@
-import { JugglingPatternRaw } from "../src/inference/PatternToModel";
+import { RawJugglingPattern } from "../src/inference/PatternToModel";
 
-export const pattern: JugglingPatternRaw = {
+export const pattern: RawJugglingPattern = {
     jugglers: [
         {
             name: "Kylian",
-            table: "KylianT",
+            hasTable: "KylianT",
             balls: [
                 { id: "Do?K", name: "Do", sound: "Do" },
                 { id: "Re?K", name: "Re", sound: "Re" },
