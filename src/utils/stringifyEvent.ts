@@ -3,6 +3,7 @@ import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
 import { FracSortedList, Hands, PartialBall, TossMode } from "../inference/old_Scheduler";
 import { ScoreConverter } from "../inference/ScoreConverter";
+import { BallID } from "../inference/Scheduler";
 
 type TossType = {
     from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
@@ -83,10 +84,13 @@ export function stringifyEvent(ev: EventType): string {
 }
 
 export function stringifyBall(
-    ball: { name?: string; id?: string; nameOrID?: string } | undefined
+    ball: { name?: string; id?: string; nameOrID?: string } | string | undefined
 ): string {
     if (ball === undefined) {
         return "Ball";
+    }
+    if (typeof ball === "string") {
+        return ball;
     }
     if (ball.nameOrID !== undefined) {
         return ball.nameOrID;
@@ -102,7 +106,7 @@ export function stringifyBall(
     return "Ball";
 }
 
-export function stringifyHand(hand: PartialBall[]): string {
+export function stringifyHand(hand: BallID[]): string {
     if (hand.length === 0) {
         return "Empty";
     }
@@ -212,12 +216,24 @@ export function stringifyTosses(tosses: TossType[], showIdx = false): string {
     return text;
 }
 
-export function stringifyTable(
-    balls: Map<string, { name?: string; id?: string; nameOrID?: string }>
-): string {
+export function stringifyTable(table: {
+    namedSpot: Map<string, BallID | undefined>;
+    unknown: Set<BallID>;
+}): string {
     let text = "";
-    for (const ball of balls.values()) {
-        text += `${stringifyBall(ball)}, `;
+    for (const [spot, ball] of table.namedSpot) {
+        if (ball !== undefined) {
+            text += `Spot ${spot} : ${stringifyBall(ball)}\n`;
+        }
+    }
+    text = text.slice(0, -2);
+    if (table.unknown.size !== 0) {
+        text += "\nUnnamed spot : ";
+        for (const ball of table.unknown) {
+            text += `${stringifyBall(ball)}, `;
+        }
+        text = text.slice(0, -2);
+        text += ".";
     }
     return text;
 }

@@ -162,14 +162,14 @@ export type TableDescription = {
 
 export type TakeBall = { ballName: string; fromSpot?: string } | { ballID: string };
 
-export type PutBall = { toSpot?: string } & (
+export type PutBall =
     | {
+          toSpot?: string;
           ballName: string; //T
           fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
           //handSpotNumber: number
       }
-    | { ballID: string }
-);
+    | { toSpot?: string; ballID: string };
 
 export type HandsInstructions = {
     /**
