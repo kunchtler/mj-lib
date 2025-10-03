@@ -1,10 +1,5 @@
 import Fraction from "fraction.js";
-import {
-    stringifyBall,
-    stringifyHand,
-    stringifyHandSide,
-    stringifyTable
-} from "../utils/stringifyEvent";
+import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
 import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { HandsInstructions, TakeBall } from "./PerformanceDescription";
 
@@ -64,8 +59,8 @@ export type SchedulerParams = {
 
 export type SchedulerJuggler = {
     // name: string;
-    table?: Map<string, { acceptedBallName?: string; ballAtStart?: BallID }>;
-    ballsHeldAtStart?: [BallID[], BallID[]];
+    initialState: JugglerState;
+    tableSpots?: Map<SpotName, BallTemplateName>;
     events: SchedulerEvent[];
 };
 
@@ -171,9 +166,9 @@ export class Scheduler {
              */
             cache: JugglerCache;
             /**
-             * The initial cache, used in case we want the states computation to start again.
+             * The initial state, used in case we want the states computation to start again.
              */
-            initialCache: JugglerCache;
+            initialState: JugglerState;
         }
     >;
 
@@ -181,47 +176,19 @@ export class Scheduler {
         this.jugglers = new Map();
 
         // Setup one JugglerManager per juggler.
-        for (const [jugglerName, { events, ballsHeldAtStart, table }] of jugglers) {
-            //
-            let tableState: TableState | undefined = undefined;
-            const ballTemplateBySpot = new Map<string, string>();
-            if (table !== undefined) {
-                const ballsOnTableAtStart = new Map<string, string>();
-                for (const [spotName, { acceptedBallName, ballAtStart }] of table) {
-                    if (acceptedBallName === undefined) {
-                        // TODO : Add support to put ball of any type on any spot.
-                        // Make it so in ballsLocation, the spot is reclaimed once no ball are on it.
-                        throw Error("TODO. Not yet supported.");
-                    }
-                    ballTemplateBySpot.set(spotName, acceptedBallName);
-                    if (ballAtStart !== undefined) {
-                        ballsOnTableAtStart.set(spotName, ballAtStart);
-                    }
-                }
-
-                tableState = { namedSpot: ballsOnTableAtStart, unknown: new Set() };
-            }
-
-            const initialState: JugglerState = {
-                airborne: new Map(),
-                held: ballsHeldAtStart ?? [[], []],
-                table: tableState
-            };
-
-            const initialCache: JugglerCache = { state: initialState, nextEventIdx: 0 };
-
+        for (const [jugglerName, { events, initialState, tableSpots }] of jugglers) {
             // Create a manager for each juggler.
             const manager = new JugglerManager(
                 jugglerName,
                 events,
                 ballIDMap,
                 new FracTimedErrorLogger(),
-                ballTemplateBySpot
+                tableSpots
             );
             this.jugglers.set(jugglerName, {
                 manager: manager,
-                cache: initialCache,
-                initialCache: initialCache
+                cache: { state: cloneState(initialState), nextEventIdx: 0 },
+                initialState: initialState
             });
         }
     }
@@ -234,8 +201,8 @@ export class Scheduler {
         // First reset the cache.
         for (const [, juggler] of this.jugglers) {
             juggler.cache = {
-                state: cloneState(juggler.initialCache.state),
-                nextEventIdx: juggler.initialCache.nextEventIdx
+                state: cloneState(juggler.initialState),
+                nextEventIdx: 0
             };
         }
 
@@ -1318,7 +1285,6 @@ class JugglerManager {
     // resetFrom(beat: Fraction): void {}
 }
 
-
 export type SpotName = string;
 export type BallTemplateName = string;
 
@@ -1579,7 +1545,6 @@ class BallsLocation {
         return heldState;
     }
 }
-
 
 /** @constant
 The epsilon value to use for comparisons ont the timeline.

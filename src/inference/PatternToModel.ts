@@ -1,20 +1,23 @@
 import Fraction from "fraction.js";
-import { FracSortedList, Scheduler, SimulatorEvent } from "./old_Scheduler";
+import { getFirstInsertedKey, JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
 import { ScoreConverter, MusicTempo, MusicTime } from "./ScoreConverter";
 import { simulateEvents } from "./SchedulerToModel";
 import { PerformanceModel } from "../model/PerformanceModel";
-import { closestWordsTo, FracTimedErrorLogger, setIntersection, TimedErrorLogger } from "../utils";
+import {
+    closestWordsTo,
+    FracTimedErrorLogger,
+    setIntersection,
+    stringifyBall,
+    TimedErrorLogger
+} from "../utils";
 import {
     JSONJugglingPhrase,
     JSONJugglingScore,
-    JSONPerformanceDescription,
     JSONScoreConverter,
     JSONTime,
     JugglingPhrase,
-    JugglingScore,
-    JugglingScoreGenerics
+    JugglingScore
 } from ".";
-import { produce } from "immer";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
 //TODO : Silent Throws ?
@@ -40,7 +43,7 @@ export function JSONJugglingScoreToModel(
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
     // 1. Convert the JSON juggling score into a friendlier object.
-    const jugglingScore = convertJSONJugglingScoreToJugglingScore(JSONJugglingScore, errorLogger);
+    const jugglingScore = convertJSONToJugglingScore(JSONJugglingScore, errorLogger);
     // Return early if there was a critical error.
     if (errorLogger.hasCriticalError()) {
         return undefined;
@@ -54,168 +57,226 @@ export function JSONJugglingScoreToModel(
         return undefined;
     }
 
-    // 3. Add an ID to each ball (initially, on table or held) that doesn't have one.
+    // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
     // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
-    const ballGeneratedIDs = addMissingBallID(jugglingScore, ballTemplateNames, ballUserIDs);
+    const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
+        jugglingScore,
+        ballTemplateNames,
+        ballUserIDs,
+        errorLogger
+    );
 
-    const ballIDs = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
+    // Make a big list of all ball IDs.
+    const ballIDToTemplateName = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
 
     // 4. Parse each juggling phrase and format them.
     // Complete each information we can by looking at jugglers individually.
-    for (const juggler of jugglingScore.jugglers) {
-        formatJugglerPhrasesForScheduler(
-            juggler.jugglingPhrases ?? [],
-            juggler.name,
-            ballTemplateNames,
-            ballUserIDs,
-            jugglerNames,
-            errorLogger,
-            jugglingScore.scoreConverter
-        );
-    }
-    //TOCONTINUE : Scheduler + Form scheduler params + Finish all inference + Test
-
     // 5. Use the scheduler to infer the complete timeline of events.
+    const schedulerJugglers = new Map<string, SchedulerJuggler>();
+    for (const juggler of jugglingScore.jugglers) {
+        const events =
+            formatJugglerPhrasesForScheduler(
+                juggler.jugglingPhrases ?? [],
+                juggler.name,
+                ballTemplateNames,
+                ballUserIDs,
+                jugglerNames,
+                errorLogger,
+                jugglingScore.scoreConverter
+            ) ?? [];
+        const initialState = jugglerStates.get(juggler.name)!;
+        const tableSpotsFull = jugglingScore.tableTemplates?.find(
+            (elem) => elem.name === juggler.table?.template
+        )!.spots;
+        const tableSpots = new Map<string, string>();
+        for (const spot of tableSpotsFull ?? []) {
+            if (spot.acceptedBallName === undefined) {
+                throw Error("Not yet supported");
+            }
+            tableSpots.set(spot.name, spot.acceptedBallName);
+        }
+        schedulerJugglers.set(juggler.name, { events, initialState, tableSpots });
+    }
+
+    const schedulerOutput = new Scheduler({
+        ballIDMap: ballIDToTemplateName,
+        jugglers: new Map()
+    }).validatePattern();
 
     // 6. TODO : here. Or stop at 5 ? ??? Simulate (?) the timeline ???
 
     // TODO Today : Once all IDs have been scanned, give unused IDs to other balls. (when to do ? In scheduler only right ?)
 
-    // 1b. rawJugglers
-    const preParserJugglers = new Map<
-        string,
-        {
-            balls: { id: string; name: string }[];
-            events: FracSortedList<PreParserEvent>;
-            table?: string;
-        }
-    >();
-    for (const { name, events: rawEvents, balls, hasTable: table } of rawJugglers) {
-        preParserJugglers.set(name, {
-            balls: balls,
-            events: convertJSONPatternToTODO(rawEvents, musicConverter),
-            table: table
-        });
-    }
-    if (preParserJugglers.size !== rawJugglers.length) {
-        throw Error("TODO : Duplicate juggler name");
-    }
-
-    // 1c. Gather ball info from jugglers.
-    //TODO : Fuse ballIDs and BallIDSounds ?
-    //TODO : Sound on toss / catch.
-    const ballIDs = new Map<
-        string,
-        { name: string; sound?: string; juggler: string; id: string }
-    >();
-    const ballNames = new Set<string>();
-    const ballSounds = new Set<string>();
-    for (const { name, balls } of rawJugglers) {
-        for (const ball of balls) {
-            if (ballIDs.has(ball.id)) {
-                throw Error("TODO : Duplicate ball ID");
-            }
-            ballIDs.set(ball.id, {
-                name: ball.name,
-                sound: ball.sound,
-                juggler: name,
-                id: ball.id
-            });
-            ballTemplateNames.add(ball.name);
-            if (ball.sound !== undefined) {
-                ballSounds.add(ball.sound);
-            }
-        }
-    }
-
-    // 1d. Compile the parameters for the parser.
-    const parserParams: PatternToSchedulerParams = {
-        ballNames: ballTemplateNames,
-        ballIDs: ballIDs,
-        jugglerEvents: preParserJugglers,
-        musicConverter: musicConverter
-    };
-
     //TODO : Rename to parser only ? Name of method a bit convoluted.
-    const schedulerParams = parserParamsToSchedulerParams(parserParams);
-    const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
+    // const schedulerParams = parserParamsToSchedulerParams(parserParams);
+    // const postSchedulerParams = new Scheduler(schedulerParams).validatePattern();
 
-    // Creating the params for the simulation
-    // const ballIDSounds2 = new Map<
+    // // Creating the params for the simulation
+    // // const ballIDSounds2 = new Map<
+    // //     string,
+    // //     {
+    // //         onToss?: string | EventSound;
+    // //         onCatch?: string | EventSound;
+    // //     }
+    // // >();
+    // // for (const [name, sound] of ballIDs) {
+    // //     ballIDSounds2.set(name, { onCatch: sound });
+    // // }
+
+    // const jugglerParams = new Map<
     //     string,
     //     {
-    //         onToss?: string | EventSound;
-    //         onCatch?: string | EventSound;
+    //         table?: string;
+    //         events: FracSortedList<SimulatorEvent<Fraction>>;
     //     }
     // >();
-    // for (const [name, sound] of ballIDs) {
-    //     ballIDSounds2.set(name, { onCatch: sound });
+    // for (const [name, { events }] of postSchedulerParams) {
+    //     jugglerParams.set(name, { events, table: preParserJugglers.get(name)?.table });
     // }
 
-    const jugglerParams = new Map<
-        string,
-        {
-            table?: string;
-            events: FracSortedList<SimulatorEvent<Fraction>>;
-        }
-    >();
-    for (const [name, { events }] of postSchedulerParams) {
-        jugglerParams.set(name, { events, table: preParserJugglers.get(name)?.table });
-    }
-
-    return simulateEvents({
-        jugglers: jugglerParams,
-        ballIDSounds: ballIDs,
-        musicConverter: musicConverter
-    });
+    // return simulateEvents({
+    //     jugglers: jugglerParams,
+    //     ballIDSounds: ballIDToTemplateName,
+    //     musicConverter: musicConverter
+    // });
 }
 
 //////////////////////////// Functions //////////////////////////
 
-// The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
-export function addMissingBallID(
+function createInitialJugglerStates(
     jugglingScore: JugglingScore,
     ballTemplateNames: Set<string>,
-    ballUserIDs: Map<string, string>
-): Map<string, string> {
+    ballUserIDs: Map<string, string>,
+    errorLogger: TimedErrorLogger<Fraction>
+): { jugglerStates: Map<string, JugglerState>; ballGeneratedIDs: Map<string, string> } {
     const ballGeneratedIDs = new Map<string, string>();
+    const jugglerStates = new Map<string, JugglerState>();
     for (const juggler of jugglingScore.jugglers) {
-        for (const ballsInHand of juggler.ballsHeldAtStart ?? [[], []]) {
-            for (const ball of ballsInHand) {
-                if (ball.id === undefined) {
-                    const ballIDRoot = `${ball.name}?${juggler.name}?`;
-                    let ballIDIdx = 0;
-                    let ballID: string;
-                    do {
-                        ballID = ballIDRoot + ballIDIdx.toString();
-                        ballIDIdx++;
-                    } while (
-                        ballTemplateNames.has(ballID) ||
-                        ballUserIDs.has(ballID) ||
-                        ballGeneratedIDs.has(ballID)
-                    );
-                    ballGeneratedIDs.set(ballID, ball.name);
+        // Generate an ID for each ball held in hand that doesn't have one.
+        const heldState: JugglerState["held"] = [[], []];
+        if (juggler.ballsHeldAtStart !== undefined) {
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const ball of juggler.ballsHeldAtStart[handIdx]) {
+                    if (ball.id !== undefined) {
+                        heldState[handIdx].push(ball.id);
+                    } else {
+                        const ballID = createBallID(
+                            ball,
+                            juggler.name,
+                            ballTemplateNames,
+                            ballUserIDs,
+                            ballGeneratedIDs
+                        );
+                        ballGeneratedIDs.set(ballID, ball.name);
+                        heldState[handIdx].push(ballID);
+                    }
                 }
             }
         }
+
+        // Generate an ID for each ball on table that doesn't have one yet.
+        // Give a spot to each ball that doesn't have one yet.
+        // If we can't give a spot, it will go on the default table place.
+        let tableState: JugglerState["table"] = undefined;
+        if (juggler.table?.ballsOnTableAtStart !== undefined) {
+            tableState = { namedSpot: new Map(), unknown: new Set() };
+
+            // Make a Map of all free spots.
+            const freeSpotsByAcceptedTemplateName = new Map<string, Set<string>>();
+            for (const name of ballTemplateNames) {
+                freeSpotsByAcceptedTemplateName.set(name, new Set());
+            }
+            // First fill in all spot names.
+            const tableSpots = jugglingScore.tableTemplates?.find(
+                (elem) => elem.name === juggler.table?.template
+            )!.spots;
+            for (const spot of tableSpots ?? []) {
+                if (spot.acceptedBallName === undefined) {
+                    throw Error("Not yet supported");
+                }
+                freeSpotsByAcceptedTemplateName.get(spot.acceptedBallName)!.add(spot.name);
+            }
+            // Then remove the balls that are in designated spots.
+            for (const ball of juggler.table.ballsOnTableAtStart) {
+                if (ball.spot !== undefined) {
+                    freeSpotsByAcceptedTemplateName.get(ball.name)?.delete(ball.spot);
+                }
+            }
+
+            for (const ball of juggler.table.ballsOnTableAtStart) {
+                // Figure out the ball ID.
+                let ballID: string;
+                if (ball.id !== undefined) {
+                    ballID = ball.id;
+                } else {
+                    ballID = createBallID(
+                        ball,
+                        juggler.name,
+                        ballTemplateNames,
+                        ballUserIDs,
+                        ballGeneratedIDs
+                    );
+                    ballGeneratedIDs.set(ballID, ball.name);
+                }
+
+                // Figure out the ball spot.
+                let spotName: string | undefined;
+                if (ball.spot !== undefined) {
+                    spotName = ball.spot;
+                } else {
+                    // Find a free spot.
+                    const spots = freeSpotsByAcceptedTemplateName.get(ball.name)!;
+                    spotName = getFirstInsertedKey(spots);
+                    if (spotName === undefined) {
+                        errorLogger.logError({
+                            severity: "Warn",
+                            message: `Ball ${stringifyBall(ball)} of juggler ${juggler.name} has no available spot to be put on the table. Continue by putting it on a default position.`
+                        });
+                    } else {
+                        spots.delete(spotName);
+                    }
+                }
+
+                // Add the ball to the table state.
+                if (spotName === undefined) {
+                    tableState.unknown.add(ballID);
+                } else {
+                    tableState.namedSpot.set(spotName, ballID);
+                }
+            }
+        }
+
+        // Create the full juggler state.
+        jugglerStates.set(juggler.name, {
+            airborne: new Map(),
+            held: heldState,
+            table: tableState
+        });
     }
-    return ballGeneratedIDs;
+    return { jugglerStates, ballGeneratedIDs };
 }
 
-// export function formatJugglerBalls(
-//     commonBallNames: string[],
-//     jugglersSpecificBallNames: { name: string; ballNames: string[] }[]
-// ): { name: string; balls: Ball[] }[] {
-//     const jugglerBalls: { name: string; balls: Ball[] }[] = [];
-//     for (const { name: jugglerName, ballNames: specificBallNames } of jugglersSpecificBallNames) {
-//         const balls: Ball[] = [];
-//         for (const ball of [...commonBallNames, ...specificBallNames]) {
-//             balls.push({ id: ball, id: ball + "?" + jugglerName });
-//         }
-//         jugglerBalls.push({ name: jugglerName, balls: balls });
-//     }
-//     return jugglerBalls;
-// }
+// The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
+function createBallID(
+    ball: { name: string; id?: string },
+    jugglerName: string,
+    ballTemplateNames: Set<string>,
+    ballUserIDs: Map<string, string>,
+    ballGeneratedIDs: Map<string, string>
+): string {
+    const ballIDRoot = `${ball.name}?${jugglerName}?`;
+    let ballIDIdx = 0;
+    let ballID: string;
+    do {
+        ballID = ballIDRoot + ballIDIdx.toString();
+        ballIDIdx++;
+    } while (
+        ballTemplateNames.has(ballID) ||
+        ballUserIDs.has(ballID) ||
+        ballGeneratedIDs.has(ballID)
+    );
+    return ballID;
+}
 
 /**
  * Convert JSON time to a Fraction.
@@ -286,7 +347,7 @@ export function convertJSONScoreConverterToScoreConverter(
  * @param errorLogger an error logger that will signal a critical fail if operation failed.
  * @returns the pattern description.
  */
-export function convertJSONJugglingScoreToJugglingScore(
+export function convertJSONToJugglingScore(
     JSONJugglingScore: JSONJugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): JugglingScore {
