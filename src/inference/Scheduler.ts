@@ -102,7 +102,7 @@ export type Hands<ContentType> = [ContentType[], ContentType[]];
 
 export type SchedulerRes = Map<
     string,
-    { events: SymbolicEvent<Fraction>[]; states: JugglerState[] }
+    { events: SymbolicEvent<Fraction>[]; states: (JugglerState & { beat: Fraction })[] }
 >;
 
 ///////////////////// Scheduler internal types /////////////////////
@@ -164,7 +164,17 @@ export type TableNamelessSpotMove = { type: "onTableUnknownSpot" };
 export class Scheduler {
     jugglers: Map<
         string,
-        { manager: JugglerManager; cache: JugglerCache; initialCache: JugglerCache }
+        {
+            manager: JugglerManager;
+            /**
+             * A cache needed for successive iterations of a juggler's state computation.
+             */
+            cache: JugglerCache;
+            /**
+             * The initial cache, used in case we want the states computation to start again.
+             */
+            initialCache: JugglerCache;
+        }
     >;
 
     constructor({ jugglers, ballIDMap }: SchedulerParams) {
@@ -230,9 +240,9 @@ export class Scheduler {
         }
 
         //TODO : Change name.
-        const schedulerRes: SchedulerRes = new Map();
+        const results: SchedulerRes = new Map();
         for (const jugglerName of this.jugglers.keys()) {
-            schedulerRes.set(jugglerName, { events: [], states: [] });
+            results.set(jugglerName, { events: [], states: [] });
         }
         // Loop until we've seen all jugglers' events.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -257,7 +267,8 @@ export class Scheduler {
                 break;
             }
 
-            // For all jugglers having the closest beat, gather the balls they toss.
+            // For all jugglers having the closest next event, handle that event
+            // and gather the balls they toss.
             const tossedTo = new Map<string, HalfCompletedToss[]>();
             for (const name of this.jugglers.keys()) {
                 tossedTo.set(name, []);
@@ -274,11 +285,15 @@ export class Scheduler {
 
                 // Assign to the tossedTo map the tosses made to each juggler.
                 for (const toss of res.tosses) {
-                    tossedTo.get(name)!.push(toss);
+                    tossedTo.get(name)?.push(toss);
                 }
-                schedulerRes.get(name)!.events.push({
+                // Add the partially completed event to the result.
+                results.get(name)?.events.push({
                     beat: closestNextEventBeat,
                     tempo: res.tempo,
+                    // We leave the tosses empty for now, as they'll be filled in
+                    // with additional info when added to the recieving juggler's
+                    // airborne state.
                     tosses: [],
                     setupHands: res.handsInstructions
                 });
@@ -286,22 +301,26 @@ export class Scheduler {
 
             // Send the tossed ball to the corresponding jugglers.
             for (const [name, { manager, cache }] of this.jugglers) {
-                const partialTosses = tossedTo.get(name)!;
-                const res = manager.addTossesToState(partialTosses, cache.state);
+                const tosses = tossedTo.get(name)!;
+                const res = manager.addTossesToState(tosses, cache.state);
+                // Update the cache's state. No need to bump the event idx.
                 cache.state = res.state;
-                // If the jugglers were the ones tossing, add their state and info.
-                if (nextEventJugglers.includes(name)) {
-                    const simulatorEvents = schedulerRes.get(name)!.events;
-                    simulatorEvents[simulatorEvents.length - 1].tosses = [...res.tosses];
-                    schedulerRes.get(name)!.states.push([closestNextEventBeat, res.state]);
+                // Update the tossing juggler's event info.
+                for (const toss of res.tosses) {
+                    results.get(toss.from.juggler)?.events.at(-1)?.tosses.push(toss);
                 }
+                // if (nextEventJugglers.includes(name)) {
+                //     const simulatorEvents = results.get(name)!.events;
+                //     simulatorEvents[simulatorEvents.length - 1].tosses = [...res.tosses];
+                //     results.get(name)!.states.push([closestNextEventBeat, res.state]);
+                // }
             }
         }
 
         for (const { manager } of this.jugglers.values()) {
             manager.errorLogger.printErrorsInConsole();
         }
-        return schedulerRes;
+        return results;
     }
 }
 
@@ -823,7 +842,10 @@ class JugglerManager {
                     // Choose which ball should be put on the table : First compute the hand
                     if (put.fromHand !== undefined) {
                         handIdx = put.fromHand === "left" ? 0 : 1;
-                    } else if (matchingBallsInHands[0].size === 0 && matchingBallsInHands[1].size === 0) {
+                    } else if (
+                        matchingBallsInHands[0].size === 0 &&
+                        matchingBallsInHands[1].size === 0
+                    ) {
                         // If no hand holds the requested ball, we error that situation.
                         this.logError(
                             beat,
@@ -831,7 +853,10 @@ class JugglerManager {
                             `Can't put a ball ${put.ballName} onto the table ${put.toSpot === undefined ? "" : `on spot ${put.toSpot} `}as none is found in hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
                         );
                         continue;
-                    } else if (matchingBallsInHands[0].size > 0 && matchingBallsInHands[1].size > 0) {
+                    } else if (
+                        matchingBallsInHands[0].size > 0 &&
+                        matchingBallsInHands[1].size > 0
+                    ) {
                         // If the ball has been found in both hands, we arbitrarily take the left hand.
                         handIdx = 0;
                         this.logError(
@@ -1293,98 +1318,6 @@ class JugglerManager {
     // resetFrom(beat: Fraction): void {}
 }
 
-/** @constant
-The epsilon value to use for comparisons ont the timeline.
-Two events apart by less than 0.0001 s are considered to be the same.
-*/
-// const EPSILON = 1e-5;
-
-// //TODO : Precise in seconds or in milliseconds ?
-// function is_equal(t1: number, t2: number): boolean {
-//     return Math.abs(t1 - t2) < EPSILON;
-// }
-
-// type MusicTime = [number, Fraction];
-
-// class MusicTimeline<EventType> extends Timeline<MusicTime, EventType> {
-//     static cmp = (x: MusicTime, y: MusicTime) => {
-//         if (x[0] === y[0]) {
-//             return x[1].compare(y[1]);
-//         }
-//         return x[0] - y[0];
-//     };
-//     constructor(container?: [MusicTime, EventType][]) {
-//         super(container, MusicTimeline.cmp);
-//     }
-// }
-// interface Measure {
-//     tempoUnit: Fraction;
-//     signature: Fraction;
-//     startingBeat: Fraction;
-// }
-
-// //Fuse measure and beat to be MusicTime ?
-// interface Notes {
-//     pitches: string[];
-//     measure: number;
-//     beat: Fraction;
-//     // real_time: number;
-// }
-
-//TODO rename throw to toss everywhere
-// function getMusic(
-//     pattern: FracTimeline<SimulatorToss[]>,
-//     measures: Measure[]
-// ): MusicTimeline<Note[]> {
-//     const music = new MusicTimeline<Notes[]>();
-//     for (const [, tosses] of pattern) {
-//         for (const toss of tosses) {
-//             const measure = measures[toss.to.measure];
-//             // const time = toss.to.beat.mul(measure.signature.d).add(measure.startingBeat);
-//             const time: [number, Fraction] = [toss.to.measure, toss.to.beat];
-//             let notes: Note[] | undefined = music.getElementByKey(time);
-//             if (notes === undefined) {
-//                 notes = [];
-//                 music.setElement(time, notes);
-//             }
-//             notes.push({
-//                 pitch: toss.ball.sound,
-//                 // measure: toss.to.measure,
-//                 beat: toss.to.beat
-//                 // real_time: toss.to.real_time
-//             });
-//         }
-//     }
-//     return music;
-// }
-
-// /**
-//  * Checks whether an array has only non-undefined elements, which typescript will know about.
-//  * @param array the array to check.
-//  * @returns whether the array has no undefined values or not.
-//  */
-// export function hasNoUndefined<T>(array: (T | undefined)[]): array is T[] {
-//     for (const elem of array) {
-//         if (elem === undefined) {
-//             return false;
-//         }
-//     }
-//     return true;
-// }
-
-// /**
-//  * Find the key that was inserted last in a map.
-//  * @param map the map in question.
-//  * @returns undefined if the map is empty, otherwise the lastly inserted element in the form [key, value].
-//  */
-// export function getLastInsertedInMap<KeyType, ValueType>(
-//     map: Map<KeyType, ValueType>
-// ): [KeyType, ValueType] | undefined {
-//     // We use the fact that maps in JS preserve insertion order.
-//     let element: [KeyType, ValueType] | undefined = undefined;
-//     for (element of map);
-//     return element;
-// }
 
 export type SpotName = string;
 export type BallTemplateName = string;
@@ -1646,3 +1579,97 @@ class BallsLocation {
         return heldState;
     }
 }
+
+
+/** @constant
+The epsilon value to use for comparisons ont the timeline.
+Two events apart by less than 0.0001 s are considered to be the same.
+*/
+// const EPSILON = 1e-5;
+
+// //TODO : Precise in seconds or in milliseconds ?
+// function is_equal(t1: number, t2: number): boolean {
+//     return Math.abs(t1 - t2) < EPSILON;
+// }
+
+// type MusicTime = [number, Fraction];
+
+// class MusicTimeline<EventType> extends Timeline<MusicTime, EventType> {
+//     static cmp = (x: MusicTime, y: MusicTime) => {
+//         if (x[0] === y[0]) {
+//             return x[1].compare(y[1]);
+//         }
+//         return x[0] - y[0];
+//     };
+//     constructor(container?: [MusicTime, EventType][]) {
+//         super(container, MusicTimeline.cmp);
+//     }
+// }
+// interface Measure {
+//     tempoUnit: Fraction;
+//     signature: Fraction;
+//     startingBeat: Fraction;
+// }
+
+// //Fuse measure and beat to be MusicTime ?
+// interface Notes {
+//     pitches: string[];
+//     measure: number;
+//     beat: Fraction;
+//     // real_time: number;
+// }
+
+//TODO rename throw to toss everywhere
+// function getMusic(
+//     pattern: FracTimeline<SimulatorToss[]>,
+//     measures: Measure[]
+// ): MusicTimeline<Note[]> {
+//     const music = new MusicTimeline<Notes[]>();
+//     for (const [, tosses] of pattern) {
+//         for (const toss of tosses) {
+//             const measure = measures[toss.to.measure];
+//             // const time = toss.to.beat.mul(measure.signature.d).add(measure.startingBeat);
+//             const time: [number, Fraction] = [toss.to.measure, toss.to.beat];
+//             let notes: Note[] | undefined = music.getElementByKey(time);
+//             if (notes === undefined) {
+//                 notes = [];
+//                 music.setElement(time, notes);
+//             }
+//             notes.push({
+//                 pitch: toss.ball.sound,
+//                 // measure: toss.to.measure,
+//                 beat: toss.to.beat
+//                 // real_time: toss.to.real_time
+//             });
+//         }
+//     }
+//     return music;
+// }
+
+// /**
+//  * Checks whether an array has only non-undefined elements, which typescript will know about.
+//  * @param array the array to check.
+//  * @returns whether the array has no undefined values or not.
+//  */
+// export function hasNoUndefined<T>(array: (T | undefined)[]): array is T[] {
+//     for (const elem of array) {
+//         if (elem === undefined) {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
+
+// /**
+//  * Find the key that was inserted last in a map.
+//  * @param map the map in question.
+//  * @returns undefined if the map is empty, otherwise the lastly inserted element in the form [key, value].
+//  */
+// export function getLastInsertedInMap<KeyType, ValueType>(
+//     map: Map<KeyType, ValueType>
+// ): [KeyType, ValueType] | undefined {
+//     // We use the fact that maps in JS preserve insertion order.
+//     let element: [KeyType, ValueType] | undefined = undefined;
+//     for (element of map);
+//     return element;
+// }
