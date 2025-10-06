@@ -20,7 +20,7 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score } from "../examples/patternTest";
+import { score1 } from "../examples/patternTest";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -40,7 +40,7 @@ import { score } from "../examples/patternTest";
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
 
-JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
+JSONJugglingScoreToModel(score1, new FracTimedErrorLogger());
 
 export function JSONJugglingScoreToModel(
     JSONJugglingScore: JSONJugglingScore,

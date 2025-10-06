@@ -33,6 +33,10 @@ TODOs from files :
 
 GITHUB ISSUES for roadmap / milestones
 - hand ball subpositions
-- create examples
 - better hand movement
 - allow balls to be put on any table spots, and for table spots to have no default accepted ball type.
+- add support for custom meshes
+- add support for custom sounds
+- more detailed hand movements over table and their order ?
+- hand topology (custom functions, how does it behave when a ball goes out)
+- swing rhythm (analog to music : how can we whange the base rhythm ? Mention it should be researched.)
