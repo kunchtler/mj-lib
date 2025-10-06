@@ -29,3 +29,10 @@ Rename setupHands to handsSetup.
 
 TODOs from files :
 //TODO : FOr the packages in pnpm, if they have modular install, use it !
+
+
+GITHUB ISSUES for roadmap / milestones
+- hand ball subpositions
+- create examples
+- better hand movement
+- allow balls to be put on any table spots, and for table spots to have no default accepted ball type.

@@ -82,7 +82,10 @@ export type ScoreConverterGenerics<TimeSignatureType, NoteLengthType> = {
     };
 }[];
 
-export type JSONScoreConverter = ScoreConverterGenerics<FractionObject, FractionObject>;
+export type JSONScoreConverter = ScoreConverterGenerics<
+    string | FractionObject,
+    number | string | FractionObject
+>;
 
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T

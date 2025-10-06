@@ -20,6 +20,8 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
+import { score } from "../examples/patternTest";
+
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
 //TODO : Soft errors in simulator ! (with error Logger too ?) HECK YEAH !
@@ -37,6 +39,8 @@ import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 //TODO : Warning when ball is forcefully put in a spot of wrong kind. Is it here or in scheduler ?
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
+
+JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
 
 export function JSONJugglingScoreToModel(
     JSONJugglingScore: JSONJugglingScore,
@@ -87,7 +91,7 @@ export function JSONJugglingScoreToModel(
         const initialState = jugglerStates.get(juggler.name)!;
         const tableSpotsFull = jugglingScore.tableTemplates?.find(
             (elem) => elem.name === juggler.table?.template
-        )!.spots;
+        )?.spots;
         const tableSpots = new Map<string, string>();
         for (const spot of tableSpotsFull ?? []) {
             if (spot.acceptedBallName === undefined) {
@@ -100,9 +104,12 @@ export function JSONJugglingScoreToModel(
 
     const schedulerOutput = new Scheduler({
         ballIDMap: ballIDToTemplateName,
-        jugglers: new Map()
+        jugglers: schedulerJugglers
     }).validatePattern();
 
+    console.log(schedulerOutput);
+    errorLogger.printErrorsInConsole();
+    console.log("Fini");
     // 6. TODO : here. Or stop at 5 ? ??? Simulate (?) the timeline ???
 
     // TODO Today : Once all IDs have been scanned, give unused IDs to other balls. (when to do ? In scheduler only right ?)
@@ -189,7 +196,7 @@ function createInitialJugglerStates(
             // First fill in all spot names.
             const tableSpots = jugglingScore.tableTemplates?.find(
                 (elem) => elem.name === juggler.table?.template
-            )!.spots;
+            )?.spots;
             for (const spot of tableSpots ?? []) {
                 if (spot.acceptedBallName === undefined) {
                     throw Error("Not yet supported");

@@ -39,8 +39,8 @@ export const score: JSONJugglingScore = {
     jugglers: [
         {
             name: "Vincent",
-            ballsHeldAtStart: [[{ name: "Do" }, { name: "Mi" }], [{ name: "Re" }]],
-            jugglingPhrases: [{ startTime: 0, pattern: "L3(3^100)", withTempo: 1 }]
+            ballsHeldAtStart: [[{ name: "Mi" }, { name: "Do" }], [{ name: "Re" }]],
+            jugglingPhrases: [{ startTime: 0, pattern: "L33", withTempo: 1 }]
         }
     ]
 };
