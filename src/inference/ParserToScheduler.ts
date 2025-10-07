@@ -5,7 +5,7 @@ import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogge
 import { stringifyFraction } from "../utils/stringifyEvent";
 import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";
 import { TossMode, XOR, SchedulerEvent } from "./Scheduler";
-import { produce } from "immer";
+import { produce, current } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
 
 //TODO : Expurge FracSortedList.
@@ -131,13 +131,13 @@ function parseJugglingPhrases(
     // Keeps track of the beat to add events on the right time.
     // Is also used to confirm that two phrases don't end up intertwined.
     let currentTempo = startingTempo;
-    let currentBeat: Fraction | undefined = undefined;
+    let currentBeat: Fraction | null = null;
     for (const phrase of jugglingPhrases) {
         const phraseEvents: HybridEvent[] = [];
 
         // Warn if a pattern is intertwined with another.
         // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
-        if (currentBeat !== undefined && currentBeat.lt(phrase.startTime)) {
+        if (currentBeat !== null && phrase.startTime.lt(currentBeat)) {
             errorLogger.logError({
                 severity: "CriticalError",
                 message: "Two juggling phrases are intertwined.",
@@ -200,7 +200,8 @@ function isHybridEventASchedulerEvent(ev: HybridEvent): ev is SchedulerEvent {
             toss.to.juggler === undefined ||
             toss.mode.type === "AbsBeat" ||
             toss.mode.type === "AbsMeasureBeat" ||
-            toss.mode.type === "RelBeat"
+            toss.mode.type === "RelBeat" ||
+            toss.from.hand === undefined
         ) {
             return false;
         }
@@ -460,10 +461,11 @@ function addTempoAndDefaultHandAndFromHand(
                 }
                 draft[i].defaultHand = newDefaultHand;
             }
-
-            // Set the tossing hand if undefined.
-            for (const toss of draft[i].tosses ?? []) {
-                toss.from.hand ??= draft[i].defaultHand!;
+        }
+        // Set the tossing hand if undefined.
+        for (const ev of draft) {
+            for (const toss of ev.tosses ?? []) {
+                toss.from.hand ??= ev.defaultHand!;
             }
         }
     });

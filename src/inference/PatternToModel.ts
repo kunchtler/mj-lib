@@ -22,7 +22,7 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score1 } from "../examples/patternTest";
+import { score1 as score } from "../examples/patternTest";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -42,7 +42,7 @@ import { score1 } from "../examples/patternTest";
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
 
-JSONJugglingScoreToModel(score1, new FracTimedErrorLogger());
+JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
 
 export function JSONJugglingScoreToModel(
     JSONJugglingScore: JSONJugglingScore,
@@ -109,8 +109,9 @@ export function JSONJugglingScoreToModel(
         jugglers: schedulerJugglers
     }).validatePattern();
 
-    // console.log("Global Errors :\n");
-    // errorLogger.printErrorsInConsole();
+    console.log("Global Errors :\n");
+    errorLogger.printErrorsInConsole();
+    console.log("\n");
     for (const [jugglerName, { errorLogger, events, states }] of schedulerOutput) {
         console.log(`Juggler ${jugglerName} :\n`);
         console.log("States:\n");
