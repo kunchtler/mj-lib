@@ -281,7 +281,7 @@ export function stringifyState(state: JugglerState, beat: Fraction | number): st
     if (state.airborne.size !== 0) {
         text += "  Airborne :\n";
         for (const [ballID, { catchBeat, toRightHand, tossBeat }] of state.airborne) {
-            text += `    Ball ${ballID} ${beat.sub(tossBeat).toString()} / ${catchBeat.toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
+            text += `    Ball ${ballID} ${beat.sub(tossBeat).toString()} / ${catchBeat.sub(tossBeat).toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
         }
     }
     text += `  Left hand : ${stringifyHand(state.held[0])}\n  Right hand : ${stringifyHand(state.held[1])}\n`;
