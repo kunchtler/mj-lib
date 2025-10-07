@@ -8,6 +8,8 @@ import {
     FracTimedErrorLogger,
     setIntersection,
     stringifyBall,
+    stringifyEvent,
+    stringifyState,
     TimedErrorLogger
 } from "../utils";
 import {
@@ -107,8 +109,21 @@ export function JSONJugglingScoreToModel(
         jugglers: schedulerJugglers
     }).validatePattern();
 
-    console.log(schedulerOutput);
-    errorLogger.printErrorsInConsole();
+    // console.log("Global Errors :\n");
+    // errorLogger.printErrorsInConsole();
+    for (const [jugglerName, { errorLogger, events, states }] of schedulerOutput) {
+        console.log(`Juggler ${jugglerName} :\n`);
+        console.log("States:\n");
+        states.forEach((elem) => {
+            console.log(stringifyState(elem, elem.beat) + "\n");
+        });
+        console.log("Events:\n");
+        events.forEach((elem) => {
+            console.log(stringifyEvent(elem) + "\n");
+        });
+        console.log("Errors:\n");
+        errorLogger.printErrorsInConsole();
+    }
     console.log("Fini");
     // 6. TODO : here. Or stop at 5 ? ??? Simulate (?) the timeline ???
 

@@ -136,7 +136,7 @@ export type SymbolicEvent<BeatType> = {
     beat: BeatType;
     tosses: SymbolicToss<BeatType>[];
     tempo: Fraction;
-    setupHands?: MoveType[];
+    setupHands?: MoveBall[];
 };
 
 export type MoveBall = MoveType & { ballID: string };

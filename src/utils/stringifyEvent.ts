@@ -1,9 +1,9 @@
 // Printing functions for events.
 import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
-import { FracSortedList, Hands, PartialBall, TossMode } from "../inference/old_Scheduler";
+import { Hands, SymbolicEvent, TossMode } from "../inference/Scheduler";
 import { ScoreConverter } from "../inference/ScoreConverter";
-import { BallID } from "../inference/Scheduler";
+import { BallID, JugglerState } from "../inference/Scheduler";
 
 type TossType = {
     from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
@@ -13,72 +13,93 @@ type TossType = {
 };
 
 //TODO : Find a way to fuse all similar types ?
-type EventType = {
-    tosses?: TossType[];
-    tempo?: Fraction;
-    hands?: Hands<PartialBall> | { old: Hands<PartialBall>; new: Hands<PartialBall> };
-    newDefaultHand?: "L" | "R";
-};
+// type EventType = {
+//     tosses?: TossType[];
+//     tempo?: Fraction;
+//     hands?: Hands<PartialBall> | { old: Hands<PartialBall>; new: Hands<PartialBall> };
+//     newDefaultHand?: "L" | "R";
+// };
 
-export function stringifyEvents<T extends EventType>(
-    events: FracSortedList<T> | T[],
-    musicConverter?: ScoreConverter
-): string {
-    if (events.length === 0) {
-        return "";
-    }
-    let text = "";
-    if (Array.isArray(events[0])) {
-        for (const [beat, ev] of events as FracSortedList<T>) {
-            if (musicConverter === undefined) {
-                text += `Beat ${stringifyFraction(beat)}`;
+// export function stringifyEvents<T extends EventType>(
+//     events: FracSortedList<T> | T[],
+//     musicConverter?: ScoreConverter
+// ): string {
+//     if (events.length === 0) {
+//         return "";
+//     }
+//     let text = "";
+//     if (Array.isArray(events[0])) {
+//         for (const [beat, ev] of events as FracSortedList<T>) {
+//             if (musicConverter === undefined) {
+//                 text += `Beat ${stringifyFraction(beat)}`;
+//             } else {
+//                 const [measure, relBeat] = musicConverter.convertBeatToMeasure(beat);
+//                 text += `Measure ${measure}, Beat ${stringifyFraction(relBeat)}`;
+//             }
+//             text += "\n\t";
+//             text += stringifyEvent(ev).split("\n").join("\n\t");
+//             text += "\n";
+//         }
+//         return text;
+//     }
+//     for (let i = 0; i < events.length; i++) {
+//         text += `Time ${i}:`;
+//         text += "\n\t";
+//         text += stringifyEvent(events[i] as T)
+//             .split("\n")
+//             .join("\n\t");
+//         text += "\n";
+//     }
+//     return text;
+// }
+
+// export function stringifyEvent(ev: EventType): string {
+//     if (
+//         ev.newDefaultHand === undefined &&
+//         ev.tosses === undefined &&
+//         ev.hands === undefined &&
+//         ev.tempo === undefined
+//     ) {
+//         return "Empty Event.";
+//     }
+//     let text = "";
+//     if (ev.newDefaultHand !== undefined) {
+//         text += `New default hand: ${ev.newDefaultHand}.\n`;
+//     }
+//     if (ev.tempo !== undefined) {
+//         text += `Tempo: ${stringifyFraction(ev.tempo)}.\n`;
+//     }
+//     if (ev.hands !== undefined) {
+//         if (Array.isArray(ev.hands)) {
+//             text += `New balls in hand:\n\tLeft: ${stringifyHand(ev.hands[0])}.\n\tRight: ${stringifyHand(ev.hands[1])}.\n`;
+//         } else {
+//             text += `Old balls in hand:\n\tLeft: ${stringifyHand(ev.hands.old[0])}.\n\tRight: ${stringifyHand(ev.hands.old[1])}.\n`;
+//             text += `New balls in hand:\n\tLeft: ${stringifyHand(ev.hands.new[0])}.\n\tRight: ${stringifyHand(ev.hands.new[1])}.\n`;
+//         }
+//     }
+//     if (ev.tosses !== undefined && ev.tosses.length > 0) {
+//         text += stringifyTosses(ev.tosses);
+//     }
+//     return text;
+// }
+
+export function stringifyEvent(ev: SymbolicEvent<Fraction>): string {
+    let text = `Event at beat ${ev.beat} :\n`;
+    text += `  Tempo: ${stringifyFraction(ev.tempo)}.\n`;
+    if (ev.setupHands !== undefined) {
+        text += "  Ball changes :\n";
+        for (const move of ev.setupHands) {
+            if (move.type === "held") {
+                text += `    Ball ${move.ballID} held in ${move.handIdx === 0 ? "right" : "left"} hand, position ${move.ballIdx}.\n`;
+            } else if (move.type === "onTableSpot") {
+                text += `    Ball ${move.ballID} put on table spot ${move.spotName}.\n`;
             } else {
-                const [measure, relBeat] = musicConverter.convertBeatToMeasure(beat);
-                text += `Measure ${measure}, Beat ${stringifyFraction(relBeat)}`;
+                text += `    Ball ${move.ballID} put on table (no spot).\n`;
             }
-            text += "\n\t";
-            text += stringifyEvent(ev).split("\n").join("\n\t");
-            text += "\n";
-        }
-        return text;
-    }
-    for (let i = 0; i < events.length; i++) {
-        text += `Time ${i}:`;
-        text += "\n\t";
-        text += stringifyEvent(events[i] as T)
-            .split("\n")
-            .join("\n\t");
-        text += "\n";
-    }
-    return text;
-}
-
-export function stringifyEvent(ev: EventType): string {
-    if (
-        ev.newDefaultHand === undefined &&
-        ev.tosses === undefined &&
-        ev.hands === undefined &&
-        ev.tempo === undefined
-    ) {
-        return "Empty Event.";
-    }
-    let text = "";
-    if (ev.newDefaultHand !== undefined) {
-        text += `New default hand: ${ev.newDefaultHand}.\n`;
-    }
-    if (ev.tempo !== undefined) {
-        text += `Tempo: ${stringifyFraction(ev.tempo)}.\n`;
-    }
-    if (ev.hands !== undefined) {
-        if (Array.isArray(ev.hands)) {
-            text += `New balls in hand:\n\tLeft: ${stringifyHand(ev.hands[0])}.\n\tRight: ${stringifyHand(ev.hands[1])}.\n`;
-        } else {
-            text += `Old balls in hand:\n\tLeft: ${stringifyHand(ev.hands.old[0])}.\n\tRight: ${stringifyHand(ev.hands.old[1])}.\n`;
-            text += `New balls in hand:\n\tLeft: ${stringifyHand(ev.hands.new[0])}.\n\tRight: ${stringifyHand(ev.hands.new[1])}.\n`;
         }
     }
-    if (ev.tosses !== undefined && ev.tosses.length > 0) {
-        text += stringifyTosses(ev.tosses);
+    if (ev.tosses.length > 0) {
+        text += "  " + indentString(stringifyTosses(ev.tosses), 2, false);
     }
     return text;
 }
@@ -204,7 +225,7 @@ export function stringifyTosses(tosses: TossType[], showIdx = false): string {
     text += "Tosses:\n";
     for (let i = 0; i < tosses.length; i++) {
         const toss = tosses[i];
-        text += "\t";
+        text += "  ";
         if (showIdx) {
             text += `Toss ${i}: `;
         }
@@ -234,6 +255,38 @@ export function stringifyTable(table: {
         }
         text = text.slice(0, -2);
         text += ".";
+    }
+    return text;
+}
+
+/**
+ * Add tabulations at the start of each line of a string.
+ * @param text the string to add tabs to.
+ * @param spaceAmount the number of tabs to insert.
+ * @param onFirstLine whether the first line of text should be tabulated.
+ * @returns the tabulated string.
+ */
+export function indentString(text: string, spaceAmount: number, onFirstLine: boolean): string {
+    return (
+        " ".repeat(onFirstLine ? spaceAmount : 0) +
+        text.split("\n").join("\n" + " ".repeat(spaceAmount))
+    );
+}
+
+export function stringifyState(state: JugglerState, beat: Fraction | number): string {
+    if (typeof beat === "number") {
+        beat = new Fraction(beat);
+    }
+    let text = `Beat ${beat.toString()} :\n`;
+    if (state.airborne.size !== 0) {
+        text += "  Airborne :\n";
+        for (const [ballID, { catchBeat, toRightHand, tossBeat }] of state.airborne) {
+            text += `    Ball ${ballID} ${beat.sub(tossBeat).toString()} / ${catchBeat.toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
+        }
+    }
+    text += `  Left hand : ${stringifyHand(state.held[0])}\n  Right hand : ${stringifyHand(state.held[1])}\n`;
+    if (state.table !== undefined) {
+        text += `  Table :\n${indentString(stringifyTable(state.table), 1, true)}`;
     }
     return text;
 }
