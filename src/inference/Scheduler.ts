@@ -358,9 +358,9 @@ export class Scheduler {
 
         // Print in the console any error that has been encountered.
         // TODO : Remove / Combine all error loggers in one ?
-        for (const { manager } of this.jugglers.values()) {
-            manager.errorLogger.printErrorsInConsole();
-        }
+        // for (const { manager } of this.jugglers.values()) {
+        //     manager.errorLogger.printErrorsInConsole();
+        // }
 
         return schedulerResults;
     }
