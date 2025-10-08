@@ -1,5 +1,10 @@
 import Fraction from "fraction.js";
-import { stringifyBall, stringifyHand, stringifyTable } from "../utils/stringifyEvent";
+import {
+    indentString,
+    stringifyBall,
+    stringifyHand,
+    stringifyTable
+} from "../utils/stringifyEvent";
 import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { HandsInstructions, TakeBall } from "./PerformanceDescription";
 
@@ -139,12 +144,12 @@ export type SymbolicEvent<BeatType> = {
     setupHands?: MoveBall[];
 };
 
-export type MoveBall = MoveType & { ballID: string };
-export type MoveType = HeldMove | TableNamedSpotMove | TableNamelessSpotMove;
+export type MoveBall = { id: BallID; from: LocType; to: LocType };
+export type LocType = HeldLoc | TableNamedSpotLoc | TableNamelessSpotLoc;
 
-export type HeldMove = { type: "held"; handIdx: number; ballIdx: number };
-export type TableNamedSpotMove = { type: "onTableSpot"; spotName: string };
-export type TableNamelessSpotMove = { type: "onTableUnknownSpot" };
+export type HeldLoc = { type: "held"; handIdx: number; ballIdx: number };
+export type TableNamedSpotLoc = { type: "onTableSpot"; spotName: string };
+export type TableNamelessSpotLoc = { type: "onTableUnknownSpot" };
 
 //TODO : exprugate "PartialBall".
 //TODO : Document that by default hands have LIFO structure.
@@ -323,7 +328,10 @@ export class Scheduler {
                     });
 
                     // Tag the juggler as having a new state.
-                    if (res.tosses.length !== 0) {
+                    if (
+                        res.tosses.length !== 0 ||
+                        (res.handsInstructions !== undefined && res.handsInstructions.length !== 0)
+                    ) {
                         jugglersWithNewState.add(jugglerName);
                     }
                 }
@@ -558,7 +566,7 @@ class JugglerManager {
         this.errorLogger.logError({
             time: beat,
             severity: severity,
-            message: `Juggler ${this.jugglerName}:\n\t${message}`
+            message: `Juggler ${this.jugglerName}:\n${indentString(message, 2, true)}`
         });
     }
 
@@ -913,8 +921,7 @@ class JugglerManager {
     // TODO : Lefthand / Righthand : make Array. It is simpler to manipulate.
     // and document the convention that left cell = left, right cell = right.
     // TODO : Unify some of the behaviour here with tossBalls ?
-    //TODO : Handle state.table undefined ?
-
+    //TODO : CHECK WE HANDLE BALLS FROM END OF LIST TO START (same order as toss).
     swapBalls(
         beat: Fraction,
         state: JugglerState,
@@ -922,16 +929,20 @@ class JugglerManager {
     ): { state: JugglerState; handMoves: MoveBall[] } {
         // TODO : Better error messages. Indicate state ?
         // TODO : Take into consideration we may want to put multiple balls of the same name on different spots.
-
         // TODO : Have a spot for unknown balls common to the case where there is a table and there is not ?
 
         state = cloneState(state);
 
         // Flag to indicate if the user has a table or not.
-        const tableAllowed = state.table === undefined;
+        const tableAllowed = state.table !== undefined;
 
         // Keep track of all ball movements.
-        const movedBalls = new Map<string, MoveType>();
+        // The "because" attribute indicates if the ball was moved because of
+        // handsSetup.place or handsSetup.have. (useful to not move a ball twice).
+        const movedBalls = new Map<
+            string,
+            { from: LocType; to: LocType; because: "place" | "have" }
+        >();
 
         // Keep track and query where balls are by ID or template name.
         const ballsLocation = new BallsLocation(state, this.ballIDMap, this.tableSpots);
@@ -944,38 +955,40 @@ class JugglerManager {
                 `Can't put balls on a table as no table as been specified for this juggler. Continue without putting any ball.`
             );
         } else if (handsSetup.place !== undefined) {
-            for (const put of handsSetup.place) {
+            for (const putBall of handsSetup.place) {
                 let handIdx: number;
                 let ballID: string;
+                let ballIdx: number;
                 let ballName: string;
                 let spotName: string | undefined;
 
-                if ("ballID" in put) {
+                if ("id" in putBall) {
                     // An ID to find the ball has been specified.
                     // We need to search in which hand that ball is.
-                    const ballLoc = ballsLocation.findBallIDLocation(put.ballID);
+                    const ballLoc = ballsLocation.findBallIDLocation(putBall.id);
                     if (ballLoc?.type === "held") {
                         handIdx = ballLoc.handIdx;
-                        ballID = put.ballID;
+                        ballIdx = ballLoc.ballIdx;
+                        ballID = putBall.id;
                         ballName = this.ballIDMap.get(ballID)!;
                     } else {
                         // Ball is found is neither hands.
                         this.logError(
                             beat,
                             "Error",
-                            `Can't find ball ${put.ballID} in hands to put on the table.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                            `Can't find ball ${putBall.id} in hands to put on the table.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
                         );
                         continue;
                     }
                 } else {
                     // The ball is defined by its template name.
                     const matchingBallsInHands = ballsLocation.findBallTemplateNameInHands(
-                        put.ballName
+                        putBall.name
                     );
 
                     // Choose which ball should be put on the table : First compute the hand
-                    if (put.fromHand !== undefined) {
-                        handIdx = put.fromHand === "left" ? 0 : 1;
+                    if (putBall.fromHand !== undefined) {
+                        handIdx = putBall.fromHand === "left" ? 0 : 1;
                     } else if (
                         matchingBallsInHands[0].size === 0 &&
                         matchingBallsInHands[1].size === 0
@@ -984,7 +997,7 @@ class JugglerManager {
                         this.logError(
                             beat,
                             "Warn",
-                            `Can't put a ball ${put.ballName} onto the table ${put.toSpot === undefined ? "" : `on spot ${put.toSpot} `}as none is found in hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                            `Can't put a ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as none is found in hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
                         );
                         continue;
                     } else if (
@@ -996,7 +1009,7 @@ class JugglerManager {
                         this.logError(
                             beat,
                             "Warn",
-                            `Ambiguity while putting ball ${put.ballName} onto the table ${put.toSpot === undefined ? "" : `on spot ${put.toSpot} `}as it is found in both hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by choosing the left hand.`
+                            `Ambiguity while putting ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as it is found in both hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by choosing the left hand.`
                         );
                     } else {
                         // The ball has only been found in one hand, so we pick it.
@@ -1009,19 +1022,20 @@ class JugglerManager {
                         this.logError(
                             beat,
                             "Warn",
-                            `Can't put a ball ${put.ballName} onto the table ${put.toSpot === undefined ? "" : `on spot ${put.toSpot} `}${put.fromHand === undefined ? "" : `from the ${put.fromHand} hand `}as none is held.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                            `Can't put a ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as none is held.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
                         );
                         continue;
                     }
 
                     ballID = getLastInsertedKey(matchingBallsInHands[handIdx])!;
-                    ballName = put.ballName;
+                    ballIdx = matchingBallsInHands[handIdx].get(ballID)!;
+                    ballName = putBall.name;
                     if (matchingBallsInHands[handIdx].size > 1) {
                         // If the hand has multiple balls to choose from, arbitrarily take the most recent one and issue a warning.
                         this.logError(
                             beat,
                             "Warn",
-                            `Ambiguity while putting ball ${put.ballName} onto the table ${put.toSpot === undefined ? "" : `on spot ${put.toSpot} `}${put.fromHand === undefined ? "" : `from the ${put.fromHand} hand `}as it is found multiple times.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by putting the most recently received ball, ie ${stringifyBall(ballID)}.`
+                            `Ambiguity while putting ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as it is found multiple times.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by putting the most recently received ball, ie ${stringifyBall(ballID)}.`
                         );
                     }
                 }
@@ -1037,11 +1051,11 @@ class JugglerManager {
                     spotName = undefined;
                     this.logError(
                         beat,
-                        "Error",
-                        `All spots where ball ${stringifyBall(ballID)} could go are occupied. ${put.toSpot === undefined ? "" : `Can't put in on user-defined "${put.toSpot}" spot. `}\nContinue by putting ball anywhere on the table.`
+                        "Warn",
+                        `All spots where ball ${stringifyBall(ballID)} could go are occupied. ${putBall.toSpot === undefined ? "" : `Can't put in on user-defined "${putBall.toSpot}" spot. `}\nContinue by putting ball anywhere on the table.`
                     );
-                } else if (put.toSpot !== undefined) {
-                    const ballOnSpot = ballsLocation.getBallInSpot(put.toSpot);
+                } else if (putBall.toSpot !== undefined) {
+                    const ballOnSpot = ballsLocation.getBallInSpot(putBall.toSpot);
                     if (ballOnSpot !== undefined) {
                         // The spot has been specified by the user, but it is already occupied on the table.
                         // Take the first available spot instead.
@@ -1049,11 +1063,11 @@ class JugglerManager {
                         this.logError(
                             beat,
                             "Error",
-                            `Can't put ball ${stringifyBall(ballID)} on user-defined "${put.toSpot}" spot as it is already occupied by ball ${stringifyBall(ballOnSpot)}.\nContinue by putting it on spot "${spotName}".`
+                            `Can't put ball ${stringifyBall(ballID)} on user-defined "${putBall.toSpot}" spot as it is already occupied by ball ${stringifyBall(ballOnSpot)}.\nContinue by putting it on spot "${spotName}".`
                         );
                     } else {
                         // The spot has been specified by the user, and it is available.
-                        spotName = put.toSpot;
+                        spotName = putBall.toSpot;
                     }
                 } else {
                     // No spot has been specified by the user, so take the first free available spot.
@@ -1061,27 +1075,27 @@ class JugglerManager {
                 }
 
                 // Put the ball on the table.
-                const moveToLoc: MoveType =
+                const moveFromLoc: LocType = { type: "held", ballIdx: ballIdx, handIdx: handIdx };
+                const moveToLoc: LocType =
                     spotName === undefined
                         ? { type: "onTableUnknownSpot" }
                         : { type: "onTableSpot", spotName: spotName };
 
-                movedBalls.set(ballID, moveToLoc);
+                movedBalls.set(ballID, { from: moveFromLoc, to: moveToLoc, because: "place" });
                 // Act the fact that the ball is on the table, but don't disturb the previous' state
                 // indices.
                 ballsLocation.putBallNoIdxChange(ballID, spotName);
             }
         }
 
-        // 2. If no new hands are specified, we stop there.
+        // 2. If no new hands are specified, we stop there. TODO
         if (handsSetup.have === undefined) {
             // Prepare the returned state.
-            state.held = ballsLocation.reconstructHeldState();
-            state.table =
-                state.table === undefined ? undefined : ballsLocation.reconstructTableState();
+            state = updateHeldOfState(state, movedBalls, handsSetup);
+            state = updateTableOfState(state, movedBalls);
             const handMoves: MoveBall[] = [];
             for (const [ballID, move] of movedBalls) {
-                handMoves.push({ ...move, ballID });
+                handMoves.push({ id: ballID, from: move.from, to: move.to });
             }
             return {
                 state: state,
@@ -1132,33 +1146,133 @@ class JugglerManager {
 
         // From now on, we won't move the balls in ballsLocation until we've computed where every ball comes from.
 
-        // 3.1 Handle all balls specified by their ID.
-        for (const have of unhandledBallsInNewHands) {
-            if ("ballID" in have.info) {
-                if (movedBalls.has(have.info.ballID)) {
-                    const move = movedBalls.get(have.info.ballID)!;
-                    if (move.type === "held") {
-                        this.logError(
-                            beat,
-                            "Error",
-                            "TODO. Ball is specified twice by its ID in hands. Skip."
-                        );
-                        unhandledBallsInNewHands.delete(have);
-                        continue;
-                    } else {
-                        // Won't happen if no table.
-                        this.logError(
-                            beat,
-                            "Warn",
-                            "TODO. Ball put on table previously but is required in hand so won't be put on the table but directly in hand."
-                        );
+        const addBallToMoves = (
+            ballID: string,
+            toLoc: LocType,
+            movedBalls: Map<
+                string,
+                {
+                    from: LocType;
+                    to: LocType;
+                    because: "place" | "have";
+                }
+            >
+        ): void => {
+            let moveFrom: LocType;
+            if (movedBalls.has(ballID)) {
+                const move = movedBalls.get(ballID)!;
+                moveFrom = move.from;
+                if (move.because === "place") {
+                    //TODO : Handle in earlier place phase duplicate ID.
+                    this.logError(
+                        beat,
+                        "Warn",
+                        `Ball ${ballID} was deliberately placed on the table, but is required elsewhere, so it will directly go there.`
+                    );
+                } else {
+                    this.logError(
+                        beat,
+                        "Error",
+                        `Ball ${ballID} is required in two different places.`
+                    );
+                }
+            } else {
+                moveFrom = ballsLocation.findBallIDLocation(ballID)!;
+            }
+
+            movedBalls.set(ballID, {
+                from: moveFrom,
+                to: toLoc,
+                because: "have"
+            });
+        };
+
+        function updateTableOfState(
+            state: JugglerState,
+            movedBalls: Map<
+                string,
+                {
+                    from: LocType;
+                    to: LocType;
+                    because: "place" | "have";
+                }
+            >
+        ): JugglerState {
+            state = cloneState(state);
+            if (state.table !== undefined) {
+                for (const [ballID, move] of movedBalls) {
+                    if (move.from.type === "onTableSpot") {
+                        state.table.namedSpot.delete(move.from.spotName);
+                    } else if (move.from.type === "onTableUnknownSpot") {
+                        state.table.unknown.delete(ballID);
+                    }
+                    if (move.to.type === "onTableSpot") {
+                        state.table.namedSpot.set(move.to.spotName, ballID);
+                    } else if (move.to.type === "onTableUnknownSpot") {
+                        state.table.unknown.add(ballID);
                     }
                 }
-                movedBalls.set(have.info.ballID, {
-                    type: "held",
-                    ballIdx: have.ballIdx,
-                    handIdx: have.handIdx
-                });
+            }
+            return state;
+        }
+
+        // TODO : Rework the "id" in ball As it is error-prone if ball.id === undefined from an earlier wrong copy :X
+        function updateHeldOfState(
+            state: JugglerState,
+            movedBalls: Map<
+                string,
+                {
+                    from: LocType;
+                    to: LocType;
+                    because: "place" | "have";
+                }
+            >,
+            handsSetup: HandsInstructions
+        ): JugglerState {
+            state = cloneState(state);
+            if (handsSetup.have === undefined) {
+                // We've only placed balls on the table.
+                state.held = ballsLocation.reconstructHeldState();
+                return state;
+            }
+            // Construct the new hands with ball IDs, to contruct the whole new state.
+            // We will add one by one the ball IDs in their respective spot.
+            const newHeldState: [(string | undefined)[], (string | undefined)[]] = [
+                Array<string | undefined>(handsSetup.have[0].length).fill(undefined),
+                Array<string | undefined>(handsSetup.have[0].length).fill(undefined)
+            ];
+            for (const [ballID, move] of movedBalls) {
+                if (move.to.type === "held") {
+                    newHeldState[move.to.handIdx][move.to.ballIdx] = ballID;
+                }
+            }
+            // If some spot is still left undefined, it means we haven't provided it with a ballID.
+            // so we need to filter it out and adjust subsequent ball indices.
+            state.held = [[], []];
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                let ballIdx = 0;
+                for (const ballID of newHeldState[handIdx]) {
+                    if (ballID !== undefined) {
+                        state.held[handIdx].push(ballID);
+                        const move = movedBalls.get(ballID)!; // All balls in newhands have moved.
+                        if (move.to.type === "held") {
+                            move.to.ballIdx = ballIdx;
+                        }
+                        ballIdx++;
+                    }
+                }
+            }
+            return state;
+        }
+
+        // 3.1 Handle all balls specified by their ID.
+        for (const have of unhandledBallsInNewHands) {
+            if ("id" in have.info) {
+                addBallToMoves(
+                    have.info.id,
+                    { type: "held", ballIdx: have.ballIdx, handIdx: have.handIdx },
+                    movedBalls
+                );
                 unhandledBallsInNewHands.delete(have);
             }
         }
@@ -1179,51 +1293,50 @@ class JugglerManager {
                     this.logError(beat, "Error", "TODO. Can't take ball from designated spot.");
                     continue;
                 }
-                movedBalls.set(ballOnSpot, {
-                    type: "held",
-                    ballIdx: have.ballIdx,
-                    handIdx: have.handIdx
-                });
+                addBallToMoves(
+                    ballOnSpot,
+                    { type: "held", ballIdx: have.ballIdx, handIdx: have.handIdx },
+                    movedBalls
+                );
                 unhandledBallsInNewHands.delete(have);
             }
         }
 
         // 3.3 Handle all balls that have a matching ball name in the same hand.
         for (const have of unhandledBallsInNewHands) {
-            const ballName =
-                "ballID" in have.info ? this.ballIDMap.get(have.info.ballID)! : have.info.ballName;
+            // We voluntarily lose the "id" information as it couldn't be handled earlier.
+            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
             for (const [heldBallID] of ballsLocation.findBallTemplateNameInHand(
                 ballName,
                 have.handIdx
             )) {
                 if (!movedBalls.has(heldBallID)) {
                     // We have found an available ball in hand that hasn't been processed yet.
+                    addBallToMoves(
+                        heldBallID,
+                        { type: "held", ballIdx: have.ballIdx, handIdx: have.handIdx },
+                        movedBalls
+                    );
                     unhandledBallsInNewHands.delete(have);
-                    movedBalls.set(heldBallID, {
-                        type: "held",
-                        ballIdx: have.ballIdx,
-                        handIdx: have.handIdx
-                    });
                 }
             }
         }
 
         // 3.4 Handle all balls that have a matching ball name in the other hand.
         for (const have of unhandledBallsInNewHands) {
-            const ballName =
-                "ballID" in have.info ? this.ballIDMap.get(have.info.ballID)! : have.info.ballName;
+            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
             for (const [heldBallID] of ballsLocation.findBallTemplateNameInHand(
                 ballName,
                 (have.handIdx + 1) % 2
             )) {
                 if (!movedBalls.has(heldBallID)) {
                     // We have found an available ball in hand that hasn't been processed yet.
+                    addBallToMoves(
+                        heldBallID,
+                        { type: "held", ballIdx: have.ballIdx, handIdx: have.handIdx },
+                        movedBalls
+                    );
                     unhandledBallsInNewHands.delete(have);
-                    movedBalls.set(heldBallID, {
-                        type: "held",
-                        ballIdx: have.ballIdx,
-                        handIdx: have.handIdx
-                    });
                 }
             }
         }
@@ -1232,29 +1345,28 @@ class JugglerManager {
         if (tableAllowed) {
             for (const have of unhandledBallsInNewHands) {
                 const ballName =
-                    "ballID" in have.info
-                        ? this.ballIDMap.get(have.info.ballID)!
-                        : have.info.ballName;
+                    "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
                 const tableSpots = ballsLocation.findOccupiedTableSpotsByTemplateName(ballName);
                 // First look for the balls in named spots, then for balls in unnamed spots.
                 for (const ballID of [...tableSpots.named.values(), ...tableSpots.unnamed.keys()]) {
                     if (!movedBalls.has(ballID)) {
                         // We have found an available ball on the table that hasn't been processed yet.
+                        addBallToMoves(
+                            ballID,
+                            { type: "held", ballIdx: have.ballIdx, handIdx: have.handIdx },
+                            movedBalls
+                        );
                         unhandledBallsInNewHands.delete(have);
-                        movedBalls.set(ballID, {
-                            type: "held",
-                            ballIdx: have.ballIdx,
-                            handIdx: have.handIdx
-                        });
+                        break;
                     }
+                    // If not found, we'll error out later.
                 }
             }
         }
 
         // 3.6 Error out if any balls are left unhandled.
         for (const have of unhandledBallsInNewHands) {
-            const ballName =
-                "ballID" in have.info ? this.ballIDMap.get(have.info.ballID)! : have.info.ballName;
+            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
             this.logError(
                 beat,
                 "Error",
@@ -1279,42 +1391,29 @@ class JugglerManager {
                     const spotName = getFirstInsertedKey(
                         ballsLocation.findFreeTableSpotsByTemplateName(this.ballIDMap.get(ballID)!)
                     );
+                    let moveTo: LocType;
                     if (spotName !== undefined) {
-                        movedBalls.set(ballID, { type: "onTableSpot", spotName: spotName });
+                        moveTo = { type: "onTableSpot", spotName: spotName };
                     } else {
                         this.logError(
                             beat,
                             "Warn",
-                            `Can't put ball ${stringifyBall(ballID)} in a named table spot as all spots are already occupied.\n Continue by putting it at a default position on the table.`
+                            `Can't put ball ${stringifyBall(ballID)} in a named table spot as all spots are already occupied.\nContinue by putting it at a default position on the table.`
                         );
-                        movedBalls.set(ballID, { type: "onTableUnknownSpot" });
+                        moveTo = { type: "onTableUnknownSpot" };
                     }
+                    addBallToMoves(ballID, moveTo, movedBalls);
                     ballsLocation.putBallNoIdxChange(ballID, spotName);
                 }
             }
         }
 
-        // Construct the new hands with ball IDs, to contruct the whole new state.
-        // We will add one by one the ball IDs in their respective spot.
-        const newHeldState: [(string | undefined)[], (string | undefined)[]] = [
-            Array<string | undefined>(handsSetup.have[0].length).fill(undefined),
-            Array<string | undefined>(handsSetup.have[0].length).fill(undefined)
-        ];
-        for (const [ballID, move] of movedBalls) {
-            if (move.type === "held") {
-                newHeldState[move.handIdx][move.ballIdx] = ballID;
-            }
-        }
-        // If some spot is still left undefined, it means we haven't provided it with a ballID.
-        // so we need to filter it out.
-        state.held = [
-            newHeldState[0].filter((ballID) => ballID !== undefined),
-            newHeldState[1].filter((ballID) => ballID !== undefined)
-        ];
-        state.table = state.table === undefined ? undefined : ballsLocation.reconstructTableState();
+        // Construct the table state.
+        state = updateHeldOfState(state, movedBalls, handsSetup);
+        state = updateTableOfState(state, movedBalls);
         const handMoves: MoveBall[] = [];
         for (const [ballID, move] of movedBalls) {
-            handMoves.push({ ...move, ballID });
+            handMoves.push({ id: ballID, from: move.from, to: move.to });
         }
         return {
             state: state,
@@ -1568,7 +1667,7 @@ class BallsLocation {
         };
     }
 
-    findBallIDLocation(ballID: string): MoveType | null {
+    findBallIDLocation(ballID: string): LocType | null {
         const ballTemplateName = this.ballIDMap.get(ballID);
         if (ballTemplateName === undefined) {
             return null;
@@ -1662,20 +1761,20 @@ class BallsLocation {
         // Put the ball in its new location.
         const ballName = this.ballIDMap.get(ballID)!;
         const templateLoc = this.ballLocationBySound.get(ballName)!;
+
+        // Remove the ball from its previous location.
+        templateLoc.oldHands[moveFrom.handIdx].delete(ballID);
+        this.handsState[moveFrom.handIdx][moveFrom.ballIdx] = undefined;
         if (spotName !== undefined) {
             // Move the ball to a named spot, but check it accepts the correct type of balls.
             if (ballName !== this.tableSpots.get(spotName)) {
                 throw Error("Can't put ball in a spot that doesn't accept balls of that kind.");
             }
-            templateLoc.tableSpots.occupied.named.delete(spotName);
-            templateLoc.tableSpots.unoccupied.add(spotName);
+            templateLoc.tableSpots.unoccupied.delete(spotName);
+            templateLoc.tableSpots.occupied.named.set(spotName, ballID);
         } else {
-            templateLoc.tableSpots.occupied.unnamed.delete(ballID);
+            templateLoc.tableSpots.occupied.unnamed.add(ballID);
         }
-
-        // Remove the ball from its previous location.
-        templateLoc.oldHands[moveFrom.handIdx].delete(ballID);
-        this.handsState[moveFrom.handIdx][moveFrom.ballIdx] = undefined;
     }
 
     getBallNames(): MapIterator<string> {

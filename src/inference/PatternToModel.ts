@@ -22,7 +22,7 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score1 as score } from "../examples/patternTest";
+import { score5 as score } from "../examples/patternTest";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -253,7 +253,7 @@ function createInitialJugglerStates(
                     if (spotName === undefined) {
                         errorLogger.logError({
                             severity: "Warn",
-                            message: `Ball ${stringifyBall(ball)} of juggler ${juggler.name} has no available spot to be put on the table. Continue by putting it on a default position.`
+                            message: `Ball ${stringifyBall(ball)} of juggler ${juggler.name} has no available spot to be put on the table.\nContinue by putting it on a default position.`
                         });
                     } else {
                         spots.delete(spotName);
@@ -608,22 +608,22 @@ export function checkAndGatherJugglingScoreNamesAndIDs(
         for (const { startTime, setupHands } of jugglingPhrases ?? []) {
             for (const ballsInHand of setupHands?.have ?? [[], []]) {
                 for (const ball of ballsInHand) {
-                    if ("ballName" in ball) {
+                    if ("name" in ball) {
                         // All ball templates refer to existing template names.
                         handleIfNameUnknown({
-                            name: ball.ballName,
+                            name: ball.name,
                             namesList: ballTemplateNames,
-                            errorMessage: `Unknown ball template name "${ball.ballName}" in juggling phrases of juggler "${jugglerName}".`,
+                            errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
                             errorLogger: errorLogger,
                             time: startTime
                         });
                     }
-                    if ("ballID" in ball) {
+                    if ("id" in ball) {
                         // All ball IDs refer to existing user-defined IDs.
                         handleIfNameUnknown({
-                            name: ball.ballID,
+                            name: ball.id,
                             namesList: ballUserIDs,
-                            errorMessage: `Unknown ball ID "${ball.ballID}" in juggling phrases of juggler ${jugglerName}.`,
+                            errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
                             errorLogger: errorLogger,
                             time: startTime
                         });
@@ -652,9 +652,9 @@ export function checkAndGatherJugglingScoreNamesAndIDs(
             }
 
             for (const ball of setupHands?.place ?? []) {
-                if ("ballName" in ball) {
+                if ("name" in ball) {
                     handleIfNameUnknown({
-                        name: ball.ballName,
+                        name: ball.name,
                         namesList: ballTemplateNames,
                         errorMessage: `TODO`,
                         errorLogger: errorLogger,
@@ -662,7 +662,7 @@ export function checkAndGatherJugglingScoreNamesAndIDs(
                     });
                 } else {
                     handleIfNameUnknown({
-                        name: ball.ballID,
+                        name: ball.id,
                         namesList: ballUserIDs,
                         errorMessage: `TODO`,
                         errorLogger: errorLogger,

@@ -163,16 +163,16 @@ export type TableDescription = {
     ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
-export type TakeBall = { ballName: string; fromSpot?: string } | { ballID: string };
+export type TakeBall = { name: string; fromSpot?: string } | { id: string };
 
 export type PutBall =
     | {
           toSpot?: string;
-          ballName: string; //T
+          name: string; //T
           fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
           //handSpotNumber: number
       }
-    | { toSpot?: string; ballID: string };
+    | { toSpot?: string; id: string };
 
 export type HandsInstructions = {
     /**

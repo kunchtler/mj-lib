@@ -1,7 +1,7 @@
 // Printing functions for events.
 import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
-import { Hands, SymbolicEvent, TossMode } from "../inference/Scheduler";
+import { Hands, LocType, SymbolicEvent, TossMode } from "../inference/Scheduler";
 import { ScoreConverter } from "../inference/ScoreConverter";
 import { BallID, JugglerState } from "../inference/Scheduler";
 
@@ -84,18 +84,29 @@ type TossType = {
 // }
 
 export function stringifyEvent(ev: SymbolicEvent<Fraction>): string {
-    let text = `Event at beat ${ev.beat} :\n`;
-    text += `  Tempo: ${stringifyFraction(ev.tempo)}.\n`;
+    let text = `Event Beat ${ev.beat}:\n`;
+    text += `  Tempo: ${stringifyFraction(ev.tempo)}\n`;
     if (ev.setupHands !== undefined) {
-        text += "  Ball changes :\n";
+        text += "  Ball changes:\n";
         for (const move of ev.setupHands) {
-            if (move.type === "held") {
-                text += `    Ball ${move.ballID} held in ${move.handIdx === 0 ? "right" : "left"} hand, position ${move.ballIdx}.\n`;
-            } else if (move.type === "onTableSpot") {
-                text += `    Ball ${move.ballID} put on table spot ${move.spotName}.\n`;
+            text += `    Ball ${move.id} `;
+            if (move.from.type === "held") {
+                text += `in ${move.from.handIdx === 0 ? "right" : "left"} hand (position ${move.from.ballIdx})`;
+            } else if (move.from.type === "onTableSpot") {
+                text += `on table (spot ${move.from.spotName})`;
             } else {
-                text += `    Ball ${move.ballID} put on table (no spot).\n`;
+                text += `on table (no spot)`;
             }
+
+            text += ` goes to `;
+            if (move.to.type === "held") {
+                text += `${move.to.handIdx === 0 ? "right" : "left"} hand (position ${move.to.ballIdx})`;
+            } else if (move.to.type === "onTableSpot") {
+                text += `table (spot ${move.to.spotName})`;
+            } else {
+                text += `table (no spot)`;
+            }
+            text += ".\n";
         }
     }
     if (ev.tosses.length > 0) {
@@ -118,11 +129,11 @@ export function stringifyBall(
     } else if (ball.name !== undefined) {
         let text = ball.name;
         if (ball.id !== undefined) {
-            text += ` (ID : ${ball.id})`;
+            text += ` (ID: ${ball.id})`;
         }
         return text;
     } else if (ball.id !== undefined) {
-        return `(ID : ${ball.id})`;
+        return `(ID: ${ball.id})`;
     }
     return "Ball";
 }
@@ -242,19 +253,37 @@ export function stringifyTable(table: {
     unknown: Set<BallID>;
 }): string {
     let text = "";
+    // Use this array to sport alphabetically the spots names.
+    const spotsArr: [string, string | undefined][] = [];
     for (const [spot, ball] of table.namedSpot) {
+        spotsArr.push([spot, ball]);
+    }
+    spotsArr.sort((a, b) => {
+        if (a[0] === b[0]) {
+            return 0;
+        } else if (a[0] > b[0]) {
+            return 1;
+        } else {
+            return -1;
+        }
+    });
+
+    for (const [spot, ball] of spotsArr) {
+        text += `Spot ${spot}: `;
         if (ball !== undefined) {
-            text += `Spot ${spot} : ${stringifyBall(ball)}\n`;
+            text += `${stringifyBall(ball)}\n`;
+        } else {
+            text += "/";
         }
     }
-    text = text.slice(0, -2);
+    text = text.slice(0, -1);
     if (table.unknown.size !== 0) {
-        text += "\nUnnamed spot : ";
+        text += "\nUnnamed spot: ";
         for (const ball of table.unknown) {
             text += `${stringifyBall(ball)}, `;
         }
         text = text.slice(0, -2);
-        text += ".";
+        // text += ".";
     }
     return text;
 }
@@ -277,16 +306,16 @@ export function stringifyState(state: JugglerState, beat: Fraction | number): st
     if (typeof beat === "number") {
         beat = new Fraction(beat);
     }
-    let text = `Beat ${beat.toString()} :\n`;
+    let text = `State Beat ${beat.toString()}:\n`;
     if (state.airborne.size !== 0) {
-        text += "  Airborne :\n";
+        text += "  Airborne:\n";
         for (const [ballID, { catchBeat, toRightHand, tossBeat }] of state.airborne) {
             text += `    Ball ${ballID} ${beat.sub(tossBeat).toString()} / ${catchBeat.sub(tossBeat).toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
         }
     }
-    text += `  Left hand : ${stringifyHand(state.held[0])}\n  Right hand : ${stringifyHand(state.held[1])}\n`;
+    text += `  Left hand: ${stringifyHand(state.held[0])}\n  Right hand: ${stringifyHand(state.held[1])}\n`;
     if (state.table !== undefined) {
-        text += `  Table :\n${indentString(stringifyTable(state.table), 1, true)}`;
+        text += `  Table:\n${indentString(stringifyTable(state.table), 4, true)}`;
     }
     return text;
 }

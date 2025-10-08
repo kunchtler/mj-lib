@@ -1,4 +1,5 @@
 import Fraction from "fraction.js";
+import { indentString } from "./stringifyEvent";
 
 /**
  * The 4 different supported severity types.
@@ -134,7 +135,7 @@ export class TimedErrorLogger<TimeType = number> {
         for (const [time, errors] of sortedErrors) {
             for (const { severity, message } of errors) {
                 const timeText = stringifyTime === undefined ? `${time}` : stringifyTime(time);
-                const text = `Time ${timeText}:\n\t${message}`;
+                const text = `Time ${timeText}:\n${indentString(message, 2, true)}`;
                 if (severity === "Log") {
                     console.log(text);
                 } else if (severity === "Warn") {
