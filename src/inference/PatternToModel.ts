@@ -22,7 +22,7 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score3 as score } from "../examples/patternTest";
+import { score6 as score } from "../examples/patternTest";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?

@@ -914,9 +914,11 @@ class JugglerManager {
             return { state, halfCompletedToss };
         };
 
+        const unhandledTosses = new Set<PartialToss>(tosses);
+
         // First, we handle each tossed ball that has a designated ID.
         // (we wouldn't want to toss it by mistake when considering a previous ball)
-        for (const toss of tosses) {
+        for (const toss of unhandledTosses) {
             if (toss.ball !== undefined && "id" in toss.ball) {
                 // Figure out which ball is tossed.
                 // The ID of the tossed ball has been specified.
@@ -937,13 +939,14 @@ class JugglerManager {
 
                 const res = handleBall(tossedBallID, tossedBallIdx, toss, state);
                 state = res.state;
+                unhandledTosses.delete(toss);
                 // Add the toss information to the outputed array.
                 halfCompletedTosses.push(res.halfCompletedToss);
             }
         }
 
         // Now we go for all balls in order.
-        for (const toss of tosses) {
+        for (const toss of unhandledTosses) {
             const fromRightHand = toss.from.hand === "R";
             const tossHand = state.held[fromRightHand ? 1 : 0];
 
@@ -1004,6 +1007,7 @@ class JugglerManager {
             state = res.state;
             // Add the toss information to the outputed array.
             halfCompletedTosses.push(res.halfCompletedToss);
+            unhandledTosses.delete(toss);
         }
         return { tosses: halfCompletedTosses, state: state };
     }
