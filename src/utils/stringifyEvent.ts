@@ -6,8 +6,22 @@ import { ScoreConverter } from "../inference/ScoreConverter";
 import { BallID, JugglerState } from "../inference/Scheduler";
 
 type TossType = {
-    from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
-    to: { hand?: "L" | "R" | "x"; rightHand?: boolean; juggler?: string; beat?: Fraction };
+    from: {
+        hand?: "L" | "R";
+        rightHand?: boolean;
+        handIdx?: number;
+        ballIdx?: number;
+        juggler?: string;
+        beat?: Fraction;
+    };
+    to: {
+        hand?: "L" | "R" | "x";
+        rightHand?: boolean;
+        handIdx?: number;
+        ballIdx?: number;
+        juggler?: string;
+        beat?: Fraction;
+    };
     ball?: { name: string; id?: string } | { nameOrID?: string } | string;
     ballID?: string;
     mode?: ParserTossMode | TossMode;
@@ -166,10 +180,10 @@ export function stringifyFraction(f: Fraction, den?: number): string {
     return `${f.n}/${f.d}`;
 }
 
-export function stringifyHandSide(handSide: "L" | "R" | "x"): string {
-    if (handSide === "L") {
+export function stringifyHandSide(handSide: "L" | "R" | "x" | number): string {
+    if (handSide === "L" || handSide === 0) {
         return "left";
-    } else if (handSide === "R") {
+    } else if (handSide === "R" || handSide === 1) {
         return "right";
     } else {
         return "other";
@@ -179,11 +193,15 @@ export function stringifyHandSide(handSide: "L" | "R" | "x"): string {
 export function stringifyToFrom({
     hand,
     rightHand,
+    handIdx,
+    ballIdx,
     juggler,
     beat
 }: {
     hand?: "L" | "R" | "x";
     rightHand?: boolean;
+    handIdx?: number;
+    ballIdx?: number;
     juggler?: string;
     beat?: Fraction;
 }): string {
@@ -200,6 +218,9 @@ export function stringifyToFrom({
     if (handSide !== undefined) {
         const fromJugglerText = text === "" ? "" : "'s";
         text += `${fromJugglerText} ${stringifyHandSide(handSide)} hand`;
+    } else if (handIdx !== undefined && ballIdx !== undefined) {
+        const fromJugglerText = text === "" ? "" : "'s";
+        text += `${fromJugglerText} ${stringifyHandSide(handIdx)} hand pos ${ballIdx}`;
     }
     if (beat !== undefined) {
         text += ` (beat ${beat})`;
@@ -230,11 +251,11 @@ export function stringifyToss(toss: TossType): string {
     }
     const textFrom = stringifyToFrom(toss.from);
     if (textFrom !== "") {
-        text += ` from ${textFrom}`;
+        text += `\n    from ${textFrom}`;
     }
     const textTo = stringifyToFrom(toss.to);
     if (textTo !== "") {
-        text += ` to ${textTo}`;
+        text += `\n    to ${textTo}`;
     }
     return text;
 }
