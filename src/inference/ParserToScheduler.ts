@@ -611,7 +611,7 @@ function getBall(
 // }
 
 /**
- * Filter useless events, ie ones that don't add anything new to the patten, or that has tosses throwing back in time.
+ * Filter useless events, ie ones that don't add anything new to the patten, or that has tosses throwing back in time. // -Remove empty events / With height 0 / Caught on same beat as thrown
  * @param events
  * @returns
  */

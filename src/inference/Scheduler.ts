@@ -807,14 +807,98 @@ class JugglerManager {
         eventIdx: number
     ): { tosses: HalfCompletedToss[]; state: JugglerState } {
         const { beat, tosses } = this.events[eventIdx];
+
+        // We remove the tossed balls from state.held as they are treated.
         state = cloneState(state);
 
         const halfCompletedTosses: HalfCompletedToss[] = [];
+
+        const handleBall = (
+            ballID: string,
+            ballIdx: number,
+            toss: PartialToss,
+            state: JugglerState
+        ): { state: JugglerState; halfCompletedToss: HalfCompletedToss } => {
+            state = cloneState(state);
+            const fromRightHand = toss.from.hand === "R";
+            const tossHand = state.held[fromRightHand ? 1 : 0];
+            // Determine the catching beat and (maybe) the catching hand.
+            let toBeat: Fraction;
+            let toHand: "L" | "R" | "x" | undefined;
+
+            if (toss.mode.type === "Height") {
+                // In case the toss is defined via siteswap (and not via catching beat time), we need to compute :
+                // - the exact catching beat.
+                // - the exact catching hand IF the ball is tossed to self (as it is determined in that case at toss rather than at catch time)
+                toBeat = this.getCatchBeatFromSiteswapHeight(toss.mode.height, eventIdx);
+                if (toss.to.juggler === this.jugglerName) {
+                    if (toss.to.hand === undefined) {
+                        toHand = !XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
+                    } else if (toss.to.hand === "x") {
+                        toHand = XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
+                    } else {
+                        // toss.to.hand is already right or left.
+                        toHand = toss.to.hand;
+                    }
+                }
+            } else {
+                // The toss has been defined by its relative or absolute catch time.
+                // The catch time has already been computed, and we'll be able to determine the catching hand only at catch time.
+                toBeat = toss.mode.beat;
+                toHand = toss.to.hand;
+            }
+
+            // Remove the ball from the state so as to not toss it again
+            // when considering the next tosses in this for loop.
+            tossHand.splice(ballIdx, 1);
+
+            // Return the toss information to the outputed array.
+            const halfCompletedToss: HalfCompletedToss = {
+                from: {
+                    beat: beat,
+                    juggler: this.jugglerName,
+                    rightHand: fromRightHand
+                },
+                to: { beat: toBeat, juggler: toss.to.juggler, hand: toHand },
+                ballID: ballID,
+                mode: toss.mode
+            };
+            return { state, halfCompletedToss };
+        };
+
+        // First, we handle each tossed ball that has a designated ID.
+        // (we wouldn't want to toss it by mistake when considering a previous ball)
+        for (const toss of tosses) {
+            if (toss.ball !== undefined && "id" in toss.ball) {
+                // Figure out which ball is tossed.
+                // The ID of the tossed ball has been specified.
+                // We need to check it is indeed present in hand.
+                const tossedBallID = toss.ball.id;
+                const fromRightHand = toss.from.hand === "R";
+                const tossedBallIdx = state.held[fromRightHand ? 1 : 0].findIndex(
+                    (ballID) => ballID === tossedBallID
+                );
+                if (tossedBallIdx === -1) {
+                    this.logError(
+                        beat,
+                        "Error",
+                        `Can't toss ball ${stringifyBall(toss.ball)} from the ${fromRightHand ? "right" : "left"} hand as it is not there.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinues by trying to toss it later.`
+                    );
+                    continue;
+                }
+
+                const res = handleBall(tossedBallID, tossedBallIdx, toss, state);
+                state = res.state;
+                // Add the toss information to the outputed array.
+                halfCompletedTosses.push(res.halfCompletedToss);
+            }
+        }
+
+        // Now we go for all balls in order.
         for (const toss of tosses) {
             const fromRightHand = toss.from.hand === "R";
             const tossHand = state.held[fromRightHand ? 1 : 0];
 
-            // Figure out which ball is tossed.
             let tossedBallIdx: number;
             if (toss.ball === undefined) {
                 // If no tossed ball is specified, we need to find it.
@@ -828,26 +912,21 @@ class JugglerManager {
                     continue;
                 }
                 tossedBallIdx = tossHand.length - 1;
-            } else if ("id" in toss.ball) {
-                // The ID of the tossed ball has been specified.
-                // We need to check it is indeed present in hand.
-                const tossedBallID = toss.ball.id;
-                tossedBallIdx = tossHand.findIndex((ballID) => ballID === tossedBallID);
-                if (tossedBallIdx === -1) {
-                    this.logError(
-                        beat,
-                        "Error",
-                        `Can't toss ball ${stringifyBall(toss.ball)} from the ${fromRightHand ? "right" : "left"} hand as it is not there.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinues without tossing a ball.`
-                    );
-                    continue;
-                }
             } else {
-                // Only the template name of the ball has been provided.
+                let ballName: string;
+                if ("id" in toss.ball) {
+                    // This happens if previously the ball couldn't be found.
+                    // So now, we try to throw any ball that would match.
+                    ballName = this.ballIDMap.get(toss.ball.id)!;
+                } else {
+                    // Only the template name of the ball has been provided.
+                    ballName = toss.ball.name;
+                }
                 // We need to find a ball with the matching note in hand.
                 const matchingBallsIdx: number[] = [];
                 for (let ballIdx = 0; ballIdx < tossHand.length; ballIdx++) {
                     const ballID = tossHand[ballIdx];
-                    if (this.ballIDMap.get(ballID) === toss.ball.name) {
+                    if (this.ballIDMap.get(ballID) === ballName) {
                         matchingBallsIdx.push(ballIdx);
                     }
                 }
@@ -873,46 +952,10 @@ class JugglerManager {
                 }
             }
 
-            // Determine the catching beat and (myabe) the catching hand.
-            let toBeat: Fraction;
-            let toHand: "L" | "R" | "x" | undefined;
-            if (toss.mode.type === "Height") {
-                // In case the toss is defined via siteswap (and not via catching beat time), we need to compute :
-                // - the exact catching beat.
-                // - the exact catching hand IF the ball is tossed to self (as it is determined in that case at toss rather than at catch time)
-                toBeat = this.getCatchBeatFromSiteswapHeight(toss.mode.height, eventIdx);
-                if (toss.to.juggler === this.jugglerName) {
-                    if (toss.to.hand === undefined) {
-                        toHand = !XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
-                    } else if (toss.to.hand === "x") {
-                        toHand = XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
-                    } else {
-                        // toss.to.hand is already right or left.
-                        toHand = toss.to.hand;
-                    }
-                }
-            } else {
-                // The toss has been defined by its relative or absolute catch time.
-                // The catch time has already been computed, and we'll be able to determine the catching hand only at catch time.
-                toBeat = toss.mode.beat;
-                toHand = toss.to.hand;
-            }
-
+            const res = handleBall(tossHand[tossedBallIdx], tossedBallIdx, toss, state);
+            state = res.state;
             // Add the toss information to the outputed array.
-            halfCompletedTosses.push({
-                from: {
-                    beat: beat,
-                    juggler: this.jugglerName,
-                    rightHand: fromRightHand
-                },
-                to: { beat: toBeat, juggler: toss.to.juggler, hand: toHand },
-                ballID: tossHand[tossedBallIdx],
-                mode: toss.mode
-            });
-
-            // Remove the ball from the state so as to not toss it again
-            // when considering the next tosses in this for loop.
-            tossHand.splice(tossedBallIdx, 1);
+            halfCompletedTosses.push(res.halfCompletedToss);
         }
         return { tosses: halfCompletedTosses, state: state };
     }
@@ -1318,6 +1361,7 @@ class JugglerManager {
                         movedBalls
                     );
                     unhandledBallsInNewHands.delete(have);
+                    break;
                 }
             }
         }
@@ -1337,6 +1381,7 @@ class JugglerManager {
                         movedBalls
                     );
                     unhandledBallsInNewHands.delete(have);
+                    break;
                 }
             }
         }

@@ -197,11 +197,191 @@ export const score5: JSONJugglingScore = {
     ]
 };
 
-// Tests left :
-// - Synch
-// - Measure and beat
-// - Multiplex (with hand specifier and without)
-// - Sync pattern + exclamation mark
-// - Tempo changes
-// - Table changes (new hands, with unknown spot, tospot, fromspot, with id, with name)
+// const rawPattern = "L";
+// const rawPattern = "R3 (1x {12} e)^3 (4,[82x]) (1, 0)! L5x 7";
+// const rawPattern = "{M1B1/4}303{Do B5}{B6/1}{+B2 x}";
+// const rawPattern = "LBo3"; //Should Fail
+
+// Musical Siteswap feature (TODO : Document)
+export const score6: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/4" }],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [
+                [
+                    { name: "Do", id: "Do_a" },
+                    { name: "Re", id: "Re_a" }
+                ],
+                [
+                    { name: "Mi", id: "Mi_a" },
+                    { name: "Do", id: "Do_b" }
+                ]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    pattern: "L[Do1 Re2x]3"
+                },
+                {
+                    startTime: 5,
+                    pattern: "{10} e"
+                },
+                {
+                    startTime: 25,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "4(51)^3"
+                },
+                {
+                    startTime: 40,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "(2, 2) (4, [24x]) (1, 0)! 1"
+                }
+            ]
+        }
+    ]
+};
+
+// Musical timing features
+export const score7: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: "1/4" }, timeSignature: "3/4" }, { bar: 3, timeSignature: "2/4" }, { bar: 6, tempo: { bpm: 200, note: "1/4" }}],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [
+                [
+                    { name: "Do", id: "Do_a" },
+                    { name: "Re", id: "Re_a" }
+                ],
+                [
+                    { name: "Mi", id: "Mi_a" },
+                    { name: "Do", id: "Do_b" }
+                ]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    pattern: "{M0B1/4}303{Do B5}{B6/1}{+B2 x}"
+                }
+            ]
+        }
+    ]
+};
+
+// Tempo changes
+export const score8: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/4" }],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [
+                [
+                    { name: "Do", id: "Do_a" },
+                    { name: "Re", id: "Re_a" }
+                ],
+                [
+                    { name: "Mi", id: "Mi_a" },
+                    { name: "Do", id: "Do_b" }
+                ]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    setupHands: { have: [[], []] },
+                    pattern: "L[Do1 Re2x]3"
+                },
+                {
+                    startTime: 5,
+                    pattern: "{10} e"
+                },
+                {
+                    startTime: 25,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "4(51)^3"
+                },
+                {
+                    startTime: 40,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "(2, 2) (4, [24x]) (1, 0)! 1"
+                }
+            ]
+        }
+    ]
+};
+
+// Multiple jugglers.
 // - Two jugglers (no crosstoss, crosstoss, crosstoss to specific hand, offtempo one another)
+export const score9: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/4" }],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [
+                [
+                    { name: "Do", id: "Do_a" },
+                    { name: "Re", id: "Re_a" }
+                ],
+                [
+                    { name: "Mi", id: "Mi_a" },
+                    { name: "Do", id: "Do_b" }
+                ]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    setupHands: { have: [[], []] },
+                    pattern: "L[Do1 Re2x]3"
+                },
+                {
+                    startTime: 5,
+                    pattern: "{10} e"
+                },
+                {
+                    startTime: 25,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "4(51)^3"
+                },
+                {
+                    startTime: 40,
+                    setupHands: {
+                        have: [
+                            [{ name: "Do" }, { name: "Do" }],
+                            [{ name: "Re" }, { name: "Mi" }]
+                        ]
+                    },
+                    pattern: "(2, 2) (4, [24x]) (1, 0)! 1"
+                }
+            ]
+        }
+    ]
+};
+

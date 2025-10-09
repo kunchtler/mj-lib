@@ -8,7 +8,8 @@ import { BallID, JugglerState } from "../inference/Scheduler";
 type TossType = {
     from: { hand?: "L" | "R"; rightHand?: boolean; juggler?: string; beat?: Fraction };
     to: { hand?: "L" | "R" | "x"; rightHand?: boolean; juggler?: string; beat?: Fraction };
-    ball?: { name: string; id?: string } | { nameOrID?: string };
+    ball?: { name: string; id?: string } | { nameOrID?: string } | string;
+    ballID?: string;
     mode?: ParserTossMode | TossMode;
 };
 
@@ -122,7 +123,7 @@ export function stringifyBall(
         return "Ball";
     }
     if (typeof ball === "string") {
-        return ball;
+        return "Ball " + ball;
     }
     if (ball.nameOrID !== undefined) {
         return ball.nameOrID;
@@ -207,7 +208,14 @@ export function stringifyToFrom({
 }
 
 export function stringifyToss(toss: TossType): string {
-    let text = stringifyBall(toss.ball);
+    let text = "";
+    if (toss.ball !== undefined) {
+        text += stringifyBall(toss.ball);
+    } else if (toss.ballID !== undefined) {
+        text += stringifyBall(toss.ballID);
+    } else {
+        text += "Ball";
+    }
     if (toss.mode === undefined) {
         text += "";
     } else if (toss.mode.type === "Height") {
