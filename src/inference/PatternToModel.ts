@@ -1,5 +1,11 @@
 import Fraction from "fraction.js";
-import { getFirstInsertedKey, JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
+import {
+    getFirstInsertedKey,
+    JugglerState,
+    Scheduler,
+    SchedulerJuggler,
+    SymbolicEvent
+} from "./Scheduler";
 import { ScoreConverter, MusicTempo, MusicTime } from "./ScoreConverter";
 import { simulateEvents } from "./SchedulerToModel";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -10,6 +16,7 @@ import {
     stringifyBall,
     stringifyEvent,
     stringifyState,
+    stringifyStateEvent,
     TimedErrorLogger
 } from "../utils";
 import {
@@ -22,7 +29,9 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score6 as score } from "../examples/patternTest";
+import { score11 as score } from "../examples/patternTest";
+import { Timeline } from "../utils/Timeline";
+import { FracTimeline } from "../utils/FracTimeline";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -52,6 +61,7 @@ export function JSONJugglingScoreToModel(
     const jugglingScore = convertJSONToJugglingScore(JSONJugglingScore, errorLogger);
     // Return early if there was a critical error.
     if (errorLogger.hasCriticalError()) {
+        errorLogger.printErrorsInConsole();
         return undefined;
     }
 
@@ -60,6 +70,7 @@ export function JSONJugglingScoreToModel(
         checkAndGatherJugglingScoreNamesAndIDs(jugglingScore, errorLogger);
     // Return early if there was a critical error.
     if (errorLogger.hasCriticalError()) {
+        errorLogger.printErrorsInConsole();
         return undefined;
     }
 
@@ -114,15 +125,31 @@ export function JSONJugglingScoreToModel(
     console.log("\n");
     for (const [jugglerName, { errorLogger, events, states }] of schedulerOutput) {
         console.log(`Juggler ${jugglerName} :\n`);
-        console.log("States:\n");
-        states.forEach((elem) => {
-            console.log(stringifyState(elem, elem.beat) + "\n");
-        });
-        console.log("Events:\n");
-        events.forEach((elem) => {
-            console.log(stringifyEvent(elem) + "\n");
-        });
-        console.log("Errors:\n");
+        const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
+        for (const { beat, ...state } of states) {
+            tmp.setElement(beat, { state: state });
+        }
+        for (const ev of events) {
+            const elem = tmp.getElementByKey(ev.beat);
+            if (elem !== undefined) {
+                elem.event = ev;
+            } else {
+                tmp.setElement(ev.beat, { event: ev });
+            }
+        }
+        for (const [beat, { state, event }] of tmp) {
+            console.log(stringifyStateEvent(beat, state, event));
+            console.log("\n");
+        }
+        // console.log("States:\n");
+        // states.forEach((elem) => {
+        //     console.log(stringifyState(elem, elem.beat) + "\n");
+        // });
+        // console.log("Events:\n");
+        // events.forEach((elem) => {
+        //     console.log(stringifyEvent(elem) + "\n");
+        // });
+        // console.log("Errors:\n");
         errorLogger.printErrorsInConsole();
     }
     console.log("Fini");

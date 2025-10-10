@@ -256,7 +256,11 @@ export const score6: JSONJugglingScore = {
 // Musical timing features
 export const score7: JSONJugglingScore = {
     ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
-    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: "1/4" }, timeSignature: "3/4" }, { bar: 3, timeSignature: "2/4" }, { bar: 6, tempo: { bpm: 200, note: "1/4" }}],
+    scoreConverter: [
+        { bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/1" },
+        { bar: 3 },
+        { bar: 6, tempo: { bpm: 200, note: 2 } }
+    ],
     jugglers: [
         {
             name: "Vincent",
@@ -273,7 +277,7 @@ export const score7: JSONJugglingScore = {
             jugglingPhrases: [
                 {
                     startTime: 0,
-                    pattern: "{M0B1/4}303{Do B5}{B6/1}{+B2 x}"
+                    pattern: "{M0B1}303{Do B5}{+B2 x}"
                 }
             ]
         }
@@ -283,7 +287,7 @@ export const score7: JSONJugglingScore = {
 // Tempo changes
 export const score8: JSONJugglingScore = {
     ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
-    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/4" }],
+    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "1/1" }],
     jugglers: [
         {
             name: "Vincent",
@@ -292,96 +296,123 @@ export const score8: JSONJugglingScore = {
                     { name: "Do", id: "Do_a" },
                     { name: "Re", id: "Re_a" }
                 ],
-                [
-                    { name: "Mi", id: "Mi_a" },
-                    { name: "Do", id: "Do_b" }
-                ]
+                [{ name: "Mi", id: "Mi_a" }]
             ],
             jugglingPhrases: [
                 {
                     startTime: 0,
-                    setupHands: { have: [[], []] },
-                    pattern: "L[Do1 Re2x]3"
+                    withTempo: 1,
+                    pattern: "L333"
                 },
                 {
-                    startTime: 5,
-                    pattern: "{10} e"
+                    startTime: 3,
+                    withTempo: 1 / 2,
+                    pattern: "333"
                 },
                 {
-                    startTime: 25,
-                    setupHands: {
-                        have: [
-                            [{ name: "Do" }, { name: "Do" }],
-                            [{ name: "Re" }, { name: "Mi" }]
-                        ]
-                    },
-                    pattern: "4(51)^3"
-                },
-                {
-                    startTime: 40,
-                    setupHands: {
-                        have: [
-                            [{ name: "Do" }, { name: "Do" }],
-                            [{ name: "Re" }, { name: "Mi" }]
-                        ]
-                    },
-                    pattern: "(2, 2) (4, [24x]) (1, 0)! 1"
+                    startTime: 4.5,
+                    withTempo: 2,
+                    pattern: "333"
                 }
             ]
         }
     ]
 };
 
-// Multiple jugglers.
-// - Two jugglers (no crosstoss, crosstoss, crosstoss to specific hand, offtempo one another)
+// Multiple jugglers crossed tosses.
 export const score9: JSONJugglingScore = {
     ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
-    scoreConverter: [{ bar: 0, tempo: { bpm: 180, note: 1 }, timeSignature: "4/4" }],
     jugglers: [
         {
             name: "Vincent",
             ballsHeldAtStart: [
                 [
-                    { name: "Do", id: "Do_a" },
-                    { name: "Re", id: "Re_a" }
+                    { name: "Re", id: "Re_a" },
+                    { name: "Do", id: "Do_a" }
                 ],
+                [{ name: "Mi", id: "Mi_a" }]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    pattern: "L{3 Nicolas}{3 Nicolas}^2"
+                }
+            ]
+        },
+        {
+            name: "Nicolas",
+            ballsHeldAtStart: [
+                [{ name: "Mi", id: "Mi_b" }],
                 [
-                    { name: "Mi", id: "Mi_a" },
+                    { name: "Re", id: "Re_b" },
                     { name: "Do", id: "Do_b" }
                 ]
             ],
             jugglingPhrases: [
                 {
                     startTime: 0,
-                    setupHands: { have: [[], []] },
-                    pattern: "L[Do1 Re2x]3"
-                },
-                {
-                    startTime: 5,
-                    pattern: "{10} e"
-                },
-                {
-                    startTime: 25,
-                    setupHands: {
-                        have: [
-                            [{ name: "Do" }, { name: "Do" }],
-                            [{ name: "Re" }, { name: "Mi" }]
-                        ]
-                    },
-                    pattern: "4(51)^3"
-                },
-                {
-                    startTime: 40,
-                    setupHands: {
-                        have: [
-                            [{ name: "Do" }, { name: "Do" }],
-                            [{ name: "Re" }, { name: "Mi" }]
-                        ]
-                    },
-                    pattern: "(2, 2) (4, [24x]) (1, 0)! 1"
+                    pattern: "R{3 Vincent}{3 Vincent}^2"
                 }
             ]
         }
     ]
 };
 
+// Multiple jugglers (passing and destination hand modifiers)
+export const score10: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [[{ name: "Mi", id: "Ball_V" }], []],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    pattern: "L{1 Nicolas L}"
+                }
+            ]
+        },
+        {
+            name: "Nicolas",
+            ballsHeldAtStart: [[{ name: "Do", id: "Ball_N" }], []],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    pattern: "L{3 Vincent}L{1 Vincent x}"
+                }
+            ]
+        }
+    ]
+};
+
+//Multiple jugglers (tempo changes)
+export const score11: JSONJugglingScore = {
+    ballTemplates: [{ name: "Do" }, { name: "Re" }, { name: "Mi" }],
+    jugglers: [
+        {
+            name: "Vincent",
+            ballsHeldAtStart: [[{ name: "Do", id: "Do_V" }], [{ name: "Re", id: "Re_V" }]],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    withTempo: 1,
+                    pattern: "L3{3 Nicolas}"
+                }
+            ]
+        },
+        {
+            name: "Nicolas",
+            ballsHeldAtStart: [[{ name: "Do", id: "Do_N" }], [{ name: "Re", id: "Re_N" }]],
+            jugglingPhrases: [
+                {
+                    startTime: 0,
+                    withTempo: 2,
+                    pattern: "L33{1 Vincent}"
+                }
+            ]
+        }
+    ]
+};
+
+//TODO : Passing notation IF there are only 2 jugglers ?
+//TODO : Unintuitive ordering of balls when specifying ? (would we want for the first we write to be the first tossed) ?

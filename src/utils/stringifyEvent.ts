@@ -4,6 +4,7 @@ import { ParserTossMode } from "../parser/MusicalSiteswap";
 import { Hands, LocType, SymbolicEvent, TossMode } from "../inference/Scheduler";
 import { ScoreConverter } from "../inference/ScoreConverter";
 import { BallID, JugglerState } from "../inference/Scheduler";
+import { TossEvent } from "../model";
 
 type TossType = {
     from: {
@@ -98,8 +99,8 @@ type TossType = {
 //     return text;
 // }
 
-export function stringifyEvent(ev: SymbolicEvent<Fraction>): string {
-    let text = `Event Beat ${ev.beat}:\n`;
+export function stringifyEvent(ev: SymbolicEvent<Fraction>, writeTitle = true): string {
+    let text = writeTitle ? `Event Beat ${ev.beat}:\n` : "";
     text += `  Tempo: ${stringifyFraction(ev.tempo)}\n`;
     if (ev.setupHands !== undefined) {
         text += "  Ball changes:\n";
@@ -331,20 +332,43 @@ export function indentString(text: string, spaceAmount: number, onFirstLine: boo
     );
 }
 
-export function stringifyState(state: JugglerState, beat: Fraction | number): string {
+export function stringifyState(
+    state: JugglerState,
+    beat: Fraction | number,
+    writeTitle = true
+): string {
     if (typeof beat === "number") {
         beat = new Fraction(beat);
     }
-    let text = `State Beat ${beat.toString()}:\n`;
+    let text = writeTitle ? `State Beat ${beat.toString()}:\n` : "";
     if (state.airborne.size !== 0) {
         text += "  Airborne:\n";
-        for (const [ballID, { catchBeat, toRightHand, tossBeat }] of state.airborne) {
-            text += `    Ball ${ballID} ${beat.sub(tossBeat).toString()} / ${catchBeat.sub(tossBeat).toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
+        for (const [ballID, { catchBeat, toRightHand }] of state.airborne) {
+            text += `    Ball ${ballID} at height ${catchBeat.sub(beat).toString()} (to ${toRightHand ? "right" : "left"} hand)\n`;
         }
     }
     text += `  Left hand: ${stringifyHand(state.held[0])}\n  Right hand: ${stringifyHand(state.held[1])}\n`;
     if (state.table !== undefined) {
         text += `  Table:\n${indentString(stringifyTable(state.table), 4, true)}`;
+    }
+    return text;
+}
+
+export function stringifyStateEvent(
+    beat: Fraction,
+    state?: JugglerState,
+    ev?: SymbolicEvent<Fraction>
+): string {
+    let text = `On beat ${beat.toString()}:\n`;
+    if (state === undefined && ev === undefined) {
+        text += "  Nothing.";
+        return text;
+    }
+    if (state !== undefined) {
+        text += `State:\n${stringifyState(state, beat, false)}\n`;
+    }
+    if (ev !== undefined) {
+        text += `Events:\n${stringifyEvent(ev, false)}`;
     }
     return text;
 }

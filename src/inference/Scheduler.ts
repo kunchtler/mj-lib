@@ -339,7 +339,7 @@ export class Scheduler {
 
                     for (const toss of res.tosses) {
                         // Assign to the tossedTo map the tosses made to each juggler.
-                        tossedTo.get(jugglerName)?.push(toss);
+                        tossedTo.get(toss.to.juggler)?.push(toss);
                     }
 
                     // Tag the juggler as having a new state.
@@ -382,9 +382,9 @@ export class Scheduler {
                 }
 
                 // Remember the ball's info to complete them later.
-                const resultsIdx = schedulerResults.get(jugglerName)!.events.length - 1;
                 for (const toss of tosses) {
                     // We do this here since "catches are made before tosses".
+                    const resultsIdx = schedulerResults.get(toss.from.juggler)!.events.length - 1;
                     airborneBalls.set(toss.ballID, { toss, resultsIdx });
                 }
             }
@@ -871,28 +871,30 @@ class JugglerManager {
             const tossHand = state.held[fromRightHand ? 1 : 0];
             // Determine the catching beat and (maybe) the catching hand.
             let toBeat: Fraction;
-            let toHand: "L" | "R" | "x" | undefined;
+            let toHand: "L" | "R" | "x" | undefined = toss.to.hand;
 
             if (toss.mode.type === "Height") {
                 // In case the toss is defined via siteswap (and not via catching beat time), we need to compute :
                 // - the exact catching beat.
-                // - the exact catching hand IF the ball is tossed to self (as it is determined in that case at toss rather than at catch time)
+                // - the exact catching hand IF the ball is tossed to self (as it is determined in that case at toss rather than at catch time).
+                // Indeed, say we toss to self a 3, but change in siteswap the hands midway.
+                // We expect the 3 to land in the other hand FROM the toss.
+                // But if we toss a 3 to another juggler, then it should fall in the hand
+                // that will be ready at that time (unless we specified L, R or x)
                 toBeat = this.getCatchBeatFromSiteswapHeight(toss.mode.height, eventIdx);
+                //TODO : Remove from here, we can compute that when receiving ?
                 if (toss.to.juggler === this.jugglerName) {
+                    // If toss.to.hand isn't right or left, we need to compute it.
                     if (toss.to.hand === undefined) {
                         toHand = !XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
                     } else if (toss.to.hand === "x") {
                         toHand = XOR(toss.mode.height % 2 === 0, fromRightHand) ? "R" : "L";
-                    } else {
-                        // toss.to.hand is already right or left.
-                        toHand = toss.to.hand;
                     }
                 }
             } else {
                 // The toss has been defined by its relative or absolute catch time.
                 // The catch time has already been computed, and we'll be able to determine the catching hand only at catch time.
                 toBeat = toss.mode.beat;
-                toHand = toss.to.hand;
             }
 
             // Remove the ball from the state so as to not toss it again
@@ -1567,10 +1569,8 @@ class JugglerManager {
      * @returns the state with the tosses added to airborne balls, and the completed toss information.
      */
     addTossesToState(tosses: HalfCompletedToss[], state: JugglerState): JugglerState {
-        // Clone the state first.
         state = cloneState(state);
 
-        const completedTosses: SymbolicToss<Fraction>[] = [];
         for (const toss of tosses) {
             // The only unknown left on the tosses is possibly the hand in which they are caught.
             let toRightHand: boolean;
