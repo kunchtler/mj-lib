@@ -1,9 +1,4 @@
-import { BallModel } from "../BallModel";
-import { HandModel } from "../HandModel";
-import { TableModel } from "../TableModel";
-
-// TODO : time redundant if in EventType ? Remove it ?
-// Garbage in, garbage out.
+// TODO : no more classes, just types, and one function to stringify them ???
 
 /**
  * Basic interface for a juggling event. All juggling events interfaces extend it.
@@ -39,27 +34,13 @@ export interface EventSound {
  */
 export interface BallEventInterface extends BaseEvent {
     /**
-     * The ball the event references.
+     * The ball the event references. TODO
      */
-    ball: BallModel;
+    ballID: string;
     /**
      * Verb charcterising the event (eg. tossed, caught, ...) to help with printing debug information.
      */
     actionDescription: string;
-    /**
-     * Access the next ball event in the ball's timeline of events.
-     * @returns
-     * - [null, null] if this event is the last and there aren't any after.
-     * - [timeOfTheEvent, event] otherwise.
-     */
-    nextBallEvent: () => [number, BallTimelineEvent] | [null, null];
-    /**
-     * Access the previous ball event in the ball's timeline of events.
-     * @returns
-     * - [null, null] if this event is the first and there aren't any before.
-     * - [timeOfTheEvent, event] otherwise.
-     */
-    prevBallEvent: () => [number, BallTimelineEvent] | [null, null];
     /**
      * Whether the ball should emit some sound when that event happens.
      */
@@ -71,43 +52,46 @@ export interface BallEventInterface extends BaseEvent {
  */
 export interface HandEventInterface extends BaseEvent {
     /**
-     * The hand the event references.
+     * The unique name of the juggler's hand.
      */
-    hand: HandModel;
+    jugglerName: string;
     /**
-     * The juggling unit time of the juggler when the event happened.
+     * Whether the hand is the right or the left hand.
      */
-    unitTime: number;
+    isRightHand: boolean;
+}
+
+/**
+ * Base interface for all events involving a hand.
+ */
+export interface TableEventInterface extends BaseEvent {
     /**
-     * A method to access the next hand multi-event in the ball's timeline of events.
+     * The unique name of the table.
      */
-    nextHandEvent(): [number, HandTimelineEvent] | [null, null];
+    tableID: string;
     /**
-     * A method to acces the previous hand multi-event in the ball's timeline of events.
+     * The spot we're (possibly) interacting with.
      */
-    prevHandEvent(): [number, HandTimelineEvent] | [null, null];
-    /**
-     * If the current event is part of a bigger multi-event at the same time, this method returns that multi-event.
-     */
-    handMultiEvent(): HandTimelineEvent | null;
+    spot: string | undefined;
 }
 
 export type AbstractEventParams = {
     time: number;
-    unitTime: number;
 };
 
 export type AbstractBallEventParams = AbstractEventParams & {
-    ball: BallModel;
-    sound?: string | EventSound;
+    ballID: string;
+    sound?: EventSound;
 };
 
 export type AbstractHandEventParams = AbstractEventParams & {
-    hand: HandModel;
+    jugglerName: string;
+    isRightHand: boolean;
 };
 
 export type AbstractTableEventParams = AbstractEventParams & {
-    table: TableModel;
+    tableID: string;
+    spot: string | undefined;
 };
 
 export type AbstractBallHandEventParams = AbstractBallEventParams & AbstractHandEventParams;
@@ -120,70 +104,19 @@ export type AbstractBallHandTableEventParams = AbstractBallEventParams &
  * Class used to represent an event involving both a ball and a hand.
  */
 export class AbstractBallHandEvent implements BallEventInterface, HandEventInterface {
-    /**
-     * Internal reference to the ball, as a WeakRef to allow garbage collection.
-     */
-    private _ballRef: WeakRef<BallModel>;
-    /**
-     * Internal reference to the hand, as a WeakRef to allow garbage collection.
-     */
-    private _handRef: WeakRef<HandModel>;
+    ballID: string;
+    jugglerName: string;
+    isRightHand: boolean;
     time: number;
-    unitTime: number;
-    readonly actionDescription: string = "unnamed attribute";
     sound?: EventSound;
+    readonly actionDescription: string = "unnamed attribute";
 
-    constructor({ time, unitTime, sound, ball, hand }: AbstractBallHandEventParams) {
+    constructor({ time, sound, ballID, jugglerName, isRightHand }: AbstractBallHandEventParams) {
+        this.ballID = ballID;
+        this.jugglerName = jugglerName;
+        this.isRightHand = isRightHand;
         this.time = time;
-        this.unitTime = unitTime;
-        this._ballRef = new WeakRef(ball);
-        this._handRef = new WeakRef(hand);
         this.sound = typeof sound === "string" ? { name: sound } : sound;
-    }
-
-    get ball(): BallModel {
-        const obj = this._ballRef.deref();
-        if (obj === undefined) {
-            throw new Error("hand is undefined");
-        }
-        return obj;
-    }
-
-    set ball(newBall: BallModel) {
-        this._ballRef = new WeakRef(newBall);
-    }
-
-    get hand(): HandModel {
-        const obj = this._handRef.deref();
-        if (obj === undefined) {
-            throw new Error("hand is undefined");
-        }
-        return obj;
-    }
-
-    set hand(newHand: HandModel) {
-        this._handRef = new WeakRef(newHand);
-    }
-
-    prevBallEvent(): [number, BallTimelineEvent] | [null, null] {
-        return this.ball.timeline.prevEvent(this.time, true);
-    }
-
-    nextBallEvent(): [number, BallTimelineEvent] | [null, null] {
-        return this.ball.timeline.nextEvent(this.time);
-    }
-
-    prevHandEvent(): [number, HandTimelineEvent] | [null, null] {
-        return this.hand.timeline.prevEvent(this.time, true);
-    }
-
-    nextHandEvent(): [number, HandTimelineEvent] | [null, null] {
-        return this.hand.timeline.nextEvent(this.time);
-    }
-
-    handMultiEvent(): HandTimelineEvent | null {
-        const it = this.hand.timeline.find(this.time);
-        return it.isAccessible() ? it.pointer[1] : null;
     }
 
     stringify(): string {
@@ -191,7 +124,7 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
             this.sound === undefined
                 ? ""
                 : `emits ${this.sound.loop ? "looping " : ""}sound ${this.sound.name} `;
-        return `Ball ${this.ball.name} ${this.actionDescription} by ${this.hand.juggler.name}'s ${this.hand.isRightHand() ? "right" : "left"} hand ${soundText}(time: ${this.time}s).`;
+        return `Ball ${this.ballID} ${this.actionDescription} by ${this.jugglerName}'s ${this.isRightHand ? "right" : "left"} hand ${soundText}(time: ${this.time}s).`;
     }
 }
 
@@ -199,72 +132,65 @@ export class AbstractBallHandEvent implements BallEventInterface, HandEventInter
  * Class used to represent an event involving a Hand.
  */
 export class AbstractHandEvent implements HandEventInterface {
-    /**
-     * Internal reference to the hand, as a WeakRef to allow garbage collection.
-     */
-    private _handRef: WeakRef<HandModel>;
+    jugglerName: string;
+    isRightHand: boolean;
     time: number;
-    unitTime: number;
 
-    constructor({ time, unitTime, hand }: AbstractHandEventParams) {
+    constructor({ time, jugglerName, isRightHand }: AbstractHandEventParams) {
         this.time = time;
-        this._handRef = new WeakRef(hand);
-        this.unitTime = unitTime;
-    }
-
-    get hand(): HandModel {
-        const obj = this._handRef.deref();
-        if (obj === undefined) {
-            throw new Error("hand is undefined");
-        }
-        return obj;
-    }
-
-    set hand(new_hand: HandModel) {
-        this._handRef = new WeakRef(new_hand);
-    }
-
-    prevHandEvent(): [number, HandTimelineEvent] | [null, null] {
-        return this.hand.timeline.prevEvent(this.time, true);
-    }
-
-    nextHandEvent(): [number, HandTimelineEvent] | [null, null] {
-        return this.hand.timeline.nextEvent(this.time);
-    }
-
-    handMultiEvent(): HandTimelineEvent | null {
-        const it = this.hand.timeline.find(this.time);
-        return it.isAccessible() ? it.pointer[1] : null;
+        this.jugglerName = jugglerName;
+        this.isRightHand = isRightHand;
     }
 
     stringify(): string {
-        return `Event with ${this.hand.juggler.name}'s ${this.hand.isRightHand() ? "right" : "left"} hand (time: ${this.time}s).`;
+        return `Event with ${this.jugglerName}'s ${this.isRightHand ? "right" : "left"} hand (time: ${this.time}s).`;
     }
 }
 
 /**
  * Class used to represent an event involving a ball, a table and a hand.
  */
-export class AbstractBallTableHandEvent extends AbstractBallHandEvent {
+export class AbstractBallTableHandEvent
+    extends AbstractBallHandEvent
+    implements TableEventInterface
+{
     /**
-     * The tabel the event involves.
+     * The table the event involves.
      */
-    table: TableModel;
+    tableID: string;
+    /**
+     * The optional spot the event involves.
+     */
+    spot: string | undefined;
 
-    constructor({ time, unitTime, ball, hand, table, sound }: AbstractBallHandTableEventParams) {
-        super({ time, unitTime, ball, hand, sound });
-        this.table = table;
+    constructor({
+        time,
+        ballID,
+        jugglerName,
+        isRightHand,
+        tableID,
+        spot,
+        sound
+    }: AbstractBallHandTableEventParams) {
+        super({ time, ballID, jugglerName, isRightHand, sound });
+        this.tableID = tableID;
+        this.spot = spot;
     }
 }
 
-export type TossCatchEventParams = AbstractBallHandEventParams & { siteswapHeight?: number };
+export type TossCatchEventParams = AbstractBallHandEventParams & {
+    siteswapHeight?: number;
+    handSubIdx: number;
+};
 
 export class TossCatchEvent extends AbstractBallHandEvent {
     siteswapHeight?: number;
+    handSubIdx: number;
 
-    constructor({ siteswapHeight, ...args }: TossCatchEventParams) {
+    constructor({ siteswapHeight, handSubIdx, ...args }: TossCatchEventParams) {
         super(args);
         this.siteswapHeight = siteswapHeight;
+        this.handSubIdx = handSubIdx;
     }
 }
 
@@ -296,23 +222,17 @@ export class TableTakeEvent extends AbstractBallTableHandEvent {
     readonly actionDescription = "taken from table";
 }
 
+export type HandMultiEventParams<T extends HandEventInterface> = AbstractHandEventParams & {
+    events?: T[];
+};
+
 /**
  * Class that represents multiple hand events happening at the exact same time (for instance, catching multiple balls).
  */
 export class HandMultiEvent<T extends HandEventInterface> extends AbstractHandEvent {
     events: T[];
-    constructor({
-        time,
-        unitTime,
-        hand,
-        events
-    }: {
-        time: number;
-        unitTime: number;
-        hand: HandModel;
-        events?: T[];
-    }) {
-        super({ time, unitTime, hand });
+    constructor({ time, events, jugglerName, isRightHand }: HandMultiEventParams<T>) {
+        super({ time, jugglerName, isRightHand });
         this.events = events ?? [];
     }
 }
@@ -328,3 +248,9 @@ export type HandTimelineSingleEvent = CatchEvent | TossEvent | TableTakeEvent | 
 export type HandTimelineEvent = HandMultiEvent<HandTimelineSingleEvent>;
 /** All events a that a ball can perform in the timeline. */
 export type BallTimelineEvent = CatchEvent | TossEvent | TablePutEvent | TableTakeEvent;
+
+export function isMultiEvent(
+    ev: HandTimelineEvent | HandTimelineSingleEvent
+): ev is HandTimelineEvent {
+    return ev instanceof HandMultiEvent;
+}

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { BallModel } from "./BallModel";
+import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
 
 // TODO : Which properties are readonly ?
 // TODO : Make react utility class for the many ballSpots.
@@ -10,70 +10,64 @@ import { BallModel } from "./BallModel";
 // TODO : Rename everywhere name to ID to make it clearer it should be unique ?
 // TODO : Except for "implements", change evry interface to a type. Or not ? Choose. Which one has better messages (error, intellisense, ...) ?
 
+//TODO : Recheck doc of all this section after change.
+//TODO : Add timeline to table (could be used to light the spots).
+
 /**
  * Interface for the constructor of TableModel.
  */
-export interface TableModelParams {
+export type TableModelParams = PerformanceChildParams & {
     /**
-     * The name of the table (yes, tables have names in this world).
+     * The table's unique ID.
      */
-    name?: string;
+    id: string;
     /**
-     * Where balls go on the table.
+     * Spots on the table.
      */
-    ballsSpots?: Map<string, THREE.Vector3>;
+    spots?: Map<string, THREE.Vector3>;
     /**
      * Where a ball goes if it has no designated spot ?
      * It is both used as a failback and as a default way to layout balls.
      */
-    unkownBallSpot?: THREE.Vector3;
-}
+    unkownSpot?: THREE.Vector3;
+};
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a table.
  */
-export class TableModel {
+export class TableModel extends PerformanceChild {
     /**
-     * The name of the table (yes, tables have names in this world).
+     * The table's unique ID.
      */
-    name: string;
+    id: string;
     /**
-     * Where balls go on the table.
+     * Spots on the table.
      */
-    ballsSpots: Map<string, THREE.Vector3>;
+    spots: Map<string, THREE.Vector3>;
     /**
      * Where a ball goes if it has no designated spot ?
      * It is both used as a failback and as a default way to layout balls.
      */
-    unkownBallSpot: THREE.Vector3;
+    unkownSpot: THREE.Vector3;
 
-    constructor({ name, ballsSpots, unkownBallSpot }: TableModelParams = {}) {
-        this.name = name ?? "NoName";
-        this.ballsSpots = ballsSpots ?? new Map<string, THREE.Vector3>();
-        this.unkownBallSpot = unkownBallSpot ?? new THREE.Vector3(0, 0, 0);
+    constructor({ id, spots, unkownSpot, performance }: TableModelParams) {
+        super({ performance });
+        this.id = id;
+        this.spots = spots ?? new Map<string, THREE.Vector3>();
+        this.unkownSpot = unkownSpot ?? new THREE.Vector3(0, 0, 0);
     }
 
     /**
-     * Returns a ball's designated position.
-     * @param ball the ball.
+     * Returns the position of a spot.
+     * @param spot the spot's name.
      * @returns the ball's spot on the table as is specified in the ballsSpots attribute. If it is not found, it goes to a designated unknownBallSpot.
      */
-    ballPosition(ball: BallModel): THREE.Vector3 {
+    spotPosition(spot: string | undefined): THREE.Vector3 {
         // TODO : Change id to name ?
-        return this.ballsSpots.get(ball.name) ?? this.unkownBallSpot;
-    }
-
-    /**
-     * Computes a spot over the ball where the hand should stop during its animation to grab it.
-     * WILL CHANGE IN THE FUTURE.
-     * @param ball the ball.
-     * @returns the position of the hand to grab or put the ball.
-     */
-    handPositionOverBall(ball: BallModel): THREE.Vector3 {
-        const pos = this.ballPosition(ball);
-        // TODO : Up vector rather than y coordinate.
-        pos.y += ball.radius * 3;
-        return pos;
+        if (spot === undefined) {
+            return this.unkownSpot.clone();
+        }
+        return this.spots.get(spot)?.clone() ?? this.unkownSpot.clone();
     }
 }

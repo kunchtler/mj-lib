@@ -7,10 +7,11 @@ import {
     TableTakeEvent,
     TossEvent,
     HandTimelineEvent,
-    HandTimelineSingleEvent
+    HandTimelineSingleEvent,
+    isMultiEvent
 } from "./timelines/TimelineEvents";
 import { HandTimeline, isMultiEventSane } from "./timelines/HandTimeline";
-import { JugglerModel } from "./JugglerModel";
+import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -22,18 +23,20 @@ import { JugglerModel } from "./JugglerModel";
 //TODO : Replace HandEventInterface by HandEventTimeline in function signatures ?
 //TODO : Better handle type checking of multievent ?
 
+export const HAND_MAX_TIME_GAP_BEFORE_REST = 0.5;
+
 /**
  * Interface for the constructor of HandModel.
  */
-export interface handModel {
+export type HandModelParams = PerformanceChildParams & {
     /**
      * The place where the hand catches balls.
      */
-    catchPos?: THREE.Vector3;
+    catchPos: THREE.Vector3;
     /**
      * The place where the hand tosses balls.
      */
-    tossPos?: THREE.Vector3;
+    tossPos: THREE.Vector3;
     /**
      * The place where the hand rests when it has nothing to do
      * for its foreseable future.
@@ -42,18 +45,18 @@ export interface handModel {
     /**
      * The juggler the hand belongs to.
      */
-    juggler: JugglerModel;
+    jugglerName: string;
     /**
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline?: HandTimeline;
-}
+};
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a hand.
  */
-export class HandModel {
+export class HandModel extends PerformanceChild {
     /**
      * The place where the hand catches balls.
      */
@@ -71,32 +74,22 @@ export class HandModel {
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline: HandTimeline;
-    /**
-     * Internal reference to the juggler the hand belongs to, as a WeakRef to allow garbage collection.
-     */
-    private _jugglerRef: WeakRef<JugglerModel>;
+    jugglerName: string;
 
-    constructor({ catchPos, restPos, tossPos, juggler, timeline }: handModel) {
+    constructor({
+        catchPos,
+        restPos,
+        tossPos,
+        jugglerName,
+        timeline,
+        performance
+    }: HandModelParams) {
+        super({ performance });
         this.timeline = timeline ?? new HandTimeline();
-        this.restPos = restPos ?? new THREE.Vector3(0, 0, 0);
-        this.catchPos = catchPos ?? new THREE.Vector3(0, 0, 0);
-        this.tossPos = tossPos ?? new THREE.Vector3(0, 0, 0);
-        this._jugglerRef = new WeakRef(juggler);
-    }
-
-    /**
-     * The juggler the hand belongs to.
-     */
-    get juggler(): JugglerModel {
-        const obj = this._jugglerRef.deref();
-        if (obj === undefined) {
-            throw new Error("Juggler is undefined");
-        }
-        return obj;
-    }
-
-    set juggler(newJuggler: JugglerModel) {
-        this._jugglerRef = new WeakRef(newJuggler);
+        this.catchPos = catchPos;
+        this.tossPos = tossPos;
+        this.restPos = restPos ?? averageVector([this.catchPos, this.tossPos]);
+        this.jugglerName = jugglerName;
     }
 
     /**
@@ -104,7 +97,7 @@ export class HandModel {
      * @returns a boolean
      */
     isRightHand(): boolean {
-        return this.juggler.rightHand === this;
+        return this.performance.getJuggler(this.jugglerName).rightHand === this;
     }
 
     /**
@@ -120,7 +113,9 @@ export class HandModel {
         if (singleEv instanceof TablePutEvent || singleEv instanceof TableTakeEvent) {
             return new THREE.Vector3(0, 0, 0);
         } else {
-            const velocity = singleEv.ball.velocityAtCatchTossEvent(singleEv);
+            const velocity = this.performance
+                .getBall(singleEv.ballID)
+                .velocityAtCatchTossEvent(singleEv);
             let sca = 1;
             if (isPrev) {
                 sca = 1 / 3;
@@ -156,9 +151,13 @@ export class HandModel {
      * @param event the single-event.
      * @returns the position where it occurs.
      */
-    private positionAtSingleEvent(event: HandTimelineSingleEvent | null): THREE.Vector3 {
+    private _positionAtSingleEvent(event: HandTimelineSingleEvent | null): THREE.Vector3 {
         if (event instanceof TablePutEvent || event instanceof TableTakeEvent) {
-            return event.table.handPositionOverBall(event.ball);
+            // Compute a position higher than the spot where the hand could be.
+            const spotPosition = this.performance.getTable(event.tableID).spotPosition(event.spot);
+            const ballRadius = this.performance.getBall(event.ballID).radius;
+            spotPosition.y += ballRadius * 3;
+            return spotPosition;
         } else {
             return event instanceof TossEvent ? this.tossPos : this.restPos;
         }
@@ -169,16 +168,29 @@ export class HandModel {
      * @param multiEv the multi-event.
      * @returns the position where that event occurs.
      */
-    positionAtEvent(multiEv: HandTimelineEvent | null): THREE.Vector3 {
-        if (multiEv === null || multiEv.events.length === 0) {
+    positionAtEvent(ev: HandTimelineEvent | HandTimelineSingleEvent | null): THREE.Vector3 {
+        if (ev === null) {
             return this.restPos;
         }
-        if (!isMultiEventSane(multiEv)) {
-            return this.positionAtSingleEvent(multiEv.events[multiEv.events.length - 1]);
+        if (!isMultiEvent(ev)) {
+            // Find the multi-event ev is part of, and make it the new ev.
+            const multiEv = this.timeline.getElementByKey(ev.time);
+            if (multiEv === undefined) {
+                console.warn("Multi-event of hand timeline not found.");
+                return this.restPos;
+            }
+            ev = multiEv;
+        }
+        if (ev.events.length === 0) {
+            return this.restPos;
+        }
+        if (!isMultiEventSane(ev)) {
+            console.warn("Encountered illegal association in hand timeline of hand single events.");
+            return this._positionAtSingleEvent(ev.events[ev.events.length - 1]);
         }
         const positions: THREE.Vector3[] = [];
-        for (const singleEv of multiEv.events) {
-            positions.push(this.positionAtSingleEvent(singleEv));
+        for (const singleEv of ev.events) {
+            positions.push(this._positionAtSingleEvent(singleEv));
         }
         return averageVector(positions);
     }
@@ -205,28 +217,62 @@ export class HandModel {
         points = [this.positionAtEvent(prevEvent), this.positionAtEvent(nextEvent)];
         dpoints = [this.velocityAtEvent(prevEvent), this.velocityAtEvent(nextEvent)];
         if (prevEvent === null) {
-            knots = [nextEvent!.time - nextEvent!.unitTime, nextEvent!.time];
+            knots = [nextEvent!.time - HAND_MAX_TIME_GAP_BEFORE_REST / 2, nextEvent!.time];
         } else if (nextEvent === null) {
-            knots = [prevEvent.time, prevEvent.time + prevEvent.unitTime];
+            knots = [prevEvent.time, prevEvent.time + HAND_MAX_TIME_GAP_BEFORE_REST / 2];
         } else {
             knots = [prevEvent.time, nextEvent.time];
-            //If two much time sperate the previous from the next event, we add some rest.
-            if (
-                prevEvent.time + 1.2 * prevEvent.unitTime <
-                nextEvent.time - 1.2 * nextEvent.unitTime
-            ) {
+            //If two much time sperate the previous from the next event, we add some rest so that it doesn't look weird.
+            if (nextEvent.time - prevEvent.time > HAND_MAX_TIME_GAP_BEFORE_REST) {
                 points.splice(1, 0, this.positionAtEvent(null), this.positionAtEvent(null));
                 dpoints.splice(1, 0, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0));
                 knots.splice(
                     1,
                     0,
-                    prevEvent.time + 1.2 * prevEvent.unitTime,
-                    nextEvent.time - 1.2 * nextEvent.unitTime
+                    prevEvent.time + HAND_MAX_TIME_GAP_BEFORE_REST / 2,
+                    nextEvent.time - HAND_MAX_TIME_GAP_BEFORE_REST / 2
                 );
             }
         }
         return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
     }
+    // getSpline(
+    //     prevEvent: HandTimelineEvent | null,
+    //     nextEvent: HandTimelineEvent | null
+    // ): CubicHermiteSpline<THREE.Vector3> {
+    //     let points: THREE.Vector3[], dpoints: THREE.Vector3[], knots: number[];
+
+    //     if (prevEvent === null && nextEvent === null) {
+    //         points = [this.positionAtEvent(null)];
+    //         dpoints = [this.velocityAtEvent(null)];
+    //         knots = [0];
+    //         return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+    //     }
+    //     points = [this.positionAtEvent(prevEvent), this.positionAtEvent(nextEvent)];
+    //     dpoints = [this.velocityAtEvent(prevEvent), this.velocityAtEvent(nextEvent)];
+    //     if (prevEvent === null) {
+    //         knots = [nextEvent!.time - nextEvent!.unitTime, nextEvent!.time];
+    //     } else if (nextEvent === null) {
+    //         knots = [prevEvent.time, prevEvent.time + prevEvent.unitTime];
+    //     } else {
+    //         knots = [prevEvent.time, nextEvent.time];
+    //         //If two much time sperate the previous from the next event, we add some rest.
+    //         if (
+    //             prevEvent.time + 1.2 * prevEvent.unitTime <
+    //             nextEvent.time - 1.2 * nextEvent.unitTime
+    //         ) {
+    //             points.splice(1, 0, this.positionAtEvent(null), this.positionAtEvent(null));
+    //             dpoints.splice(1, 0, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0));
+    //             knots.splice(
+    //                 1,
+    //                 0,
+    //                 prevEvent.time + 1.2 * prevEvent.unitTime,
+    //                 nextEvent.time - 1.2 * nextEvent.unitTime
+    //             );
+    //         }
+    //     }
+    //     return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+    // }
 
     /**
      * Returns the hand's position at a given time.

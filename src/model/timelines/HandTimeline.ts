@@ -52,8 +52,8 @@ export class HandTimeline extends Timeline<number, HandTimelineEvent> {
                 singleEv.time,
                 new HandMultiEvent({
                     time: singleEv.time,
-                    unitTime: singleEv.unitTime,
-                    hand: singleEv.hand,
+                    isRightHand: singleEv.isRightHand,
+                    jugglerName: singleEv.jugglerName,
                     events: [singleEv]
                 })
             );

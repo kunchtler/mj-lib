@@ -1,29 +1,25 @@
 import { HandModel } from "./HandModel";
-import { TableModel } from "./TableModel";
+import { PerformanceChild } from "./PerformanceChild";
 
 /**
  * Interface for the constructor of JugglerModel.
  */
-export interface JugglerModelParams {
+export type JugglerModelParams = PerformanceChild & {
     /**
      * The juggler's [leftHand, rightHand].
      */
-    hands?: [HandModel, HandModel];
+    hands: [HandModel, HandModel];
     /**
      * The juggler's name.
      */
-    name?: string;
-    /**
-     * A table the juggler puts props onto (if they have one).
-     */
-    defaultTable?: TableModel;
-}
+    name: string;
+};
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...)  representing a juggler.
  */
-export class JugglerModel {
+export class JugglerModel extends PerformanceChild {
     /**
      * The juggler's [leftHand, rightHand].
      * Can also be accessed with the attributes leftHand and rightHand.
@@ -35,15 +31,11 @@ export class JugglerModel {
      * The juggler's name.
      */
     name: string;
-    /**
-     * A table the juggler puts props onto (if they have one).
-     */
-    defaultTable?: TableModel;
 
-    constructor({ defaultTable, name, hands }: JugglerModelParams = {}) {
-        this.hands = hands ?? [new HandModel({ juggler: this }), new HandModel({ juggler: this })];
-        this.name = name ?? "NoName";
-        this.defaultTable = defaultTable;
+    constructor({ name, hands, performance }: JugglerModelParams) {
+        super({ performance });
+        this.hands = hands;
+        this.name = name;
     }
 
     /**

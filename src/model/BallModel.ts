@@ -7,8 +7,8 @@ import {
     BallTimelineEvent
 } from "./timelines/TimelineEvents";
 import { BallTimeline } from "./timelines/BallTimeline";
-import { JugglerModel } from "./JugglerModel";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
+import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
 
 //TODO : Remove ID alltogether in the whole project for balls. We only have the name (which must be unique) and the eventual sound the ball makes.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -19,34 +19,26 @@ import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 /**
  * Interface for the constructor of BallModel.
  */
-interface BallModelParams {
+type BallModelParams = PerformanceChildParams & {
     /**
-     * The name of the ball. TODO : Will change.
+     * The unique ID of the ball that identifies it from other balls.
      */
-    name?: string;
-    /**
-     * The unique ID amongst of ball of the ball. TODO : Will change.
-     */
-    id?: string;
+    id: string;
     /**
      * The radius of the ball.
      */
     radius?: number;
     /**
-     * The timeline of events (throws, catches, ...) of the ball.
+     * The timeline of events (tosses, catches, ...) of the ball.
      */
     timeline?: BallTimeline;
-    /**
-     * A juggler the ball belongs to (if it makes sense, a ball may travel between jugglers all the time for instance).
-     */
-    defaultJuggler?: JugglerModel;
-}
+};
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a ball.
  */
-export class BallModel {
+export class BallModel extends PerformanceChild {
     /**
      * The radius of the ball.
      */
@@ -56,24 +48,15 @@ export class BallModel {
      */
     id: string;
     /**
-     * The name of the ball. TODO : Will change.
-     */
-    name: string;
-    /**
      * The timeline of events (throws, catches, ...) of the ball.
      */
     timeline: BallTimeline;
-    /**
-     * A juggler the ball belongs to (if it makes sense, a ball may travel between jugglers all the time for instance).
-     */
-    defaultJuggler?: JugglerModel;
 
-    constructor({ radius, id, name, timeline, defaultJuggler }: BallModelParams = {}) {
+    constructor({ radius, id, timeline, performance }: BallModelParams) {
+        super({ performance });
+        this.id = id;
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
-        this.id = id ?? "None";
-        this.name = name ?? "None";
-        this.defaultJuggler = defaultJuggler;
     }
 
     /**
@@ -111,11 +94,25 @@ export class BallModel {
         ) {
             //TableTakeEvent for now here as the ball teleports from table to hand, so is in hand.
             //With proper animations, could change.
-            return event.hand.positionAtEvent(event.handMultiEvent());
+            return this.performance
+                .getHand(event.jugglerName, event.isRightHand)
+                .positionAtEvent(event);
         } else if (event instanceof TablePutEvent) {
-            return event.table.ballPosition(this);
+            return this.positionOnTable(event.tableID, event.spot);
         }
         throw Error("Unimplemented behaviour");
+    }
+
+    /**
+     * Return the ball's position on the table.
+     * @param tableID the unique ID of the table in the performance.
+     * @param spot the spot's name on the table if there is one, undefined otherwise.
+     * @returns the position of the center of the ball.
+     */
+    positionOnTable(tableID: string, spot: string | undefined): THREE.Vector3 {
+        const spotPos = this.performance.getTable(tableID).spotPosition(spot);
+        spotPos.y += this.radius;
+        return spotPos;
     }
 
     /** Returns the ball's position at a given time.
@@ -128,25 +125,18 @@ export class BallModel {
 
         if (prevEvent === null) {
             if (nextEvent === null) {
-                // if (this.defaultTable !== undefined) {
-                //     return this.defaultTable.ballPosition(this);
-                // } else if (this.defaultJuggler?.default_table !== undefined) {
-                //     return this.defaultJuggler.default_table.ballPosition(this);
-                if (this.defaultJuggler?.defaultTable !== undefined) {
-                    return this.defaultJuggler.defaultTable.ballPosition(this);
-                } else {
-                    return new THREE.Vector3(-100, -100, -100);
-                    // this.throwTimelineError(prevEvent, nextEvent);
-                }
+                return new THREE.Vector3(0, -1000, 0);
             }
             if (nextEvent instanceof CatchEvent) {
                 this._throwTimelineError(prevEvent, nextEvent);
             }
             if (nextEvent instanceof TossEvent || nextEvent instanceof TablePutEvent) {
-                return nextEvent.hand.position(time);
+                return this.performance
+                    .getHand(nextEvent.jugglerName, nextEvent.isRightHand)
+                    .position(time);
             }
             if (nextEvent instanceof TableTakeEvent) {
-                return nextEvent.table.ballPosition(this);
+                return this.positionOnTable(nextEvent.tableID, nextEvent.spot);
             }
         }
         if (prevEvent instanceof CatchEvent) {
@@ -155,7 +145,9 @@ export class BallModel {
                 nextEvent instanceof TossEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
-                return prevEvent.hand.position(time);
+                return this.performance
+                    .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
+                    .position(time);
             }
             if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
                 this._throwTimelineError(prevEvent, nextEvent);
@@ -164,18 +156,24 @@ export class BallModel {
         if (prevEvent instanceof TossEvent) {
             if (nextEvent instanceof CatchEvent) {
                 return ballPosition(
-                    prevEvent.hand.positionAtEvent(prevEvent.handMultiEvent()),
+                    this.performance
+                        .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
+                        .positionAtEvent(prevEvent),
                     prevEvent.time,
-                    nextEvent.hand.positionAtEvent(nextEvent.handMultiEvent()),
+                    this.performance
+                        .getHand(nextEvent.jugglerName, nextEvent.isRightHand)
+                        .positionAtEvent(nextEvent),
                     nextEvent.time,
                     time
                 );
             }
             if (nextEvent instanceof TablePutEvent) {
                 return ballPosition(
-                    prevEvent.hand.positionAtEvent(prevEvent.handMultiEvent()),
+                    this.performance
+                        .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
+                        .positionAtEvent(prevEvent),
                     prevEvent.time,
-                    nextEvent.table.ballPosition(this),
+                    this.positionOnTable(nextEvent.tableID, nextEvent.spot),
                     nextEvent.time,
                     time
                 );
@@ -190,7 +188,7 @@ export class BallModel {
         }
         if (prevEvent instanceof TablePutEvent) {
             if (nextEvent === null || nextEvent instanceof TableTakeEvent) {
-                return prevEvent.table.ballPosition(this);
+                return this.positionOnTable(prevEvent.tableID, prevEvent.spot);
             }
             if (
                 nextEvent instanceof CatchEvent ||
@@ -206,7 +204,9 @@ export class BallModel {
                 nextEvent instanceof TossEvent ||
                 nextEvent instanceof TablePutEvent
             ) {
-                return prevEvent.hand.position(time);
+                return this.performance
+                    .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
+                    .position(time);
             }
             if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
                 this._throwTimelineError(prevEvent, nextEvent);
@@ -227,12 +227,12 @@ export class BallModel {
         let nextEvent: BallTimelineEvent | null;
         let isTossed: boolean;
         if (event instanceof CatchEvent) {
-            prevEvent = event.prevBallEvent()[1];
+            prevEvent = this.performance.getBall(event.ballID).timeline.prevEvent(event.time)[1];
             nextEvent = event;
             isTossed = false;
         } else {
             prevEvent = event;
-            nextEvent = event.nextBallEvent()[1];
+            nextEvent = this.performance.getBall(event.ballID).timeline.nextEvent(event.time)[1];
             isTossed = true;
         }
         //Validation of events ?

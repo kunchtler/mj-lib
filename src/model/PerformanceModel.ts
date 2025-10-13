@@ -1,4 +1,5 @@
 import { BallModel } from "./BallModel.js";
+import { HandModel } from "./HandModel.js";
 import { JugglerModel } from "./JugglerModel.js";
 import { TableModel } from "./TableModel.js";
 // import { Map as FrozenMap, MapOf } from "immutable";
@@ -88,5 +89,33 @@ export class PerformanceModel {
             startTime === null ? startTime : startTime - 2,
             endTime === null ? endTime : endTime + 2
         ];
+    }
+
+    getJuggler(jugglerName: string): JugglerModel {
+        const jugglerModel = this.jugglers.get(jugglerName);
+        if (jugglerModel === undefined) {
+            throw Error(`Unknown juggler name "${jugglerName}"`);
+        }
+        return jugglerModel;
+    }
+
+    getHand(jugglerName: string, isRightHand: boolean): HandModel {
+        return this.getJuggler(jugglerName).hands[isRightHand ? 1 : 0];
+    }
+
+    getBall(ballID: string): BallModel {
+        const ballModel = this.balls.get(ballID);
+        if (ballModel === undefined) {
+            throw Error(`Unknown ball ID "${ballID}"`);
+        }
+        return ballModel;
+    }
+
+    getTable(tableID: string): TableModel {
+        const TableModel = this.tables.get(tableID);
+        if (TableModel === undefined) {
+            throw Error(`Unknown table name "${tableID}"`);
+        }
+        return TableModel;
     }
 }

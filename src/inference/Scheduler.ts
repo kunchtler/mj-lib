@@ -132,6 +132,7 @@ type JugglerCache = {
 
 ///////////////////// Symbolic Events Layer types //////////////////////
 
+//TODO : Uniformiser avec LocType ?
 export type SymbolicToss<BeatT> = {
     from: { juggler: string; handIdx: number; ballIdx: number; beat: BeatT };
     to: { juggler: string; handIdx: number; ballIdx: number; beat: BeatT };
