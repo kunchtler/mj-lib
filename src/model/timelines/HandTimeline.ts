@@ -1,13 +1,5 @@
 import { Timeline } from "../../utils/Timeline";
-import {
-    HandTimelineEvent,
-    HandTimelineSingleEvent,
-    HandMultiEvent,
-    CatchEvent,
-    TossEvent,
-    TableTakeEvent
-} from "./TimelineEvents";
-
+import { HandTimelineEvent } from "./HandTimelineEvents";
 /**
  * Represents the timeline of a hand in the model.
  *
@@ -16,6 +8,12 @@ import {
  * is a **multi-event** made of multiple **single-events**.
  */
 export class HandTimeline extends Timeline<number, HandTimelineEvent> {
+    _timeline: Timeline<number, HandTimelineEvent>;
+
+    constructor({});
+
+    prevState(time: number, strict = false);
+
     prevEvent(time: number, strict = false): [number, HandTimelineEvent] | [null, null] {
         let lastEvent = super.prevEvent(time, strict);
         while (lastEvent[0] !== null && lastEvent[1].events.length === 0) {

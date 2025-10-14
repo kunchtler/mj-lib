@@ -70,6 +70,8 @@ export class HandModel extends PerformanceChild {
      * for its foreseable future.
      */
     restPos: THREE.Vector3;
+    // Relative to the hand.
+    // handSubPos: THREE.Vector3[];
     /**
      * The timeline of events (throws, catches, ...) of the hand.
      */

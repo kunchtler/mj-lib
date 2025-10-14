@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import {
-    CatchEvent,
-    TossEvent,
-    TablePutEvent,
-    TableTakeEvent,
-    BallTimelineEvent
-} from "./timelines/TimelineEvents";
+    AirborneBallEvent,
+    BallTimelineEvent,
+    BaseBallEvent,
+    HeldBallEvent,
+    TableBallEvent
+} from "./timelines/BallTimelineEvents";
 import { BallTimeline } from "./timelines/BallTimeline";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
 import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
@@ -15,6 +15,8 @@ import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
 //TODO : What is readonly ?
 //TODO : velocity
 //TODO : acceleration
+
+const VERY_VERY_FAR_POS: THREE.Vector3Tuple = [0, -1000, 0];
 
 /**
  * Interface for the constructor of BallModel.
@@ -120,99 +122,71 @@ export class BallModel extends PerformanceChild {
      * @returns The position of the ball at that given time.
      */
     position(time: number): THREE.Vector3 {
-        const [, prevEvent] = this.timeline.prevEvent(time);
-        const [, nextEvent] = this.timeline.nextEvent(time);
+        const [prevEventTime, prevEvent] = this.timeline.prevEvent(time);
 
         if (prevEvent === null) {
+            // We need to look at the next event to figure out where the ball
+            // should be.
+            const [, nextEvent] = this.timeline.nextEvent(time);
             if (nextEvent === null) {
-                return new THREE.Vector3(0, -1000, 0);
-            }
-            if (nextEvent instanceof CatchEvent) {
+                return new THREE.Vector3(...VERY_VERY_FAR_POS);
+            } else if (nextEvent.type === "airborne") {
                 this._throwTimelineError(prevEvent, nextEvent);
-            }
-            if (nextEvent instanceof TossEvent || nextEvent instanceof TablePutEvent) {
+                return new THREE.Vector3(...VERY_VERY_FAR_POS);
+            } else if (nextEvent.type === "held") {
                 return this.performance
-                    .getHand(nextEvent.jugglerName, nextEvent.isRightHand)
+                    .getHand(nextEvent.jugglerName, nextEvent.rightHand)
                     .position(time);
-            }
-            if (nextEvent instanceof TableTakeEvent) {
+            } else {
                 return this.positionOnTable(nextEvent.tableID, nextEvent.spot);
             }
-        }
-        if (prevEvent instanceof CatchEvent) {
-            if (
-                nextEvent === null ||
-                nextEvent instanceof TossEvent ||
-                nextEvent instanceof TablePutEvent
-            ) {
-                return this.performance
-                    .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
-                    .position(time);
-            }
-            if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
+        } else if (prevEvent.type === "airborne") {
+            // Check if the ball flies toward something we can interpret as a target.
+            const [nextEventTime, nextEvent] = this.timeline.nextEvent(time);
+            if (nextEvent === null || nextEvent.type === "airborne") {
                 this._throwTimelineError(prevEvent, nextEvent);
-            } //Stop the looping if was set to loop.
-        }
-        if (prevEvent instanceof TossEvent) {
-            if (nextEvent instanceof CatchEvent) {
-                return ballPosition(
-                    this.performance
-                        .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
-                        .positionAtEvent(prevEvent),
-                    prevEvent.time,
-                    this.performance
-                        .getHand(nextEvent.jugglerName, nextEvent.isRightHand)
-                        .positionAtEvent(nextEvent),
-                    nextEvent.time,
-                    time
-                );
+                return new THREE.Vector3(...VERY_VERY_FAR_POS);
             }
-            if (nextEvent instanceof TablePutEvent) {
-                return ballPosition(
-                    this.performance
-                        .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
-                        .positionAtEvent(prevEvent),
-                    prevEvent.time,
-                    this.positionOnTable(nextEvent.tableID, nextEvent.spot),
-                    nextEvent.time,
-                    time
-                );
-            }
-            if (
-                nextEvent === null ||
-                nextEvent instanceof TossEvent ||
-                nextEvent instanceof TableTakeEvent
-            ) {
+
+            // Check if the ball files from something that we can understand as an origin.
+            const [, prevPrevEvent] = this.timeline.prevEvent(prevEventTime, true);
+            if (prevPrevEvent === null || prevPrevEvent.type === "airborne") {
                 this._throwTimelineError(prevEvent, nextEvent);
+                return new THREE.Vector3(...VERY_VERY_FAR_POS);
             }
+
+            // Compute the targets.
+            let toPos: THREE.Vector3;
+            if (nextEvent.type === "held") {
+                // TODO : Compute catch position.
+                toPos = this.performance
+                    .getHand(nextEvent.jugglerName, nextEvent.rightHand)
+                    .ballPositionAtEvent(time);
+            } else {
+                toPos = this.positionOnTable(nextEvent.tableID, nextEvent.spot);
+            }
+
+            let fromPos: THREE.Vector3;
+            if (prevPrevEvent.type === "held") {
+                // TODO : Compute toss position.
+                // Notice we get the hand from the prevPrevEvent,
+                // But we get the toss time from the prevEvent.
+                fromPos = this.performance
+                    .getHand(prevPrevEvent.jugglerName, prevPrevEvent.rightHand)
+                    .ballPositionAtEvent(time);
+            } else {
+                fromPos = this.positionOnTable(prevPrevEvent.tableID, prevPrevEvent.spot);
+            }
+
+            // Compute where we are in the air.
+            return ballPosition(fromPos, prevEventTime, toPos, nextEventTime, time);
+        } else if (prevEvent.type === "held") {
+            return this.performance
+                .getHand(prevEvent.jugglerName, prevEvent.rightHand)
+                .position(time);
+        } else {
+            return this.positionOnTable(prevEvent.tableID, prevEvent.spot);
         }
-        if (prevEvent instanceof TablePutEvent) {
-            if (nextEvent === null || nextEvent instanceof TableTakeEvent) {
-                return this.positionOnTable(prevEvent.tableID, prevEvent.spot);
-            }
-            if (
-                nextEvent instanceof CatchEvent ||
-                nextEvent instanceof TossEvent ||
-                nextEvent instanceof TablePutEvent
-            ) {
-                this._throwTimelineError(prevEvent, nextEvent);
-            }
-        }
-        if (prevEvent instanceof TableTakeEvent) {
-            if (
-                nextEvent === null ||
-                nextEvent instanceof TossEvent ||
-                nextEvent instanceof TablePutEvent
-            ) {
-                return this.performance
-                    .getHand(prevEvent.jugglerName, prevEvent.isRightHand)
-                    .position(time);
-            }
-            if (nextEvent instanceof CatchEvent || nextEvent instanceof TableTakeEvent) {
-                this._throwTimelineError(prevEvent, nextEvent);
-            }
-        }
-        throw Error("Unimplemented behaviour");
     }
 
     //TODO : Extend to any event.
@@ -222,17 +196,17 @@ export class BallModel extends PerformanceChild {
      * @param event the event.
      * @returns the velocity at that time.
      */
-    velocityAtCatchTossEvent(event: CatchEvent | TossEvent): THREE.Vector3 {
+    velocityOnCatchOrToss(event: AirborneBallEvent, on: "catch" | "toss"): THREE.Vector3 {
         let prevEvent: BallTimelineEvent | null;
         let nextEvent: BallTimelineEvent | null;
         let isTossed: boolean;
         if (event instanceof CatchEvent) {
-            prevEvent = this.performance.getBall(event.ballID).timeline.prevEvent(event.time)[1];
+            prevEvent = this.timeline.prevEvent(event.time)[1];
             nextEvent = event;
             isTossed = false;
         } else {
             prevEvent = event;
-            nextEvent = this.performance.getBall(event.ballID).timeline.nextEvent(event.time)[1];
+            nextEvent = this.timeline.nextEvent(event.time)[1];
             isTossed = true;
         }
         //Validation of events ?

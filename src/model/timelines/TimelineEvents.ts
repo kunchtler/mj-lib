@@ -218,9 +218,9 @@ export class TablePutEvent extends AbstractBallTableHandEvent {
 /**
  * Event when a ball is taken from a table with a hand.
  */
-export class TableTakeEvent extends AbstractBallTableHandEvent {
-    readonly actionDescription = "taken from table";
-}
+// export class TableTakeEvent extends AbstractBallTableHandEvent {
+//     readonly actionDescription = "taken from table";
+// }
 
 export type HandMultiEventParams<T extends HandEventInterface> = AbstractHandEventParams & {
     events?: T[];
