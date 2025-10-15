@@ -1,4 +1,6 @@
 import { JSONJugglingScore } from "../inference/PerformanceDescription";
+import { JSONJugglingScoreToModel } from "../model";
+import { FracTimedErrorLogger, TimedErrorLogger } from "../utils";
 
 // Simple test with two phrases.
 // Test L / R modifier.
@@ -413,6 +415,9 @@ export const score11: JSONJugglingScore = {
         }
     ]
 };
+
+const errorLogger = new FracTimedErrorLogger();
+JSONJugglingScoreToModel(score2, errorLogger);
 
 //TODO : Passing notation IF there are only 2 jugglers ?
 //TODO : Unintuitive ordering of balls when specifying ? (would we want for the first we write to be the first tossed) ?

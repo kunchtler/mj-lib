@@ -1,3 +1,5 @@
+// TODO : UPDATE
+
 Multiple classes describing the model, ie computing the positions of various elements of a troup at given times (eg : jugglers, balls, etc).
 
 ## How and why are the model / view / controller split that way ?

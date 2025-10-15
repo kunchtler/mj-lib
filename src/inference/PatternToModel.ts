@@ -29,7 +29,7 @@ import {
 } from ".";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 
-import { score11 as score } from "../examples/patternTest";
+// import { score11 as score } from "../examples/patternTest";
 import { Timeline } from "../utils/Timeline";
 import { FracTimeline } from "../utils/FracTimeline";
 
@@ -51,7 +51,7 @@ import { FracTimeline } from "../utils/FracTimeline";
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
 
-JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
+// JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
 
 export function JSONJugglingScoreToModel(
     JSONJugglingScore: JSONJugglingScore,
@@ -88,7 +88,6 @@ export function JSONJugglingScoreToModel(
 
     // 4. Parse each juggling phrase and format them.
     // Complete each information we can by looking at jugglers individually.
-    // 5. Use the scheduler to infer the complete timeline of events.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();
     for (const juggler of jugglingScore.jugglers) {
         const events =
@@ -115,47 +114,52 @@ export function JSONJugglingScoreToModel(
         schedulerJugglers.set(juggler.name, { events, initialState, tableSpots });
     }
 
+    // 5. Use the scheduler to infer the complete timeline of events.
     const schedulerOutput = new Scheduler({
         ballIDMap: ballIDToTemplateName,
         jugglers: schedulerJugglers
     }).validatePattern();
 
+    // 5b. Console logs.
     console.log("Global Errors :\n");
     errorLogger.printErrorsInConsole();
     console.log("\n");
     for (const [jugglerName, { errorLogger, events, states }] of schedulerOutput) {
         console.log(`Juggler ${jugglerName} :\n`);
-        const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
-        for (const { beat, ...state } of states) {
-            tmp.setElement(beat, { state: state });
-        }
-        for (const ev of events) {
-            const elem = tmp.getElementByKey(ev.beat);
-            if (elem !== undefined) {
-                elem.event = ev;
-            } else {
-                tmp.setElement(ev.beat, { event: ev });
-            }
-        }
-        for (const [beat, { state, event }] of tmp) {
-            console.log(stringifyStateEvent(beat, state, event));
-            console.log("\n");
-        }
-        // console.log("States:\n");
-        // states.forEach((elem) => {
-        //     console.log(stringifyState(elem, elem.beat) + "\n");
-        // });
-        // console.log("Events:\n");
-        // events.forEach((elem) => {
-        //     console.log(stringifyEvent(elem) + "\n");
-        // });
-        // console.log("Errors:\n");
+        // const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
+        // for (const { beat, ...state } of states) {
+        //     tmp.setElement(beat, { state: state });
+        // }
+        // for (const ev of events) {
+        //     const elem = tmp.getElementByKey(ev.beat);
+        //     if (elem !== undefined) {
+        //         elem.event = ev;
+        //     } else {
+        //         tmp.setElement(ev.beat, { event: ev });
+        //     }
+        // }
+        // for (const [beat, { state, event }] of tmp) {
+        //     console.log(stringifyStateEvent(beat, state, event));
+        //     console.log("\n");
+        // }
+        console.log("States:\n");
+        states.forEach((elem) => {
+            console.log(stringifyState(elem, elem.beat) + "\n");
+        });
+        console.log("Events:\n");
+        events.forEach((elem) => {
+            console.log(stringifyEvent(elem) + "\n");
+        });
+        console.log("Errors:\n");
         errorLogger.printErrorsInConsole();
     }
-    console.log("Fini");
-    // 6. TODO : here. Or stop at 5 ? ??? Simulate (?) the timeline ???
+    console.log("Fini\n\n");
 
-    // TODO Today : Once all IDs have been scanned, give unused IDs to other balls. (when to do ? In scheduler only right ?)
+    // 6. Create the timelines.
+
+    // 7. Combine timelines with positions to create models.
+
+    // 8. All done.
 
     //TODO : Rename to parser only ? Name of method a bit convoluted.
     // const schedulerParams = parserParamsToSchedulerParams(parserParams);

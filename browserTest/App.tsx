@@ -155,9 +155,9 @@ for (const { name, position, unknownSpot, spots } of description.tablesData) {
     const tableModel = model.tables.get(name)!;
     const tablePosition = new THREE.Vector3(...position);
     for (const [ballSound, ballPosition] of spots) {
-        tableModel.ballsSpots.set(ballSound, new THREE.Vector3(...ballPosition).add(tablePosition));
+        tableModel.spots.set(ballSound, new THREE.Vector3(...ballPosition).add(tablePosition));
     }
-    tableModel.unkownBallSpot = new THREE.Vector3(...unknownSpot).add(tablePosition);
+    tableModel.unkownSpot = new THREE.Vector3(...unknownSpot).add(tablePosition);
 }
 
 console.log(model.balls.get("Mi?K")!.timeline.stringify());

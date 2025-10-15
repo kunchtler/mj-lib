@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { FracSortedList, SimulatorEvent, Hands } from "./old_Scheduler";
+import { Hands, SymbolicEvent } from "./Scheduler";
 import { ScoreConverter, MusicTempo } from "./ScoreConverter";
 import {
     CatchEvent,
@@ -14,16 +14,21 @@ import { JugglerModel } from "../model/JugglerModel";
 import { HandModel } from "../model/HandModel";
 import { BallModel } from "../model/BallModel";
 import { TableModel } from "../model/TableModel";
+import { HandTimeline } from "../model/timelines/HandTimeline";
+import { BallTimeline } from "../model/timelines/BallTimeline";
 
 //TODO : In balls, rename "name" to "ID".
 //TODO : Rename MusicBeatConverter to MusicConverter ?
+
+export const MAX_TABLE_UNIT_TRANSITION_TIME = 0.5;
+export const MAX_TIME_SS_HEIGHT_1 = 0.25;
 
 export type PostSchedulerParams = {
     jugglers: Map<
         string,
         {
             table?: string;
-            events: FracSortedList<SimulatorEvent<Fraction>>;
+            events: SymbolicEvent<Fraction>[];
         }
     >;
     musicConverter: ScoreConverter;
@@ -38,6 +43,183 @@ export type PostSchedulerParams = {
     >;
 };
 
+export type PerformanceTimelines = {
+    jugglers: Map<string, [HandTimeline, HandTimeline]>;
+    balls: Map<string, BallTimeline>;
+};
+
+export function createModelTimelines({
+    jugglers,
+    ballIDs,
+    scoreConverter
+}: {
+    ballIDs: Set<string>;
+    jugglers: Map<string, SymbolicEvent<Fraction>[]>;
+    scoreConverter: ScoreConverter;
+}): PerformanceTimelines {
+    // Create blank timelines for balls and jugglers.
+    const jugglerTimelines = new Map<string, [HandTimeline, HandTimeline]>();
+    const ballTimelines = new Map<string, BallTimeline>();
+    for (const jugglerName of jugglers.keys()) {
+        jugglerTimelines.set(jugglerName, [new HandTimeline(), new HandTimeline()]);
+    }
+    for (const ballID of ballIDs.keys()) {
+        ballTimelines.set(ballID, new BallTimeline());
+    }
+
+    // TODO : In converting real time, NEED TO USE SCORE CONVERTER
+
+    // Populate each timeline.
+    for (const [jugglerName, events] of jugglers) {
+        for (const ev of events) {
+            // TODO : Change this to truly have hand exchanges, ... by adding events ?
+            // FOR NOW, if we exchange a ball hands, we put it on random table spot and retrieve it later.
+            // Have somthing ebetter later with proper exchange.
+            // TODO : Handle hand subposition.
+            // TODO : Rework OnNamed/Unamed spot for loc, and instead have the spot be null or undefined ?
+            // 1. Identify the different moves needed by hand.
+            // TODO : Fix problem of balls not used aving no event in timeline and thus disappearing.
+            const ballsToPutOnTable: [
+                { ballID: string; spot?: string }[],
+                { ballID: string; spot?: string }[]
+            ] = [[], []];
+            const ballsToTakeFromTable: [{ ballID: string }[], { ballID: string }[]] = [[], []];
+            for (const ball of ev.setupHands ?? []) {
+                if (ball.from.type === "held") {
+                    if (ball.to.type === "held") {
+                        if (ball.from.handIdx !== ball.to.handIdx) {
+                            ballsToPutOnTable[ball.from.handIdx].push({
+                                ballID: ball.id,
+                                spot: undefined
+                            });
+                            ballsToTakeFromTable[ball.to.handIdx].push({ ballID: ball.id });
+                        }
+                    } else if (ball.to.type === "onTableSpot") {
+                        ballsToPutOnTable[ball.from.handIdx].push({
+                            ballID: ball.id,
+                            spot: ball.to.spotName
+                        });
+                    } else {
+                        ballsToPutOnTable[ball.from.handIdx].push({
+                            ballID: ball.id,
+                            spot: undefined
+                        });
+                    }
+                } else if (ball.from.type === "onTableSpot") {
+                    if (ball.to.type === "held") {
+                        ballsToTakeFromTable[ball.to.handIdx].push({ ballID: ball.id });
+                    } else {
+                        console.warn("Hand setup not supported.");
+                    }
+                } else {
+                    if (ball.to.type === "held") {
+                        ballsToTakeFromTable[ball.to.handIdx].push({ ballID: ball.id });
+                    } else {
+                        console.warn("Hand setup not supported.");
+                    }
+                }
+            }
+
+            // 2. Simulate the moves.
+            const nbMovesPut = Math.max(ballsToPutOnTable[0].length, ballsToPutOnTable[1].length);
+            const nbMovesTake = Math.max(
+                ballsToTakeFromTable[0].length,
+                ballsToTakeFromTable[1].length
+            );
+            const totalTimeToPerformExchange = ev;
+            for (let i = 0; i < 2; i++) {
+                // Compute the available time to perform those operations.
+                const nbMoves = ballsToPutOnTable[i].length + ballsToTakeFromTable[i].length;
+                let timePerMove = endTime.sub(startTime).div(nbMoves + 1);
+                const maxTimePerMove = new Fraction("1/2");
+                if (timePerMove.gt(maxTimePerMove)) {
+                    timePerMove = maxTimePerMove;
+                }
+                // And simulate the moves.
+                let time = endTime.sub(timePerMove.mul(nbMoves));
+                for (const ball of ballsToPutOnTable[i]) {
+                    putOnTable({
+                        ball: ball,
+                        time: time,
+                        hand: juggler.hands[i],
+                        table: table,
+                        unitTime: unitTime
+                    });
+                    time = time.add(timePerMove);
+                }
+                for (const ball of ballsToTakeFromTable[i]) {
+                    takeFromTable({
+                        ball: ball,
+                        time: time,
+                        hand: juggler.hands[i],
+                        table: table,
+                        unitTime: unitTime
+                    });
+                    time = time.add(timePerMove);
+                }
+            }
+
+            // Simulate toss.
+            for (const toss of ev.tosses) {
+                // Compute dwell times for a toss.
+                // x----DwellToss----x-----------Airtime-----------x----DwellCatch----x
+                // ^                 ^                             ^                  ^
+                // theoretic toss    real toss            real catch    theoretic catch
+                let dwellTimeBeforeToss: number;
+                // The toss happens on beat.
+                const dwellTimeAfterCatch = 0;
+                if (toss.mode.type === "Height") {
+                    if (toss.mode.height === 1) {
+                        dwellTimeBeforeToss = Math.min(
+                            ev.tempo.valueOf() * 0.5,
+                            MAX_TIME_SS_HEIGHT_1
+                        );
+                    } else {
+                        dwellTimeBeforeToss = Math.min(ev.tempo.valueOf() * 0.7);
+                    }
+                } else {
+                    dwellTimeBeforeToss = Math.min(ev.tempo.valueOf() * 0.7);
+                }
+
+                // Create and add toss / catch events.
+                const tossEv = new TossEvent({
+                    time: toss.from.beat.valueOf() + dwellTimeBeforeToss,
+                    ballID: toss.ballID,
+                    jugglerName: toss.from.juggler,
+                    isRightHand: toss.from.handIdx === 1,
+                    handSubIdx: toss.from.ballIdx,
+                    siteswapHeight: toss.mode.type === "Height" ? toss.mode.height : undefined,
+                    sound: undefined //TODO
+                    // TODO Add dwell field. Organised as "info" and READONLY??
+                });
+                const catchEv = new CatchEvent({
+                    time: toss.to.beat.valueOf() - dwellTimeAfterCatch,
+                    ballID: toss.ballID,
+                    jugglerName: toss.to.juggler,
+                    isRightHand: toss.to.handIdx === 1,
+                    handSubIdx: toss.to.ballIdx,
+                    siteswapHeight: toss.mode.type === "Height" ? toss.mode.height : undefined, //TODO : Remove this field.
+                    //TODO : Add dwell field or useless ???
+                    sound: undefined //TODO
+                });
+                const ballTimeline = ballTimelines.get(toss.ballID)!;
+                const tossHandTimeline = jugglerTimelines.get(toss.from.juggler)![
+                    toss.from.handIdx
+                ];
+                const catchHandTimeline = jugglerTimelines.get(toss.to.juggler)![toss.to.handIdx];
+                ballTimeline.addEvent(tossEv);
+                ballTimeline.addEvent(catchEv);
+                tossHandTimeline.addEvent(tossEv);
+                catchHandTimeline.addEvent(catchEv);
+            }
+        }
+    }
+
+    return { jugglers: jugglerTimelines, balls: ballTimelines };
+}
+
+export function createModels({}: { timelines: PerformanceTimelines });
+
 //TODO : Properly add support for sounds on balls, presence or absence of table, world info ?
 export function simulateEvents({
     jugglers,
@@ -49,7 +231,7 @@ export function simulateEvents({
     for (const [jugglerName, { table }] of jugglers) {
         let tableModel: TableModel | undefined = undefined;
         if (table !== undefined) {
-            tableModel = new TableModel({ name: table });
+            tableModel = new TableModel({ id: table });
             model.tables.set(table, tableModel); //TODO : Customize.
         }
         model.jugglers.set(
@@ -76,34 +258,7 @@ export function simulateEvents({
             const fromUnitTime = jugglerUnitTime(tempoFrom, fromMusicTempo);
             const fromTime = musicConverter.convertBeatToRealTime(beat);
             // We simulate each toss.
-            for (const toss of tosses) {
-                const toMusicTempo = musicConverter.getTempo(toss.to.beat);
-                const ballSounds = ballIDSounds.get(toss.ball.id)!;
-                const toJuggler = jugglers.get(toss.to.juggler)!;
-                let evIdx = toJuggler.events.findIndex((value) => value[0].gte(toss.to.beat));
-                if (evIdx === -1) {
-                    evIdx = toJuggler.events.length - 1;
-                }
-                const toTempo = toJuggler.events[evIdx][1].tempo;
-                const siteswapHeight = toss.mode.type === "Height" ? toss.mode.height : undefined;
-                simulateToss({
-                    ball: model.balls.get(toss.ball.id)!,
-                    tossInfo: {
-                        time: fromTime,
-                        hand: fromJuggler.hands[toss.from.rightHand ? 1 : 0],
-                        // sound: ballSounds.onToss,
-                        unitTime: fromUnitTime,
-                        siteswapHeight: siteswapHeight
-                    },
-                    catchInfo: {
-                        time: musicConverter.convertBeatToRealTime(toss.to.beat),
-                        hand: model.jugglers.get(toss.to.juggler)!.hands[toss.to.rightHand ? 1 : 0],
-                        // sound: ballSounds.onCatch,
-                        sound: ballSounds,
-                        unitTime: jugglerUnitTime(toTempo, toMusicTempo)
-                    }
-                });
-            }
+
             // And we simulate each hand change.
             // Except if it is the first event, as balls will already be in hands.
             if (hands !== undefined && evIdx !== 0) {
@@ -136,45 +291,8 @@ export function simulateEvents({
     return model;
 }
 
-function simulateToss({
-    ball,
-    tossInfo,
-    catchInfo
-}: {
-    ball: BallModel;
-    tossInfo: {
-        time: Fraction;
-        hand: HandModel;
-        unitTime: Fraction;
-        sound?: string | EventSound;
-        siteswapHeight?: number;
-    };
-    catchInfo: { time: Fraction; hand: HandModel; unitTime: Fraction; sound?: string | EventSound };
-    // ss_height: number,
-}): void {
-    // const time_offset = ss_height <= 1 ? unit_time / 3 : (unit_time * 7) / 10;
-    const timeOffset = tossInfo.unitTime.mul("7/10"); //TODO
-    const tossEv = new TossEvent({
-        time: tossInfo.time.add(timeOffset).valueOf(),
-        unitTime: tossInfo.unitTime.valueOf(),
-        sound: tossInfo.sound,
-        ball: ball,
-        hand: tossInfo.hand,
-        siteswapHeight: tossInfo.siteswapHeight
-    });
-    const catchEv = new CatchEvent({
-        time: catchInfo.time.valueOf(),
-        unitTime: catchInfo.unitTime.valueOf(),
-        sound: catchInfo.sound,
-        ball: ball,
-        hand: catchInfo.hand,
-        siteswapHeight: tossInfo.siteswapHeight
-    });
-    ball.timeline.addEvent(tossEv);
-    ball.timeline.addEvent(catchEv);
-    tossInfo.hand.timeline.addEvent(tossEv);
-    catchInfo.hand.timeline.addEvent(catchEv);
-}
+function computeDwellTime() {}
+function simulateToss(): void {}
 
 //TODO : Differentiate the Ball from scheduler and from simulator;
 //TODO : Remove exchange hands ? Put / Take from table instead ?
@@ -245,55 +363,8 @@ function changeHandsContents({
     }
 }
 
-function putOnTable({
-    ball,
-    time,
-    hand,
-    table,
-    unitTime
-}: {
-    ball: BallModel;
-    time: Fraction;
-    hand: HandModel;
-    table: TableModel;
-    unitTime: Fraction;
-}): void {
-    const timeOffset = unitTime.div(3); //TODO : Pb if next event too close :/
-    const ev = new TablePutEvent({
-        time: time.add(timeOffset).valueOf(),
-        unitTime: unitTime.valueOf(),
-        ball: ball,
-        hand: hand,
-        table: table
-    });
-    ball.timeline.addEvent(ev);
-    hand.timeline.addEvent(ev);
-}
-
-function takeFromTable({
-    ball,
-    time,
-    hand,
-    table,
-    unitTime
-}: {
-    ball: BallModel;
-    time: Fraction;
-    hand: HandModel;
-    table: TableModel;
-    unitTime: Fraction;
-}): void {
-    const timeOffset = unitTime.div(3); //TODO : Pb if next event too close :/
-    const ev = new TableTakeEvent({
-        time: time.add(timeOffset).valueOf(),
-        unitTime: unitTime.valueOf(),
-        ball: ball,
-        hand: hand,
-        table: table
-    });
-    ball.timeline.addEvent(ev);
-    hand.timeline.addEvent(ev);
-}
+function putOnTable() {}
+function takeFromTable() {}
 
 // function exchangeBallHands({
 //     ball,
