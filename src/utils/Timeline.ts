@@ -8,6 +8,18 @@ import { initContainer } from "js-sdsl/dist/esm/container/ContainerBase";
  * Internally, uses js-sdsl OrderedMap class to keep elements ordered as they are added.
  */
 export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventType> {
+    constructor({
+        container,
+        cmpTime,
+        enableIndex
+    }: {
+        container?: initContainer<[TimeType, EventType]>;
+        cmpTime?: (x: TimeType, y: TimeType) => number;
+        enableIndex?: boolean;
+    }) {
+        super(container, cmpTime, enableIndex);
+    }
+
     /**
      * Get the closest event before a given time.
      * @param time a time to search for.
