@@ -16,7 +16,7 @@ export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventTyp
         container?: initContainer<[TimeType, EventType]>;
         cmpTime?: (x: TimeType, y: TimeType) => number;
         enableIndex?: boolean;
-    }) {
+    } = {}) {
         super(container, cmpTime, enableIndex);
     }
 
@@ -142,7 +142,7 @@ export class MultiTimeline<TimeType, EventType> extends OrderedMap<TimeType, Eve
         cmpEvent?: (x: EventType, y: EventType) => boolean;
         enableIndex?: boolean;
         autoRemoveEmptyEvents?: boolean;
-    }) {
+    } = {}) {
         super(container, cmpTime, enableIndex);
         this.autoRemoveEmptyEvents = autoRemoveEmptyEvents ?? true;
         this.cmpEvent = cmpEvent ?? ((x: EventType, y: EventType) => x === y);
