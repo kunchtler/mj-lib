@@ -1,29 +1,30 @@
 import { Timeline } from "../../utils/Timeline";
-import { BallTimelineEvent } from "./BallTimelineEvents";
 
-//TODO : Fuse or rearrange names of BallTimeline and BallModel ?
+// export type BaseBallEvent = {
+//     ballID: number;
+//     // soundOnEvent?: SoundSpec;
+//     // stopPreviousSound?: boolean;
+// };
 
-/**
- * Represents the timeline of a ball in the model.
- */
-export class BallTimeline extends Timeline<number, BallTimelineEvent> {
-    /**
-     * Add an event in the timeline (at time event.time)
-     * @param ev the event to add.
-     */
-    addEvent(time: number, ev: BallTimelineEvent): void {
-        this.setElement(time, ev);
-    }
+// TODO : Unify with scheduler LocType ?
 
-    /**
-     * Create a string of the whole timeline in a human friendly fashion.
-     * @returns a string.
-     */
-    // TODO : Add
-    // stringify(): string {
-    //     return super.stringify(
-    //         (key) => `${key}s`,
-    //         (elem) => elem.stringify()
-    //     );
-    // }
-}
+export type AirborneBallEvent = {
+    type: "airborne";
+};
+
+export type HeldBallEvent = {
+    type: "held";
+    jugglerName: string;
+    rightHand: boolean;
+    posIdx: number;
+};
+
+export type TableBallEvent = {
+    type: "table";
+    tableID: string;
+    spot: string | undefined;
+};
+
+export type BallEvent = AirborneBallEvent | HeldBallEvent | TableBallEvent;
+
+export class BallTimeline extends Timeline<number, BallEvent> {}
