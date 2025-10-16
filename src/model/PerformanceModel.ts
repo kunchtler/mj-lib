@@ -1,6 +1,8 @@
+import { Object3D, Vector3 } from "three";
 import { BallModel } from "./BallModel.js";
 import { HandModel } from "./HandModel.js";
 import { JugglerModel } from "./JugglerModel.js";
+import { MapCallbacks } from "./MapCallbacks.js";
 import { TableModel } from "./TableModel.js";
 // import { Map as FrozenMap, MapOf } from "immutable";
 
@@ -21,6 +23,11 @@ import { TableModel } from "./TableModel.js";
 // TODO : Handle adding / removing juggler / patterns + sanitizing
 
 // All positions must be given either as world coordinates, or local coordinates to the same object.
+
+/**
+ * Position where objects will go in case of an error or empty timeline.
+ */
+export const VERY_VERY_FAR_VEC = new Vector3(0, -1000, 0);
 
 /**
  * Interface for the constructor of PerformanceModel.
@@ -49,20 +56,69 @@ export class PerformanceModel {
     /**
      * The balls used in the performance.
      */
-    balls: Map<string, BallModel>;
+    balls: MapCallbacks<string, BallModel>;
     /**
      * The jugglers involved in the performance.
      */
-    jugglers: Map<string, JugglerModel>;
+    jugglers: MapCallbacks<string, JugglerModel>;
     /**
      * The tables used in the performance.
      */
-    tables: Map<string, TableModel>;
+    tables: MapCallbacks<string, TableModel>;
+
+    readonly _object: Object3D;
 
     constructor({ balls, jugglers, tables }: PerformanceModelParams = {}) {
-        this.balls = balls ?? new Map<string, BallModel>();
-        this.jugglers = jugglers ?? new Map<string, JugglerModel>();
-        this.tables = tables ?? new Map<string, TableModel>();
+        this._object = new Object3D();
+
+        const permanentObject = this._object;
+        const onBallSet = (ballID: string, ballModel: BallModel) => {
+            ballModel.performance.set(this);
+            permanentObject.add(ballModel._object);
+        };
+        const onBallDelete = (ballID: string, ballModel?: BallModel) => {
+            if (ballModel !== undefined) {
+                ballModel.performance.set(undefined);
+                permanentObject.remove(ballModel._object);
+            }
+        };
+        this.balls = new MapCallbacks<string, BallModel>({
+            onSetElement: onBallSet,
+            onDeleteElement: onBallDelete,
+            entries: balls
+        });
+
+        const onJugglerSet = (jugglerName: string, jugglerModel: JugglerModel) => {
+            jugglerModel.performance.set(this);
+            permanentObject.add(jugglerModel._object);
+        };
+        const onJugglerDelete = (ballID: string, ballModel?: BallModel) => {
+            if (ballModel !== undefined) {
+                ballModel.performance.set(undefined);
+                permanentObject.remove(ballModel._object);
+            }
+        };
+        this.jugglers = new MapCallbacks<string, JugglerModel>({
+            onSetElement: onJugglerSet,
+            onDeleteElement: onJugglerDelete,
+            entries: jugglers
+        });
+
+        const onTableSet = (tableID: string, tableModel: BallModel) => {
+            tableModel.performance.set(this);
+            permanentObject.add(tableModel._object);
+        };
+        const onTableDelete = (ballID: string, ballModel?: BallModel) => {
+            if (ballModel !== undefined) {
+                ballModel.performance.set(undefined);
+                permanentObject.remove(ballModel._object);
+            }
+        };
+        this.tables = new MapCallbacks<string, TableModel>({
+            onSetElement: onTableSet,
+            onDeleteElement: onTableDelete,
+            entries: tables
+        });
     }
 
     /**
@@ -90,6 +146,18 @@ export class PerformanceModel {
             endTime === null ? endTime : endTime + 2
         ];
     }
+
+    addBall(): BallModel {}
+
+    addJuggler(): JugglerModel {}
+
+    addTable(): TableModel {}
+
+    deleteBall(): boolean {}
+
+    deleteJuggler(): boolean {}
+
+    deleteTable(): boolean {}
 
     getJuggler(jugglerName: string): JugglerModel {
         const jugglerModel = this.jugglers.get(jugglerName);

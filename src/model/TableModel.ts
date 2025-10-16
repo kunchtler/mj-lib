@@ -1,61 +1,111 @@
-import * as THREE from "three";
-import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
+import { Euler, Object3D, Vector3 } from "three";
+import { MapCallbacks } from "./MapCallbacks";
+import { SpotModel } from "./SpotModel";
+import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
 
 // TODO : Which properties are readonly ?
-// TODO : Make react utility class for the many ballSpots.
-// TODO : Change surface internal by ballspots as Object3D only ?
-// In that case, we can remove many attributes.
-// TODO : Use ball ID or ball Name to be placed ?
-// TODO : Use a normal vector to identify the table's "top".
-// TODO : Rename everywhere name to ID to make it clearer it should be unique ?
-// TODO : Except for "implements", change evry interface to a type. Or not ? Choose. Which one has better messages (error, intellisense, ...) ?
-
-//TODO : Recheck doc of all this section after change.
-//TODO : Add timeline to table (could be used to light the spots).
+// TODO : Recheck doc of all this sections after change.
+// TODO : Add timeline to table (could be used to light the spots).
 
 /**
  * Interface for the constructor of TableModel.
  */
-export type TableModelParams = PerformanceChildParams & {
+export type TableModelParams = {
     /**
      * The table's unique ID.
      */
     id: string;
     /**
-     * Spots on the table.
+     * The table's position.
      */
-    spots?: Map<string, THREE.Vector3>;
+    position?: Vector3;
+    /**
+     * The table's rotation.
+     */
+    rotation?: Euler;
+    /**
+     * The table's scale.
+     */
+    scale?: Vector3;
+    /**
+     * Spots on the table, relative to the table's position.
+     */
+    spotsPos?: Map<string, Vector3>;
     /**
      * Where a ball goes if it has no designated spot ?
      * It is both used as a failback and as a default way to layout balls.
      */
-    unkownSpot?: THREE.Vector3;
+    unkownSpotPos?: Vector3;
 };
+
+// TODO : SpotsPos is relative, have pos but also table rotation (to correctly orient the balls) this or up vector for table or up vector per spot (is table has weird shape ???)
+
+// TODO : Document that _object SHOULD NOT BE INTERACTED WITH, used internally.
+// TODO : And that to change position, it should be the position field that changes.
+// TODO : Document what is relative to what, ie what position is relative to what position.
+// TODO : Streamline where vector clones should be or not.
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...) representing a table.
  */
-export class TableModel extends PerformanceChild {
+export class TableModel {
     /**
      * The table's unique ID.
      */
     id: string;
     /**
+     * The table's position.
+     */
+    position: ThreeSyncedPosition;
+    /**
+     * The table's rotation.
+     */
+    rotation: ThreeSyncedRotation;
+    /**
+     * The table's scale.
+     */
+    scale: ThreeSyncedScale;
+    /**
      * Spots on the table.
      */
-    spots: Map<string, THREE.Vector3>;
+    spots: MapCallbacks<string, SpotModel>;
     /**
      * Where a ball goes if it has no designated spot ?
      * It is both used as a failback and as a default way to layout balls.
      */
-    unkownSpot: THREE.Vector3;
+    unkownSpot: SpotModel;
 
-    constructor({ id, spots, unkownSpot, performance }: TableModelParams) {
-        super({ performance });
+    readonly _object = new Object3D();
+
+    constructor({ id, position, rotation, scale, spotsPos, unkownSpotPos }: TableModelParams) {
         this.id = id;
-        this.spots = spots ?? new Map<string, THREE.Vector3>();
-        this.unkownSpot = unkownSpot ?? new THREE.Vector3(0, 0, 0);
+
+        // Sync the table's postional properties with the object.
+        this.position = new ThreeSyncedPosition(this._object, position);
+        this.rotation = new ThreeSyncedRotation(this._object, rotation);
+        this.scale = new ThreeSyncedScale(this._object, scale);
+
+        this.spots = new MapCallbacks({
+            onSetElement: (key, value) => {
+                this._object.add(value._object);
+            },
+            onDeleteElement: (key, value) => {
+                if (value !== undefined) {
+                    this._object.remove(value._object);
+                }
+            }
+        });
+        if (spotsPos !== undefined) {
+            for (const [spotName, spotPos] of spotsPos) {
+                this.spots.set(spotName, new SpotModel({ position: spotPos }));
+            }
+        }
+        this.unkownSpot = new SpotModel({ position: unkownSpotPos });
+    }
+
+    get object(): Object3D {
+        return this._object;
     }
 
     /**
@@ -63,11 +113,10 @@ export class TableModel extends PerformanceChild {
      * @param spot the spot's name.
      * @returns the ball's spot on the table as is specified in the ballsSpots attribute. If it is not found, it goes to a designated unknownBallSpot.
      */
-    spotPosition(spot: string | undefined): THREE.Vector3 {
-        // TODO : Change id to name ?
+    spotPosition(spot?: string): Vector3 {
         if (spot === undefined) {
-            return this.unkownSpot.clone();
+            return this.unkownSpot.position.getGlobal();
         }
-        return this.spots.get(spot)?.clone() ?? this.unkownSpot.clone();
+        return this.spots.get(spot)?.position.getGlobal() ?? this.unkownSpot.position.getGlobal();
     }
 }

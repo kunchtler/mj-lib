@@ -1,10 +1,11 @@
+import { Euler, Object3D, Vector3 } from "three";
 import { HandModel } from "./HandModel";
-import { PerformanceChild } from "./PerformanceChild";
+import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
 
 /**
  * Interface for the constructor of JugglerModel.
  */
-export type JugglerModelParams = PerformanceChild & {
+export type JugglerModelParams = {
     /**
      * The juggler's [leftHand, rightHand].
      */
@@ -13,13 +14,25 @@ export type JugglerModelParams = PerformanceChild & {
      * The juggler's name.
      */
     name: string;
+    /**
+     * The juggler's position.
+     */
+    position: Vector3;
+    /**
+     * The juggler's rotation.
+     */
+    rotation: Euler;
+    /**
+     * The juggler's scale.
+     */
+    scale: Vector3;
 };
 
 /**
  * A model class that can perform many computations
  * (position, velocity, ...)  representing a juggler.
  */
-export class JugglerModel extends PerformanceChild {
+export class JugglerModel {
     /**
      * The juggler's [leftHand, rightHand].
      * Can also be accessed with the attributes leftHand and rightHand.
@@ -31,11 +44,32 @@ export class JugglerModel extends PerformanceChild {
      * The juggler's name.
      */
     name: string;
+    /**
+     * The juggler's position.
+     */
+    position: ThreeSyncedPosition;
+    /**
+     * The juggler's rotation.
+     */
+    rotation: ThreeSyncedRotation;
+    /**
+     * The juggler's scale.
+     */
+    scale: ThreeSyncedScale;
 
-    constructor({ name, hands, performance }: JugglerModelParams) {
-        super({ performance });
+    readonly _object = new Object3D();
+
+    constructor({ name, hands, position, rotation, scale }: JugglerModelParams) {
         this.hands = hands;
         this.name = name;
+
+        // Sync the table's postional properties with the object.
+        this.position = new ThreeSyncedPosition(this._object, position);
+        this.rotation = new ThreeSyncedRotation(this._object, rotation);
+        this.scale = new ThreeSyncedScale(this._object, scale);
+
+        // Add the hands as child of this object.
+        this.
     }
 
     /**
@@ -46,6 +80,7 @@ export class JugglerModel extends PerformanceChild {
     }
 
     set leftHand(hand: HandModel) {
+        this.hands[0]
         this.hands[0] = hand;
     }
 
