@@ -7,7 +7,7 @@ import * as THREE from "three";
  * @returns a vector in local coordinates.
  */
 
-export function worlToLocalVector(vec: THREE.Vector3, obj: THREE.Object3D) {
+export function worldToLocalVector(vec: THREE.Vector3, obj: THREE.Object3D) {
     return obj.worldToLocal(vec.clone()).sub(obj.worldToLocal(new THREE.Vector3(0, 0, 0)));
 }
 

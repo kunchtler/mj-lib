@@ -142,14 +142,14 @@ const description: performanceDescription = {
 for (const { name, position, leftHand, rightHand } of description.jugglersData) {
     const jugglerModel = model.jugglers.get(name)!;
     const jugglerPosition = new THREE.Vector3(...position);
-    jugglerModel.leftHand.catchPos = new THREE.Vector3(...leftHand.catchSpot).add(jugglerPosition);
-    jugglerModel.rightHand.catchPos = new THREE.Vector3(...rightHand.catchSpot).add(
+    jugglerModel.leftHand.catchSpot = new THREE.Vector3(...leftHand.catchSpot).add(jugglerPosition);
+    jugglerModel.rightHand.catchSpot = new THREE.Vector3(...rightHand.catchSpot).add(
         jugglerPosition
     );
-    jugglerModel.leftHand.tossPos = new THREE.Vector3(...leftHand.tossSpot).add(jugglerPosition);
-    jugglerModel.rightHand.tossPos = new THREE.Vector3(...rightHand.tossSpot).add(jugglerPosition);
-    jugglerModel.leftHand.restPos = new THREE.Vector3(...leftHand.restSpot).add(jugglerPosition);
-    jugglerModel.rightHand.restPos = new THREE.Vector3(...rightHand.restSpot).add(jugglerPosition);
+    jugglerModel.leftHand.tossSpot = new THREE.Vector3(...leftHand.tossSpot).add(jugglerPosition);
+    jugglerModel.rightHand.tossSpot = new THREE.Vector3(...rightHand.tossSpot).add(jugglerPosition);
+    jugglerModel.leftHand.restSpot = new THREE.Vector3(...leftHand.restSpot).add(jugglerPosition);
+    jugglerModel.rightHand.restSpot = new THREE.Vector3(...rightHand.restSpot).add(jugglerPosition);
 }
 for (const { name, position, unknownSpot, spots } of description.tablesData) {
     const tableModel = model.tables.get(name)!;
