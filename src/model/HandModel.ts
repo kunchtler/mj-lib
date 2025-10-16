@@ -7,6 +7,10 @@ import { Object3D, Vector3 } from "three";
 import { SpotModel } from "./SpotModel";
 import { ThreeSyncedScale } from "./ThreeSyncedProperty";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
+import { MapCallbacks } from "./MapCallbacks";
+import { Vector } from "js-sdsl";
+import { getLastInsertedKey } from "../utils/Operations";
+import { localToWorldVector } from "../utils";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -38,6 +42,12 @@ export type HandModelParams = {
      */
     restPos?: Vector3;
     /**
+     * The place where the hand is when the other hand takes a ball from it.
+     */
+    swapPos?: Vector3;
+    holdSpotsPos?: Map<number, Vector3>;
+    defaultHoldSpotNumber?: number;
+    /**
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline?: HandTimeline;
@@ -63,11 +73,22 @@ export class HandModel {
      */
     restSpot: SpotModel;
     /**
+     * The place where the hand is when the other hand takes a ball from it.
+     */
+    swapSpot: SpotModel;
+    /**
+     * An array of all spots the ball can be held in hand.
+     */
+    holdSpots: MapCallbacks<number, SpotModel>;
+    /**
+     * When a hold spot is required with a number out of range, default hold spot
+     * we default to instead.
+     */
+    defaultHoldSpotNumber: number;
+    /**
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline: HandTimeline;
-    // TODO Relative to the hand.
-    // handSubPos: Vector3[];
 
     performance: PerformanceModelRef;
 
@@ -75,7 +96,16 @@ export class HandModel {
 
     readonly _object = new Object3D();
 
-    constructor({ catchPos, restPos, tossPos, timeline, scale }: HandModelParams) {
+    constructor({
+        catchPos,
+        restPos,
+        tossPos,
+        swapPos,
+        holdSpotsPos,
+        defaultHoldSpotNumber,
+        timeline,
+        scale
+    }: HandModelParams) {
         this.timeline = timeline ?? new HandTimeline();
         this.catchSpot = new SpotModel({ position: catchPos });
         this.tossSpot = new SpotModel({ position: tossPos });
@@ -86,6 +116,39 @@ export class HandModel {
         this.restSpot = new SpotModel({
             position: restPos
         });
+        this.swapSpot = new SpotModel({
+            position:
+                swapPos ??
+                this.tossSpot.position
+                    .getLocal()
+                    .add(this.tossSpot.position.getLocal().sub(this.catchSpot.position.getLocal()))
+        });
+
+        const holdSpotsEntries: [number, SpotModel][] = [];
+        if (holdSpotsPos === undefined || holdSpotsPos.length === 0) {
+            // We create a single spot in hand, right at the hand's position.
+            holdSpotsEntries.push([0, new SpotModel({ position: new Vector3(0, 0, 0) })]);
+            // We ignore the eventual value given to defaultHoldSpot.
+            this.defaultHoldSpotNumber = 0;
+        } else {
+            for (const [spotNumber, spotPos] of holdSpotsPos) {
+                holdSpotsEntries.push([spotNumber, new SpotModel({ position: spotPos })]);
+            }
+            // If no default spot number is given, take the last one.
+            this.defaultHoldSpotNumber = getLastInsertedKey(holdSpotsPos)!;
+        }
+        this.holdSpots = new MapCallbacks({
+            onSetElement: (key, value) => {
+                this._object.add(value._object);
+            },
+            onDeleteElement: (key, value) => {
+                if (value !== undefined) {
+                    this._object.remove(value._object);
+                }
+            },
+            entries: holdSpotsEntries
+        });
+
         this.scale = new ThreeSyncedScale(this._object, scale);
         this.performance = new PerformanceModelRef();
     }
@@ -99,14 +162,42 @@ export class HandModel {
     //     return this.performance.get()?.getJuggler(this.)
     // }
 
+    getSpotLocalPosition(spotNumber: number) {
+        const spot =
+            this.holdSpots.get(spotNumber) ??
+            this.holdSpots.get(this.defaultHoldSpotNumber) ??
+            this.restSpot;
+        return spot.position.getLocal();
+    }
+
+    //TODO : Handle hand rotation
+    positionBySpotPos(spotNumber: number, spotPos: Vector3): Vector3 {
+        const handToSpotLocal = this.getSpotLocalPosition(spotNumber);
+        const handToSpotGlobal = localToWorldVector(handToSpotLocal, this._object);
+        return spotPos.sub(handToSpotGlobal);
+    }
+
+    // TODO : FIRST ROT APPROACH : oriented in direction of elbow (but not down / up)
+
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
-    private handPositionAtEvent(time: number, ev: HandEvent[] | HandEvent | null): Vector3 {
+    positionAtEvent(ev: HandEvent[] | HandEvent | null): Vector3 {
         // TODO : ball scale should be a NUMBER, not a VECTOR
         if (ev === null) {
             return this.restSpot.position.getGlobal();
         }
-        if (!Array.isArray(ev)) {
+        if (Array.isArray(ev)) {
+            // We compute the average position of all events.
+            if (ev.length === 0) {
+                return this.restSpot.position.getGlobal();
+            } else {
+                const positions: Vector3[] = [];
+                for (const singleEv of ev) {
+                    positions.push(this.positionAtEvent(singleEv));
+                }
+                return averageVector3(positions);
+            }
+        } else {
             if (ev.type === "catch") {
                 return this.catchSpot.position.getGlobal();
             } else if (ev.type === "toss") {
@@ -116,96 +207,99 @@ export class HandModel {
                 // so that the position of the ball it deposits matches the position the
                 // ball will have on the table.
                 // TODO : The hand rotation. Not 180 degrees so that it turns in the right direction ?
-                const performance = this.performance.get();
-                if (performance === undefined) {
-                    return VERY_VERY_FAR_VEC.clone();
-                }
-                return performance.getBall(ev.ballID).positionOnTable(ev.tableID, ev.spot);
+                // TODO : this.performance.get().getBall(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.getBall(...) ?
+                const tableModel = this.performance.get().getTable(ev.tableID);
+                const ballModel = this.performance.get().getBall(ev.ballID);
+                const tableSpotPos = tableModel.spotPosition(ev.tableSpot);
+                const upVector = tableModel.upVector();
+                const scaledBallRadius = ballModel.scaledRadius();
+                const handBallContact = tableSpotPos.add(
+                    upVector.multiplyScalar(2 * scaledBallRadius)
+                );
+                return this.positionBySpotPos(ev.handSpotIdx, handBallContact);
             } else {
-                throw Error("TODO"); // TODO
-            }
-        } else {
-            if (ev.length === 0) {
-                return this.restSpot.position.getGlobal();
-            } else {
-                const positions: Vector3[] = [];
-                for (const singleEv of ev) {
-                    positions.push(this.handPositionAtEvent(time, singleEv));
+                // Complex movement when a ball swaps hands :
+                // - the hand that has the ball (that gives it) goes on its swapSpot.
+                // - the hand that receives the ball (that takes it) faces downwards and retreives the ball.
+                if (ev.isGivingHand) {
+                    return this.swapSpot.position.getGlobal();
+                } else {
+                    // TODO : What is described above.
+                    return this.swapSpot.position.getGlobal();
                 }
-                return averageVector3(positions);
             }
         }
     }
 
-    // private ballPositionAtEvent() {}
+    // TODO (in ballmodel) private ballPositionAtEvent() {}
 
-    handPosition(time: number): Vector3 {
-        const [prevEventTime, prevEvent] = this.timeline.prevEvent(time);
+    // handPosition(time: number): Vector3 {
+    //     const [prevEventTime, prevEvent] = this.timeline.prevEvent(time);
 
-        if (prevEvent === null) {
-            // We need to look at the next event to figure out where the ball
-            // should be.
-            const [, nextEvent] = this.timeline.nextEvent(time);
-            if (nextEvent === null) {
-                return VERY_VERY_FAR_VEC.clone();
-            } else if (nextEvent.type === "airborne") {
-                this._throwTimelineError(prevEvent, nextEvent);
-                return VERY_VERY_FAR_VEC.clone();
-            } else if (nextEvent.type === "held") {
-                return this.performance
-                    .getHand(nextEvent.jugglerName, nextEvent.rightHand)
-                    .position(time);
-            } else {
-                return this.positionOnTable(nextEvent.tableID, nextEvent.spot);
-            }
-        } else if (prevEvent.type === "airborne") {
-            // Check if the ball flies toward something we can interpret as a target.
-            const [nextEventTime, nextEvent] = this.timeline.nextEvent(time);
-            if (nextEvent === null || nextEvent.type === "airborne") {
-                this._throwTimelineError(prevEvent, nextEvent);
-                return VERY_VERY_FAR_VEC.clone();
-            }
+    //     if (prevEvent === null) {
+    //         // We need to look at the next event to figure out where the ball
+    //         // should be.
+    //         const [, nextEvent] = this.timeline.nextEvent(time);
+    //         if (nextEvent === null) {
+    //             return VERY_VERY_FAR_VEC.clone();
+    //         } else if (nextEvent.type === "airborne") {
+    //             this._throwTimelineError(prevEvent, nextEvent);
+    //             return VERY_VERY_FAR_VEC.clone();
+    //         } else if (nextEvent.type === "held") {
+    //             return this.performance
+    //                 .getHand(nextEvent.jugglerName, nextEvent.rightHand)
+    //                 .position(time);
+    //         } else {
+    //             return this.positionOnTable(nextEvent.tableID, nextEvent.spot);
+    //         }
+    //     } else if (prevEvent.type === "airborne") {
+    //         // Check if the ball flies toward something we can interpret as a target.
+    //         const [nextEventTime, nextEvent] = this.timeline.nextEvent(time);
+    //         if (nextEvent === null || nextEvent.type === "airborne") {
+    //             this._throwTimelineError(prevEvent, nextEvent);
+    //             return VERY_VERY_FAR_VEC.clone();
+    //         }
 
-            // Check if the ball files from something that we can understand as an origin.
-            const [, prevPrevEvent] = this.timeline.prevEvent(prevEventTime, true);
-            if (prevPrevEvent === null || prevPrevEvent.type === "airborne") {
-                this._throwTimelineError(prevEvent, nextEvent);
-                return VERY_VERY_FAR_VEC.clone();
-            }
+    //         // Check if the ball files from something that we can understand as an origin.
+    //         const [, prevPrevEvent] = this.timeline.prevEvent(prevEventTime, true);
+    //         if (prevPrevEvent === null || prevPrevEvent.type === "airborne") {
+    //             this._throwTimelineError(prevEvent, nextEvent);
+    //             return VERY_VERY_FAR_VEC.clone();
+    //         }
 
-            // Compute the targets.
-            let toPos: Vector3;
-            if (nextEvent.type === "held") {
-                // TODO : Compute catch position.
-                toPos = this.performance
-                    .getHand(nextEvent.jugglerName, nextEvent.rightHand)
-                    .ballPositionAtEvent(time);
-            } else {
-                toPos = this.positionOnTable(nextEvent.tableID, nextEvent.spot);
-            }
+    //         // Compute the targets.
+    //         let toPos: Vector3;
+    //         if (nextEvent.type === "held") {
+    //             // TODO : Compute catch position.
+    //             toPos = this.performance
+    //                 .getHand(nextEvent.jugglerName, nextEvent.rightHand)
+    //                 .ballPositionAtEvent(time);
+    //         } else {
+    //             toPos = this.positionOnTable(nextEvent.tableID, nextEvent.spot);
+    //         }
 
-            let fromPos: Vector3;
-            if (prevPrevEvent.type === "held") {
-                // TODO : Compute toss position.
-                // Notice we get the hand from the prevPrevEvent,
-                // But we get the toss time from the prevEvent.
-                fromPos = this.performance
-                    .getHand(prevPrevEvent.jugglerName, prevPrevEvent.rightHand)
-                    .ballPositionAtEvent(time);
-            } else {
-                fromPos = this.positionOnTable(prevPrevEvent.tableID, prevPrevEvent.spot);
-            }
+    //         let fromPos: Vector3;
+    //         if (prevPrevEvent.type === "held") {
+    //             // TODO : Compute toss position.
+    //             // Notice we get the hand from the prevPrevEvent,
+    //             // But we get the toss time from the prevEvent.
+    //             fromPos = this.performance
+    //                 .getHand(prevPrevEvent.jugglerName, prevPrevEvent.rightHand)
+    //                 .ballPositionAtEvent(time);
+    //         } else {
+    //             fromPos = this.positionOnTable(prevPrevEvent.tableID, prevPrevEvent.spot);
+    //         }
 
-            // Compute where we are in the air.
-            return ballPosition(fromPos, prevEventTime, toPos, nextEventTime, time);
-        } else if (prevEvent.type === "held") {
-            return this.performance
-                .getHand(prevEvent.jugglerName, prevEvent.rightHand)
-                .position(time);
-        } else {
-            return this.positionOnTable(prevEvent.tableID, prevEvent.spot);
-        }
-    }
+    //         // Compute where we are in the air.
+    //         return ballPosition(fromPos, prevEventTime, toPos, nextEventTime, time);
+    //     } else if (prevEvent.type === "held") {
+    //         return this.performance
+    //             .getHand(prevEvent.jugglerName, prevEvent.rightHand)
+    //             .position(time);
+    //     } else {
+    //         return this.positionOnTable(prevEvent.tableID, prevEvent.spot);
+    //     }
+    // }
 
-    heldBallPosition(time: number): Vector3 | undefined {}
+    // heldBallPosition(time: number): Vector3 | undefined {}
 }

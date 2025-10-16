@@ -119,4 +119,8 @@ export class TableModel {
         }
         return this.spots.get(spot)?.position.getGlobal() ?? this.unkownSpot.position.getGlobal();
     }
+
+    upVector(): Vector3 {
+        return new Vector3(0, 1, 0).applyEuler(this.rotation.getGlobal());
+    }
 }

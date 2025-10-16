@@ -4,6 +4,11 @@ export type MapCallbacksParams<K, V> = {
     entries?: Iterable<[K, V]>;
 };
 
+// TODO : DOc
+// TODO : Document that MapCallbacks should be readonly to avoid problems
+// when reassigning a new map (onDeleteElem won't be called). That, or
+// handle properly reassigning it. Which we have to do.
+
 export class MapCallbacks<K, V> extends Map<K, V> {
     onSetElement?: (key: K, value: V) => void;
     onDeleteElement?: (key: K, value?: V) => void;

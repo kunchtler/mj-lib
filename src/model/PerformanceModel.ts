@@ -56,15 +56,15 @@ export class PerformanceModel {
     /**
      * The balls used in the performance.
      */
-    balls: MapCallbacks<string, BallModel>;
+    readonly balls: MapCallbacks<string, BallModel>;
     /**
      * The jugglers involved in the performance.
      */
-    jugglers: MapCallbacks<string, JugglerModel>;
+    readonly jugglers: MapCallbacks<string, JugglerModel>;
     /**
      * The tables used in the performance.
      */
-    tables: MapCallbacks<string, TableModel>;
+    readonly tables: MapCallbacks<string, TableModel>;
 
     readonly _object: Object3D;
 

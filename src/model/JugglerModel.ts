@@ -69,7 +69,11 @@ export class JugglerModel {
         this.scale = new ThreeSyncedScale(this._object, scale);
 
         // Add the hands as child of this object.
-        this.
+        for (const hand of this.hands) {
+            this._object.add(hand.catchSpot._object);
+            this._object.add(hand.restSpot._object);
+            this._object.add(hand.tossSpot._object);
+        }
     }
 
     /**

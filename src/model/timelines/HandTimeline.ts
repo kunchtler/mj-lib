@@ -9,20 +9,23 @@ import { MultiTimeline } from "../../utils/Timeline";
 export type TossHandEvent = {
     type: "toss";
     ballID: string;
+    handSpotIdx: number;
     // posIdx: number; // Redundant with info in ball timeline.
 };
 
 export type CatchHandEvent = {
     type: "catch";
     ballID: string;
+    handSpotIdx: number;
     // posIdx: number;
 };
 
 export type TableHandEvent = {
     type: "table";
     ballID: string;
+    handSpotIdx: number;
     tableID: string;
-    spot?: string;
+    tableSpot?: string;
 };
 
 // export type BallSlideHandEvent = {
@@ -35,6 +38,8 @@ export type TableHandEvent = {
 export type BallSwapHandEvent = {
     type: "swap";
     ballID: string;
+    handSpotIdx: number;
+    isGivingHand: boolean;
 };
 
 export type HandEvent = TossHandEvent | CatchHandEvent | TableHandEvent | BallSwapHandEvent;
