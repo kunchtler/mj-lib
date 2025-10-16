@@ -4,7 +4,8 @@ import { ScoreConverter } from "./ScoreConverter";
 import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
 import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";
-import { TossMode, XOR, SchedulerEvent } from "./Scheduler";
+import { TossMode, SchedulerEvent } from "./Scheduler";
+import { XOR } from "../utils/Operations";
 import { produce, current } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
 
