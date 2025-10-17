@@ -1,6 +1,7 @@
 export type MapCallbacksParams<K, V> = {
     onSetElement?: (key: K, value: V) => void;
     onDeleteElement?: (key: K, value?: V) => void;
+    errorMessageGet?: (key: K) => string;
     entries?: Iterable<[K, V]>;
 };
 
@@ -12,8 +13,14 @@ export type MapCallbacksParams<K, V> = {
 export class MapCallbacks<K, V> extends Map<K, V> {
     onSetElement?: (key: K, value: V) => void;
     onDeleteElement?: (key: K, value?: V) => void;
+    errorMessageGet: (key: K) => string;
 
-    constructor({ onSetElement, onDeleteElement, entries }: MapCallbacksParams<K, V> = {}) {
+    constructor({
+        onSetElement,
+        onDeleteElement,
+        errorMessageGet,
+        entries
+    }: MapCallbacksParams<K, V> = {}) {
         // We don't call the parent with entries as we first need to set the callback functions.
         super();
         this.onSetElement = onSetElement;
@@ -23,6 +30,7 @@ export class MapCallbacks<K, V> extends Map<K, V> {
                 this.set(key, value);
             }
         }
+        this.errorMessageGet = errorMessageGet ?? ((key: K) => `Unknown key ${key}`);
     }
 
     set(key: K, value: V): this {
@@ -47,6 +55,14 @@ export class MapCallbacks<K, V> extends Map<K, V> {
         for (const key of this.keys()) {
             this.delete(key);
         }
+    }
+
+    getSurely(key: K): V {
+        const value = this.get(key);
+        if (value === undefined) {
+            throw Error(this.errorMessageGet(key));
+        }
+        return value;
     }
 }
 

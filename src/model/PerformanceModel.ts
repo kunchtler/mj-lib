@@ -72,6 +72,8 @@ export class PerformanceModel {
         this._object = new Object3D();
 
         const permanentObject = this._object;
+
+        // BallModels map creation
         const onBallSet = (ballID: string, ballModel: BallModel) => {
             ballModel.performance.set(this);
             permanentObject.add(ballModel._object);
@@ -82,12 +84,15 @@ export class PerformanceModel {
                 permanentObject.remove(ballModel._object);
             }
         };
+        const errorMessageBall = (ballID: string) => `Unknown ball ID "${ballID}"`;
         this.balls = new MapCallbacks<string, BallModel>({
             onSetElement: onBallSet,
             onDeleteElement: onBallDelete,
+            errorMessageGet: errorMessageBall,
             entries: balls
         });
 
+        // JugglerModels map creation
         const onJugglerSet = (jugglerName: string, jugglerModel: JugglerModel) => {
             jugglerModel.performance.set(this);
             permanentObject.add(jugglerModel._object);
@@ -98,12 +103,16 @@ export class PerformanceModel {
                 permanentObject.remove(ballModel._object);
             }
         };
+        const errorMessageJuggler = (jugglerName: string) =>
+            `Unknown juggler name "${jugglerName}"`;
         this.jugglers = new MapCallbacks<string, JugglerModel>({
             onSetElement: onJugglerSet,
             onDeleteElement: onJugglerDelete,
+            errorMessageGet: errorMessageJuggler,
             entries: jugglers
         });
 
+        // TableModels map creation
         const onTableSet = (tableID: string, tableModel: BallModel) => {
             tableModel.performance.set(this);
             permanentObject.add(tableModel._object);
@@ -114,9 +123,11 @@ export class PerformanceModel {
                 permanentObject.remove(ballModel._object);
             }
         };
+        const errorMessageTable = (tableID: string) => `Unknown table ID "${tableID}"`;
         this.tables = new MapCallbacks<string, TableModel>({
             onSetElement: onTableSet,
             onDeleteElement: onTableDelete,
+            errorMessageGet: errorMessageTable,
             entries: tables
         });
     }
@@ -147,43 +158,43 @@ export class PerformanceModel {
         ];
     }
 
-    addBall(): BallModel {}
+    // addBall(): BallModel {}
 
-    addJuggler(): JugglerModel {}
+    // addJuggler(): JugglerModel {}
 
-    addTable(): TableModel {}
+    // addTable(): TableModel {}
 
-    deleteBall(): boolean {}
+    // deleteBall(): boolean {}
 
-    deleteJuggler(): boolean {}
+    // deleteJuggler(): boolean {}
 
-    deleteTable(): boolean {}
+    // deleteTable(): boolean {}
 
-    getJuggler(jugglerName: string): JugglerModel {
-        const jugglerModel = this.jugglers.get(jugglerName);
-        if (jugglerModel === undefined) {
-            throw Error(`Unknown juggler name "${jugglerName}"`);
-        }
-        return jugglerModel;
-    }
+    // getJuggler(jugglerName: string): JugglerModel {
+    //     const jugglerModel = this.jugglers.get(jugglerName);
+    //     if (jugglerModel === undefined) {
+    //         throw Error(`Unknown juggler name "${jugglerName}"`);
+    //     }
+    //     return jugglerModel;
+    // }
 
-    getHand(jugglerName: string, isRightHand: boolean): HandModel {
-        return this.getJuggler(jugglerName).hands[isRightHand ? 1 : 0];
-    }
+    // getHand(jugglerName: string, isRightHand: boolean): HandModel {
+    //     return this.jugglers.getSurely(jugglerName).hands[isRightHand ? 1 : 0];
+    // }
 
-    getBall(ballID: string): BallModel {
-        const ballModel = this.balls.get(ballID);
-        if (ballModel === undefined) {
-            throw Error(`Unknown ball ID "${ballID}"`);
-        }
-        return ballModel;
-    }
+    // getBall(ballID: string): BallModel {
+    //     const ballModel = this.balls.get(ballID);
+    //     if (ballModel === undefined) {
+    //         throw Error(`Unknown ball ID "${ballID}"`);
+    //     }
+    //     return ballModel;
+    // }
 
-    getTable(tableID: string): TableModel {
-        const TableModel = this.tables.get(tableID);
-        if (TableModel === undefined) {
-            throw Error(`Unknown table name "${tableID}"`);
-        }
-        return TableModel;
-    }
+    // getTable(tableID: string): TableModel {
+    //     const TableModel = this.tables.get(tableID);
+    //     if (TableModel === undefined) {
+    //         throw Error(`Unknown table name "${tableID}"`);
+    //     }
+    //     return TableModel;
+    // }
 }

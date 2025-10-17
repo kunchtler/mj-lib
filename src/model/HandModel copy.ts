@@ -11,7 +11,7 @@ import {
     isMultiEvent
 } from "./timelines/TimelineEvents";
 import { HandTimeline, isMultiEventSane } from "./timelines/HandTimeline";
-import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
+import { PerformanceChild, PerformanceRefParams } from "./PerformanceChild";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -28,7 +28,7 @@ export const HAND_MAX_TIME_GAP_BEFORE_REST = 0.5;
 /**
  * Interface for the constructor of HandModel.
  */
-export type HandModelParams = PerformanceChildParams & {
+export type HandModelParams = PerformanceRefParams & {
     /**
      * The place where the hand catches balls.
      */
@@ -99,7 +99,7 @@ export class HandModel extends PerformanceChild {
      * @returns a boolean
      */
     isRightHand(): boolean {
-        return this.performance.getJuggler(this.jugglerName).rightHand === this;
+        return this.performance.jugglers.getSurely(this.jugglerName).rightHand === this;
     }
 
     /**
@@ -115,8 +115,8 @@ export class HandModel extends PerformanceChild {
         if (singleEv instanceof TablePutEvent || singleEv instanceof TableTakeEvent) {
             return new THREE.Vector3(0, 0, 0);
         } else {
-            const velocity = this.performance
-                .getBall(singleEv.ballID)
+            const velocity = this.performance.ball
+                .getSurely(singleEv.ballID)
                 .velocityAtCatchTossEvent(singleEv);
             let sca = 1;
             if (isPrev) {
@@ -156,8 +156,10 @@ export class HandModel extends PerformanceChild {
     private _positionAtSingleEvent(event: HandTimelineSingleEvent | null): THREE.Vector3 {
         if (event instanceof TablePutEvent || event instanceof TableTakeEvent) {
             // Compute a position higher than the spot where the hand could be.
-            const spotPosition = this.performance.getTable(event.tableID).spotPosition(event.spot);
-            const ballRadius = this.performance.getBall(event.ballID).radius;
+            const spotPosition = this.performance.table
+                .getSurely(event.tableID)
+                .spotPosition(event.spot);
+            const ballRadius = this.performance.balls.getSurely(event.ballID).radius;
             spotPosition.y += ballRadius * 3;
             return spotPosition;
         } else {

@@ -21,4 +21,8 @@ export function worldToLocalPosition(pos: THREE.Vector3, obj: THREE.Object3D) {
 
 export function localToWorldPosition(pos: THREE.Vector3, obj: THREE.Object3D) {
     return obj.localToWorld(pos.clone());
-} //TODO : Fust with ThreeUtils.ts
+}
+
+export function upVectorFromRotation(rot: THREE.Euler) {
+    return new THREE.Vector3(0, 1, 0).applyEuler(rot);
+} 

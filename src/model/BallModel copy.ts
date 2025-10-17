@@ -7,7 +7,7 @@ import {
 } from "./timelines/BallTimeline";
 import { BallTimeline } from "./timelines/BallTimeline";
 import { ballPosition, ballVelocityAtStartEnd } from "./BallPhysics";
-import { PerformanceChild, PerformanceChildParams } from "./PerformanceChild";
+import { PerformanceChild, PerformanceRefParams } from "./PerformanceChild";
 
 //TODO : Remove ID alltogether in the whole project for balls. We only have the name (which must be unique) and the eventual sound the ball makes.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -20,7 +20,7 @@ const VERY_VERY_FAR_POS: THREE.Vector3Tuple = [0, -1000, 0];
 /**
  * Interface for the constructor of BallModel.
  */
-type BallModelParams = PerformanceChildParams & {
+type BallModelParams = PerformanceRefParams & {
     /**
      * The unique ID of the ball that identifies it from other balls.
      */
@@ -108,7 +108,7 @@ export class BallModel extends PerformanceChild {
      * @returns the position of the center of the ball.
      */
     positionOnTable(tableID: string, spot: string | undefined): THREE.Vector3 {
-        const spotPos = this.performance.getTable(tableID).spotPosition(spot);
+        const spotPos = this.performance.tables.getSurely(tableID).spotPosition(spot);
         spotPos.y += this.radius;
         return spotPos;
     }

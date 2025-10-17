@@ -10,6 +10,8 @@ import { PerformanceModelRef } from "./PerformanceChild";
 import { Object3D, Vector3, Vector3Tuple } from "three";
 import { PerformanceModel, VERY_VERY_FAR_VEC } from "./PerformanceModel";
 import { ThreeSyncedScale } from "./ThreeSyncedProperty";
+import { upVectorFromRotation } from "../utils";
+import { SpotModel } from "./SpotModel";
 
 //TODO : Remove ID alltogether in the whole project for balls. We only have the name (which must be unique) and the eventual sound the ball makes.
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -74,19 +76,43 @@ export class BallModel {
         return this.radius * Math.max(...this.scale.getGlobal());
     }
 
+    positionOverSpot(spotModel: SpotModel): Vector3 {
+        return spotModel.positionOver(this.scaledRadius());
+    }
+
     /**
-     * Return the ball's position on the table.
-     * @param tableID the unique ID of the table in the performance.
-     * @param spot the spot's name on the table if there is one, undefined otherwise.
-     * @returns the position of the center of the ball.
+     * Returns the ball's position at a specific event from the timeline.
+     * @param ev the event.
+     * @returns the position where that event occurs.
      */
-    positionOnTable(tableID: string, spot: string | undefined): Vector3 {
-        if (performance === undefined) {
+    positionAtEvent(time: number, ev: BallEvent | null): Vector3 {
+        if (ev === null) {
             return VERY_VERY_FAR_VEC.clone();
+        } else if (ev.type === "airborne") {
+            //TableTakeEvent for now here as the ball teleports from table to hand, so is in hand.
+            //With proper animations, could change.
+            // return this.performance.getHand(ev.jugglerName, ev.isRightHand).positionAtEvent(ev);
+        } else if (ev.type === "held") {
+            // TODO : Hand Spot pos at time t.
+            return this.position(ev.tableID, ev.spot);
+        } else {
+            const spotModel = this.performance
+                .get()
+                .tables.getSurely(ev.tableID)
+                .getSpotModel(ev.spot);
+            return this.positionOverSpot(spotModel);
         }
-        const tableModel = this.performance.get().getTable(tableID);
-        const spotGlobalPos = tableModel.spotPosition(spot);
-        return spotGlobalPos.add(tableModel.upVector().multiplyScalar(this.scaledRadius()));
+        // throw Error("Unimplemented behaviour");
+    }
+
+    velocityAtEvent(evTime: number, ev: BallEvent | null) {
+        if (ev === null) {
+            return new Vector3(0, 0, 0);
+        } else if (ev.type === "airborne") {
+            // Check
+        } else if (ev.type === "held") {
+        } else {
+        }
     }
 
     /** Returns the ball's position at a given time.

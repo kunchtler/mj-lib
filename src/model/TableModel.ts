@@ -94,7 +94,8 @@ export class TableModel {
                 if (value !== undefined) {
                     this._object.remove(value._object);
                 }
-            }
+            },
+            errorMessageGet: (spotName: string) => `Unknown spot name ${spotName}`
         });
         if (spotsPos !== undefined) {
             for (const [spotName, spotPos] of spotsPos) {
@@ -108,19 +109,19 @@ export class TableModel {
         return this._object;
     }
 
+    getSpotModel(spot: string | undefined): SpotModel {
+        if (spot === undefined) {
+            return this.unkownSpot;
+        }
+        return this.spots.get(spot) ?? this.unkownSpot;
+    }
+
     /**
      * Returns the position of a spot.
      * @param spot the spot's name.
      * @returns the ball's spot on the table as is specified in the ballsSpots attribute. If it is not found, it goes to a designated unknownBallSpot.
      */
-    spotPosition(spot?: string): Vector3 {
-        if (spot === undefined) {
-            return this.unkownSpot.position.getGlobal();
-        }
-        return this.spots.get(spot)?.position.getGlobal() ?? this.unkownSpot.position.getGlobal();
-    }
-
-    upVector(): Vector3 {
-        return new Vector3(0, 1, 0).applyEuler(this.rotation.getGlobal());
+    getSpotPosition(spot?: string): Vector3 {
+        return this.getSpotModel(spot).position.getGlobal();
     }
 }

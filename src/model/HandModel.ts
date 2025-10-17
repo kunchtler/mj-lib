@@ -125,7 +125,7 @@ export class HandModel {
         });
 
         const holdSpotsEntries: [number, SpotModel][] = [];
-        if (holdSpotsPos === undefined || holdSpotsPos.length === 0) {
+        if (holdSpotsPos === undefined || holdSpotsPos.size === 0) {
             // We create a single spot in hand, right at the hand's position.
             holdSpotsEntries.push([0, new SpotModel({ position: new Vector3(0, 0, 0) })]);
             // We ignore the eventual value given to defaultHoldSpot.
@@ -135,7 +135,7 @@ export class HandModel {
                 holdSpotsEntries.push([spotNumber, new SpotModel({ position: spotPos })]);
             }
             // If no default spot number is given, take the last one.
-            this.defaultHoldSpotNumber = getLastInsertedKey(holdSpotsPos)!;
+            this.defaultHoldSpotNumber = defaultHoldSpotNumber ?? getLastInsertedKey(holdSpotsPos)!;
         }
         this.holdSpots = new MapCallbacks({
             onSetElement: (key, value) => {
@@ -159,7 +159,7 @@ export class HandModel {
      */
     // TODO : Re-add juggler Name ? Juggler ref directly ?
     // isRightHand(): boolean | undefined {
-    //     return this.performance.get()?.getJuggler(this.)
+    //     return this.performance.get()?.jugglers.getSurely(this.)
     // }
 
     getSpotLocalPosition(spotNumber: number) {
@@ -181,7 +181,7 @@ export class HandModel {
 
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
-    positionAtEvent(ev: HandEvent[] | HandEvent | null): Vector3 {
+    positionAtEvent(evTime: number, ev: HandEvent[] | HandEvent | null): Vector3 {
         // TODO : ball scale should be a NUMBER, not a VECTOR
         if (ev === null) {
             return this.restSpot.position.getGlobal();
@@ -193,7 +193,7 @@ export class HandModel {
             } else {
                 const positions: Vector3[] = [];
                 for (const singleEv of ev) {
-                    positions.push(this.positionAtEvent(singleEv));
+                    positions.push(this.positionAtEvent(evTime, singleEv));
                 }
                 return averageVector3(positions);
             }
@@ -207,15 +207,16 @@ export class HandModel {
                 // so that the position of the ball it deposits matches the position the
                 // ball will have on the table.
                 // TODO : The hand rotation. Not 180 degrees so that it turns in the right direction ?
-                // TODO : this.performance.get().getBall(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.getBall(...) ?
-                const tableModel = this.performance.get().getTable(ev.tableID);
-                const ballModel = this.performance.get().getBall(ev.ballID);
-                const tableSpotPos = tableModel.spotPosition(ev.tableSpot);
+                // TODO : this.performance.get().balls.getSurely(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.balls.getSurely(...) ?
+                const tableModel = this.performance.get().tables.getSurely(ev.tableID);
+                const ballModel = this.performance.get().balls.getSurely(ev.ballID);
+                const tableSpotPos = tableModel.getSpotPosition(ev.tableSpot);
                 const upVector = tableModel.upVector();
                 const scaledBallRadius = ballModel.scaledRadius();
                 const handBallContact = tableSpotPos.add(
                     upVector.multiplyScalar(2 * scaledBallRadius)
                 );
+                //TODO : the hand should be positioned "up" from the ball center, not using the table's up.
                 return this.positionBySpotPos(ev.handSpotIdx, handBallContact);
             } else {
                 // Complex movement when a ball swaps hands :
@@ -228,6 +229,32 @@ export class HandModel {
                     return this.swapSpot.position.getGlobal();
                 }
             }
+        }
+    }
+
+    velocityAtEvent(evTime: number, ev: HandEvent[] | HandEvent | null): Vector3 {
+        if (ev === null) {
+            return new Vector3(0, 0, 0);
+        } else if (Array.isArray(ev)) {
+            // We compute the average position of all events.
+            if (ev.length === 0) {
+                return new Vector3(0, 0, 0);
+            } else {
+                const positions: Vector3[] = [];
+                for (const singleEv of ev) {
+                    positions.push(this.velocityAtEvent(evTime, singleEv));
+                }
+                return averageVector3(positions);
+            }
+        } else if (ev.type === "catch" || ev.type === "toss") {
+            const ballModel = this.performance.get().balls.getSurely(ev.ballID);
+            const ballEv = ballModel.timeline.getElementByKey(evTime);
+            // No this won't work ? Think about it.
+            return ballEv === undefined
+                ? new Vector3(0, 0, 0)
+                : ballModel.velocityAtEvent(evTime, ballEv);
+        } else {
+            return new Vector3(0, 0, 0);
         }
     }
 
