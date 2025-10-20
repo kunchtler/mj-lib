@@ -1,5 +1,7 @@
-import { Euler, Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 
+// TODO : DOcument that all of this is used for STATIC PROPERTIES OF THE PERFORMANCE.
+// TODO : Document that they SHOULDN T BE SET BY THE CLASSES COMPUTING THE POSITIONS AND VELOCITIES.
 export class ThreeSyncedPosition {
     private _object: Object3D;
 
@@ -94,4 +96,60 @@ export class ThreeSyncedScale {
     getGlobal(): Vector3 {
         return this._object.getWorldScale(new Vector3());
     }
+}
+
+export type ObjectPropertiesOptional = { position?: Vector3; rotation?: Euler; scale?: Vector3 };
+
+export class ThreeDummyObject {
+    private _object: Object3D;
+    private _stack: ObjectPropertiesOptional[];
+
+    constructor(obj: Object3D) {
+        this._object = obj;
+        this._stack = [];
+    }
+
+    setProperties({ position, rotation, scale }: ObjectPropertiesOptional) {
+        this._stack.push({});
+        if (position !== undefined) {
+            this._stack[this._stack.length - 1].position = this._object.position.clone();
+            this._object.position.copy(position);
+        }
+        if (rotation !== undefined) {
+            this._stack[this._stack.length - 1].rotation = this._object.rotation.clone();
+            this._object.rotation.copy(rotation);
+        }
+        if (scale !== undefined) {
+            this._stack[this._stack.length - 1].scale = this._object.scale.clone();
+            this._object.scale.copy(scale);
+        }
+    }
+
+    unsetProperties(): ObjectPropertiesOptional {
+        const props = this._stack.pop();
+        if (props === undefined) {
+            return {};
+        }
+        if (props.position !== undefined) {
+            this._object.position.copy(props.position);
+        }
+        if (props.rotation !== undefined) {
+            this._object.rotation.copy(props.rotation);
+        }
+        if (props.scale !== undefined) {
+            this._object.scale.copy(props.scale);
+        }
+        return props;
+    }
+
+    get(): Object3D {
+        return this._object;
+    }
+
+    // set(obj: Object3D) {
+    //     while (this._stack.length !== 0) {
+    //         this.unsetProperties();
+    //     }
+    //     this._object = obj;
+    // }
 }

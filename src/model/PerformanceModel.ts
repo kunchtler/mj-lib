@@ -178,9 +178,9 @@ export class PerformanceModel {
     //     return jugglerModel;
     // }
 
-    // getHand(jugglerName: string, isRightHand: boolean): HandModel {
-    //     return this.jugglers.getSurely(jugglerName).hands[isRightHand ? 1 : 0];
-    // }
+    getHand(jugglerName: string, isRightHand: boolean): HandModel {
+        return this.jugglers.getSurely(jugglerName).hands[isRightHand ? 1 : 0];
+    }
 
     // getBall(ballID: string): BallModel {
     //     const ballModel = this.balls.get(ballID);

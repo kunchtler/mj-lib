@@ -2,10 +2,10 @@ import { VECTOR3_STRUCTURE } from "../utils/constants";
 import { CubicHermiteSpline } from "../utils/spline/Spline";
 import { HandEvent, HandTimeline } from "./timelines/HandTimeline";
 import { PerformanceChild, PerformanceModelRef, PerformanceRefParams } from "./PerformanceChild";
-import { averageVector3 } from "../utils/three/Vector";
-import { Object3D, Vector3 } from "three";
+import { averageEulerAngle, averageVector3 } from "../utils/three/Vector";
+import { Euler, Object3D, Vector3 } from "three";
 import { SpotModel } from "./SpotModel";
-import { ThreeSyncedScale } from "./ThreeSyncedProperty";
+import { ObjectPropertiesOptional, ThreeDummyObject, ThreeSyncedScale } from "./ThreeSyncedProperty";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
 import { MapCallbacks } from "./MapCallbacks";
 import { Vector } from "js-sdsl";
@@ -90,11 +90,13 @@ export class HandModel {
      */
     timeline: HandTimeline;
 
+    jugglerName: string;
+
     performance: PerformanceModelRef;
 
     scale: ThreeSyncedScale;
 
-    readonly _object = new Object3D();
+    readonly _dummyObject = new ThreeDummyObject(new Object3D());
 
     constructor({
         catchPos,
@@ -137,19 +139,20 @@ export class HandModel {
             // If no default spot number is given, take the last one.
             this.defaultHoldSpotNumber = defaultHoldSpotNumber ?? getLastInsertedKey(holdSpotsPos)!;
         }
+        const obj = this._dummyObject.get();
         this.holdSpots = new MapCallbacks({
             onSetElement: (key, value) => {
-                this._object.add(value._object);
+                obj.add(value._object);
             },
             onDeleteElement: (key, value) => {
                 if (value !== undefined) {
-                    this._object.remove(value._object);
+                    obj.remove(value._object);
                 }
             },
             entries: holdSpotsEntries
         });
 
-        this.scale = new ThreeSyncedScale(this._object, scale);
+        this.scale = new ThreeSyncedScale(obj, scale);
         this.performance = new PerformanceModelRef();
     }
 
@@ -162,40 +165,44 @@ export class HandModel {
     //     return this.performance.get()?.jugglers.getSurely(this.)
     // }
 
-    getSpotLocalPosition(spotNumber: number) {
-        const spot =
-            this.holdSpots.get(spotNumber) ??
-            this.holdSpots.get(this.defaultHoldSpotNumber) ??
-            this.restSpot;
-        return spot.position.getLocal();
+    getSpotModel(spotNumber: number): SpotModel {
+        return this.holdSpots.get(spotNumber) ?? this.holdSpots.get(this.defaultHoldSpotNumber) ?? this.restSpot;
     }
-
     //TODO : Handle hand rotation
     positionBySpotPos(spotNumber: number, spotPos: Vector3): Vector3 {
-        const handToSpotLocal = this.getSpotLocalPosition(spotNumber);
-        const handToSpotGlobal = localToWorldVector(handToSpotLocal, this._object);
-        return spotPos.sub(handToSpotGlobal);
+        const handToSpotLocalVec = this.getSpotModel(spotNumber).position.getLocal();
+        const handToSpotGlobalVec = localToWorldVector(handToSpotLocalVec, this._dummyObject.get());
+        return spotPos.sub(handToSpotGlobalVec);
+    }
+
+    getSpotPosition(handPosition: Vector3, handRotation: Euler, spotNumber: number) {
+        this._dummyObject.setProperties({position: handPosition, rotation: handRotation})
+        const spotPos = .copy(handPosition);
+        this.
     }
 
     // TODO : FIRST ROT APPROACH : oriented in direction of elbow (but not down / up)
 
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
-    positionAtEvent(evTime: number, ev: HandEvent[] | HandEvent | null): Vector3 {
+    positionAndRotationAtEvent(evTime: number, ev: HandEvent[] | HandEvent | null): {position: Vector3; rotation: Euler} {
         // TODO : ball scale should be a NUMBER, not a VECTOR
         if (ev === null) {
-            return this.restSpot.position.getGlobal();
+            return {position: this.restSpot.position.getGlobal(), rotation: new Euler(0, 0, 0)};
         }
         if (Array.isArray(ev)) {
             // We compute the average position of all events.
             if (ev.length === 0) {
-                return this.restSpot.position.getGlobal();
+                return {position: this.restSpot.position.getGlobal(), rotation: new Euler(0, 0, 0)};
             } else {
                 const positions: Vector3[] = [];
+                const rotations: Euler[] = [];
                 for (const singleEv of ev) {
-                    positions.push(this.positionAtEvent(evTime, singleEv));
+                    const {position, rotation} = this.positionAndRotationAtEvent(evTime, singleEv);
+                    positions.push(position);
+                    rotations.push(rotation);
                 }
-                return averageVector3(positions);
+                return {position: averageVector3(positions), rotation: averageEulerAngle(rotations)};
             }
         } else {
             if (ev.type === "catch") {
@@ -256,6 +263,15 @@ export class HandModel {
         } else {
             return new Vector3(0, 0, 0);
         }
+    }
+
+    positionAtTime(time: number): Vector3 {
+        throw Error("TODO")
+    }
+
+    propertiesAtTime(time: number): ObjectPropertiesOptional {
+        throw Error("TODO")
+
     }
 
     // TODO (in ballmodel) private ballPositionAtEvent() {}

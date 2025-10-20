@@ -1,6 +1,7 @@
 import { Euler, Object3D, Vector3 } from "three";
 import { HandModel } from "./HandModel";
 import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
+import { upVectorFromRotation } from "../utils";
 
 /**
  * Interface for the constructor of JugglerModel.
@@ -97,6 +98,10 @@ export class JugglerModel {
 
     set rightHand(hand: HandModel) {
         this.hands[1] = hand;
+    }
+
+    upVector(): Vector3 {
+        return upVectorFromRotation(this._object.)
     }
 
     /**

@@ -22,7 +22,8 @@ export type HeldBallEvent = {
 export type TableBallEvent = {
     type: "table";
     tableID: string;
-    spot: string | undefined;
+    tableSpot: string | undefined;
+    jugglerName: string;
 };
 
 export type BallEvent = AirborneBallEvent | HeldBallEvent | TableBallEvent;
