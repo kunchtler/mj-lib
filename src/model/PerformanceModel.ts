@@ -71,17 +71,17 @@ export class PerformanceModel {
     constructor({ balls, jugglers, tables }: PerformanceModelParams = {}) {
         this._object = new Object3D();
 
-        const permanentObject = this._object;
+        const threeObj = this._object;
 
         // BallModels map creation
         const onBallSet = (ballID: string, ballModel: BallModel) => {
             ballModel.performance.set(this);
-            permanentObject.add(ballModel._object);
+            threeObj.add(ballModel._object);
         };
         const onBallDelete = (ballID: string, ballModel?: BallModel) => {
             if (ballModel !== undefined) {
                 ballModel.performance.set(undefined);
-                permanentObject.remove(ballModel._object);
+                threeObj.remove(ballModel._object);
             }
         };
         const errorMessageBall = (ballID: string) => `Unknown ball ID "${ballID}"`;
@@ -95,12 +95,18 @@ export class PerformanceModel {
         // JugglerModels map creation
         const onJugglerSet = (jugglerName: string, jugglerModel: JugglerModel) => {
             jugglerModel.performance.set(this);
-            permanentObject.add(jugglerModel._object);
+            threeObj.add(jugglerModel._object);
+            // Also add the performance to the hands.
+            jugglerModel.hands[0].performance.set(this);
+            jugglerModel.hands[1].performance.set(this);
         };
-        const onJugglerDelete = (ballID: string, ballModel?: BallModel) => {
-            if (ballModel !== undefined) {
-                ballModel.performance.set(undefined);
-                permanentObject.remove(ballModel._object);
+        const onJugglerDelete = (ballID: string, jugglerModel?: JugglerModel) => {
+            if (jugglerModel !== undefined) {
+                jugglerModel.performance.set(undefined);
+                threeObj.remove(jugglerModel._object);
+                // Also remove the performance from the hands.
+                jugglerModel.hands[0].performance.set(this);
+                jugglerModel.hands[1].performance.set(this);
             }
         };
         const errorMessageJuggler = (jugglerName: string) =>
@@ -113,14 +119,12 @@ export class PerformanceModel {
         });
 
         // TableModels map creation
-        const onTableSet = (tableID: string, tableModel: BallModel) => {
-            tableModel.performance.set(this);
-            permanentObject.add(tableModel._object);
+        const onTableSet = (tableID: string, tableModel: TableModel) => {
+            threeObj.add(tableModel._object);
         };
-        const onTableDelete = (ballID: string, ballModel?: BallModel) => {
-            if (ballModel !== undefined) {
-                ballModel.performance.set(undefined);
-                permanentObject.remove(ballModel._object);
+        const onTableDelete = (ballID: string, tableModel?: TableModel) => {
+            if (tableModel !== undefined) {
+                threeObj.remove(tableModel._object);
             }
         };
         const errorMessageTable = (tableID: string) => `Unknown table ID "${tableID}"`;

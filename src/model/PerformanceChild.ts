@@ -1,4 +1,3 @@
-import { Object3D, Vector3, Euler } from "three";
 import { PerformanceModel } from "./PerformanceModel";
 
 // export type PerformanceRefParams = {
@@ -20,7 +19,7 @@ export class PerformanceModelRef {
     /**
      * The model of the performance this element is part of.
      */
-    get(): PerformanceModel {
+    getSurely(): PerformanceModel {
         if (this._performanceRef === undefined) {
             throw ReferenceError("Performance is undefined.");
         }
@@ -29,6 +28,10 @@ export class PerformanceModelRef {
             throw ReferenceError("Performance is undefined.");
         }
         return obj;
+    }
+
+    get(): PerformanceModel | undefined {
+        return this._performanceRef?.deref();
     }
 
     set(newPerformance: PerformanceModel | undefined) {

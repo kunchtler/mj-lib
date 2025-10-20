@@ -1,7 +1,9 @@
 import { Euler, Object3D, Vector3 } from "three";
 import { HandModel } from "./HandModel";
 import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
-import { upVectorFromRotation } from "../utils";
+import { MapCallbacks } from "./MapCallbacks";
+import { PerformanceModelRef } from "./PerformanceChild";
+import { SpotModel } from "./SpotModel";
 
 /**
  * Interface for the constructor of JugglerModel.
@@ -40,7 +42,8 @@ export class JugglerModel {
      *
      * Tip to remember : the left-most element of the array is the left hand.
      */
-    readonly hands: [HandModel, HandModel];
+    // readonly hands: [HandModel, HandModel];
+    private readonly _handsMap: MapCallbacks<number, HandModel>;
     /**
      * The juggler's name.
      */
@@ -57,11 +60,47 @@ export class JugglerModel {
      * The juggler's scale.
      */
     scale: ThreeSyncedScale;
+    /**
+     * The place where the hand is when the other hand takes a ball from it.
+     */
+    swapSpot: SpotModel;
+
+    performance: PerformanceModelRef;
 
     readonly _object = new Object3D();
 
     constructor({ name, hands, position, rotation, scale }: JugglerModelParams) {
-        this.hands = hands;
+        this.performance = new PerformanceModelRef();
+
+        const threeObj = this._object;
+        const onHandSet = (handIdx: number, handModel: HandModel) => {
+            handModel.performance.set(this.performance.get());
+            threeObj.add(handModel._dummyObject.get());
+            threeObj.add(handModel.catchSpot._object);
+            threeObj.add(handModel.restSpot._object);
+            threeObj.add(handModel.tossSpot._object);
+        };
+        const onHandDelete = (handIdx: number, handModel?: HandModel) => {
+            if (handModel !== undefined) {
+                handModel.performance.set(undefined);
+                threeObj.remove(handModel._dummyObject.get());
+                threeObj.remove(handModel.catchSpot._object);
+                threeObj.remove(handModel.restSpot._object);
+                threeObj.remove(handModel.tossSpot._object);
+            }
+        };
+        const errorMessageHands = (handIdx: number) => `Unknown hand index ${handIdx}`;
+
+        this._handsMap = new MapCallbacks({
+            onSetElement: onHandSet,
+            onDeleteElement: onHandDelete,
+            errorMessageGet: errorMessageHands,
+            entries: [
+                [0, hands[0]],
+                [1, hands[1]]
+            ]
+        });
+
         this.name = name;
 
         // Sync the table's postional properties with the object.
@@ -77,6 +116,10 @@ export class JugglerModel {
         }
     }
 
+    get hands(): [HandModel, HandModel] {
+        return [this._handsMap.getSurely(0), this._handsMap.getSurely(1)];
+    }
+
     /**
      * The juggler's leftHand.
      */
@@ -84,10 +127,9 @@ export class JugglerModel {
         return this.hands[0];
     }
 
-    set leftHand(hand: HandModel) {
-        this.hands[0]
-        this.hands[0] = hand;
-    }
+    // set leftHand(hand: HandModel) {
+    //     this.hands[0] = hand;
+    // }
 
     /**
      * The juggler's right hand.
@@ -96,13 +138,9 @@ export class JugglerModel {
         return this.hands[1];
     }
 
-    set rightHand(hand: HandModel) {
-        this.hands[1] = hand;
-    }
-
-    upVector(): Vector3 {
-        return upVectorFromRotation(this._object.)
-    }
+    // set rightHand(hand: HandModel) {
+    //     this.hands[1] = hand;
+    // }
 
     /**
      * Returns the first and last event times in both hands of the juggler's timeline.

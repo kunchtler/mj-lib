@@ -268,7 +268,7 @@ function Performance({
 
             // Update the balls' positions.
             if (ballObject !== undefined && mesh !== undefined) {
-                mesh.position.copy(model.balls.get(id)!.position(time));
+                mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
             }
 
             // Audio

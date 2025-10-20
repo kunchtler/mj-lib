@@ -1,16 +1,17 @@
 import { VECTOR3_STRUCTURE } from "../utils/constants";
 import { CubicHermiteSpline } from "../utils/spline/Spline";
 import { HandEvent, HandTimeline } from "./timelines/HandTimeline";
-import { PerformanceChild, PerformanceModelRef, PerformanceRefParams } from "./PerformanceChild";
+import {  PerformanceModelRef } from "./PerformanceChild";
 import { averageEulerAngle, averageVector3 } from "../utils/three/Vector";
-import { Euler, Object3D, Vector3 } from "three";
+import { Euler, Object3D, Quaternion, Vector3 } from "three";
 import { SpotModel } from "./SpotModel";
-import { ObjectPropertiesOptional, ThreeDummyObject, ThreeSyncedScale } from "./ThreeSyncedProperty";
+import { ObjectPropertiesOptional as ObjectLocalTransform, ThreeDummyObject, ThreeSyncedScale } from "./ThreeSyncedProperty";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
 import { MapCallbacks } from "./MapCallbacks";
 import { Vector } from "js-sdsl";
 import { getLastInsertedKey } from "../utils/Operations";
-import { localToWorldVector } from "../utils";
+import { changePositionCoordinateSystem, localToWorldVector, upVectorFromRotation } from "../utils";
+import { JugglerModel } from "./JugglerModel";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -72,10 +73,7 @@ export class HandModel {
      * for its foreseable future.
      */
     restSpot: SpotModel;
-    /**
-     * The place where the hand is when the other hand takes a ball from it.
-     */
-    swapSpot: SpotModel;
+    
     /**
      * An array of all spots the ball can be held in hand.
      */
@@ -102,7 +100,6 @@ export class HandModel {
         catchPos,
         restPos,
         tossPos,
-        swapPos,
         holdSpotsPos,
         defaultHoldSpotNumber,
         timeline,
@@ -118,13 +115,13 @@ export class HandModel {
         this.restSpot = new SpotModel({
             position: restPos
         });
-        this.swapSpot = new SpotModel({
-            position:
-                swapPos ??
-                this.tossSpot.position
-                    .getLocal()
-                    .add(this.tossSpot.position.getLocal().sub(this.catchSpot.position.getLocal()))
-        });
+        // this.swapSpot = new SpotModel({
+        //     position:
+        //         swapPos ??
+        //         this.tossSpot.position
+        //             .getLocal()
+        //             .add(this.tossSpot.position.getLocal().sub(this.catchSpot.position.getLocal()))
+        // });
 
         const holdSpotsEntries: [number, SpotModel][] = [];
         if (holdSpotsPos === undefined || holdSpotsPos.size === 0) {
@@ -160,63 +157,79 @@ export class HandModel {
      * Whether this hand is the right or the left one of the juggler.
      * @returns a boolean
      */
-    // TODO : Re-add juggler Name ? Juggler ref directly ?
-    // isRightHand(): boolean | undefined {
-    //     return this.performance.get()?.jugglers.getSurely(this.)
-    // }
+    isRightHand(): boolean {
+        return this.performance.get()?.jugglers.getSurely(this.jugglerName).rightHand === this;
+    }
 
     getSpotModel(spotNumber: number): SpotModel {
         return this.holdSpots.get(spotNumber) ?? this.holdSpots.get(this.defaultHoldSpotNumber) ?? this.restSpot;
     }
+
     //TODO : Handle hand rotation
-    positionBySpotPos(spotNumber: number, spotPos: Vector3): Vector3 {
+    localPositionBySpotPos(spotNumber: number, spotPos: Vector3): Vector3 {
         const handToSpotLocalVec = this.getSpotModel(spotNumber).position.getLocal();
         const handToSpotGlobalVec = localToWorldVector(handToSpotLocalVec, this._dummyObject.get());
         return spotPos.sub(handToSpotGlobalVec);
     }
 
-    getSpotPosition(handPosition: Vector3, handRotation: Euler, spotNumber: number) {
-        this._dummyObject.setProperties({position: handPosition, rotation: handRotation})
-        const spotPos = .copy(handPosition);
-        this.
+    getJugglerModel(): JugglerModel {
+        return this.performance.getSurely().jugglers.getSurely(this.jugglerName)
+    }
+
+    getHoldSpotPositionRelativeToJuggler(handLocalTransform: ObjectLocalTransform, spotNumber: number): Vector3 {
+        // We take spotNumber and not spotModel as an argument to this function to avoid
+        // giving it a spotModel that is already child of juggler
+        this._dummyObject.setProperties(handLocalTransform);
+        const spotModel = this.getSpotModel(spotNumber);
+        const spotPosLocal = spotModel.position.getLocal();
+        const jugglerModel = this.getJugglerModel();
+        const spotPosJuggler = changePositionCoordinateSystem(spotPosLocal, this._dummyObject.get(), jugglerModel._object);
+        this._dummyObject.unsetProperties();
+        return spotPosJuggler;
     }
 
     // TODO : FIRST ROT APPROACH : oriented in direction of elbow (but not down / up)
 
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
-    positionAndRotationAtEvent(evTime: number, ev: HandEvent[] | HandEvent | null): {position: Vector3; rotation: Euler} {
+    localPositionAndRotationAtEvent(evTime: number | null, ev: HandEvent[] | HandEvent | null): {position: Vector3; rotation: Euler} {
         // TODO : ball scale should be a NUMBER, not a VECTOR
-        if (ev === null) {
-            return {position: this.restSpot.position.getGlobal(), rotation: new Euler(0, 0, 0)};
+        if (ev === null || evTime === null) {
+            return {position: this.restSpot.position.getLocal(), rotation: new Euler(0, 0, 0)};
         }
         if (Array.isArray(ev)) {
-            // We compute the average position of all events.
+            // The position of the event is the position of the last element in the list.
             if (ev.length === 0) {
-                return {position: this.restSpot.position.getGlobal(), rotation: new Euler(0, 0, 0)};
+                return {position: this.restSpot.position.getLocal(), rotation: new Euler(0, 0, 0)};
             } else {
-                const positions: Vector3[] = [];
-                const rotations: Euler[] = [];
-                for (const singleEv of ev) {
-                    const {position, rotation} = this.positionAndRotationAtEvent(evTime, singleEv);
-                    positions.push(position);
-                    rotations.push(rotation);
-                }
-                return {position: averageVector3(positions), rotation: averageEulerAngle(rotations)};
+                return this.localPositionAndRotationAtEvent(evTime, ev[ev.length - 1])
             }
+            // We compute the average position of all events.
+            // if (ev.length === 0) {
+            //     return {position: this.restSpot.position.getGlobal(), rotation: new Euler(0, 0, 0)};
+            // } else {
+            //     const positions: Vector3[] = [];
+            //     const rotations: Euler[] = [];
+            //     for (const singleEv of ev) {
+            //         const {position, rotation} = this.positionAndRotationAtEvent(evTime, singleEv);
+            //         positions.push(position);
+            //         rotations.push(rotation);
+            //     }
+            //     return {position: averageVector3(positions), rotation: averageEulerAngle(rotations)};
+            // }
         } else {
-            if (ev.type === "catch") {
-                return this.catchSpot.position.getGlobal();
+            if (ev.type == "catch") {
+                return {position: this.catchSpot.position.getLocal(), rotation:new Euler(0, 0, 0) }
             } else if (ev.type === "toss") {
-                return this.tossSpot.position.getGlobal();
+                return {position: this.tossSpot.position.getLocal(), rotation:new Euler(0, 0, 0) }
             } else if (ev.type === "table") {
                 // More complex : the hand is turned upside down, palm facing the table,
                 // so that the position of the ball it deposits matches the position the
                 // ball will have on the table.
                 // TODO : The hand rotation. Not 180 degrees so that it turns in the right direction ?
                 // TODO : this.performance.get().balls.getSurely(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.balls.getSurely(...) ?
-                const tableModel = this.performance.get().tables.getSurely(ev.tableID);
-                const ballModel = this.performance.get().balls.getSurely(ev.ballID);
+                const tableModel = this.performance.getSurely().tables.getSurely(ev.tableID);
+                const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
                 const tableSpotPos = tableModel.getSpotPosition(ev.tableSpot);
                 const upVector = tableModel.upVector();
                 const scaledBallRadius = ballModel.scaledRadius();
@@ -224,15 +237,36 @@ export class HandModel {
                     upVector.multiplyScalar(2 * scaledBallRadius)
                 );
                 //TODO : the hand should be positioned "up" from the ball center, not using the table's up.
-                return this.positionBySpotPos(ev.handSpotIdx, handBallContact);
+                return {position: this.localPositionBySpotPos(ev.handSpotIdx, handBallContact)};
             } else {
                 // Complex movement when a ball swaps hands :
-                // - the hand that has the ball (that gives it) goes on its swapSpot.
-                // - the hand that receives the ball (that takes it) faces downwards and retreives the ball.
-                if (ev.isGivingHand) {
-                    return this.swapSpot.position.getGlobal();
-                } else {
-                    // TODO : What is described above.
+                // - the ball's center is on swapSpot.
+                // - the hand that has the ball (that gives it) goes below the ball.
+                // - the hand that receives the ball (that takes it) faces downwards and retreives the ball from above.
+                const jugglerModel = this.performance.getSurely().jugglers.getSurely(this.jugglerName);
+                // A sign used in computation.
+                const handSign = ev.isGivingHand ? 1 : -1
+                const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
+                    // Compute the point of contact position with the ball.
+                    const ballScaledRadius = ballModel.scaledRadiusInObjectBasis(jugglerModel._object).y;
+                    // If we retrieve, the point of contact is below the ball, else above.
+                    // We are in the juggler's coordinates.
+                    const ballHandContactPosition = jugglerModel.swapSpot.position.getLocal();
+                    ballHandContactPosition.y -= handSign * ballScaledRadius;
+                    //TODO : almost there.
+
+                    return {position: jugglerModel.swapSpot.position.getLocal(), rotation: new Euler(0, 0, 0)}
+                    // We compute the position in space where taking hand makes contact
+                    // with the ball.
+                    const givingSpotPos = this.getHoldSpotPositionRelativeToJuggler(givingHandTransform, ev.handSpotIdx);
+                    // In juggler coordinates, we consider the height of the ball.
+                    // So we need to consider the radius of the ball within the jugglers
+                    // coordinates.
+                   
+                    // We compute the 
+                    const [ballPrevEvTime, ballPrevEv] = ballModel.timeline.prevEvent(evTime);
+                    if (ballPrevEvTime === null || ballPrevEv === null)
+                    const localBallRadius = this.
                     return this.swapSpot.position.getGlobal();
                 }
             }
@@ -254,7 +288,7 @@ export class HandModel {
                 return averageVector3(positions);
             }
         } else if (ev.type === "catch" || ev.type === "toss") {
-            const ballModel = this.performance.get().balls.getSurely(ev.ballID);
+            const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
             const ballEv = ballModel.timeline.getElementByKey(evTime);
             // No this won't work ? Think about it.
             return ballEv === undefined
@@ -269,7 +303,7 @@ export class HandModel {
         throw Error("TODO")
     }
 
-    propertiesAtTime(time: number): ObjectPropertiesOptional {
+    propertiesAtTime(time: number): ObjectLocalTransform {
         throw Error("TODO")
 
     }

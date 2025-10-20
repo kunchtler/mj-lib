@@ -55,6 +55,26 @@ export function ballVelocityAtStartEnd(
     return new THREE.Vector3(v0x, tossSign * v0y, v0z);
 }
 
+export function ballVelocityAtToss(
+    pos0: THREE.Vector3,
+    t0: number,
+    pos1: THREE.Vector3,
+    t1: number,
+    gravity = GRAVITY
+): THREE.Vector3 {
+    return ballVelocityAtStartEnd(pos0, t0, pos1, t1, true, gravity);
+}
+
+export function ballVelocityAtCatch(
+    pos0: THREE.Vector3,
+    t0: number,
+    pos1: THREE.Vector3,
+    t1: number,
+    gravity = GRAVITY
+): THREE.Vector3 {
+    return ballVelocityAtStartEnd(pos0, t0, pos1, t1, false, gravity);
+}
+
 /**
  * Given a ball tossed at time t0 from pos0 and caught at time t1 from pos1,
  * computes the velocity of the ball at time t.
