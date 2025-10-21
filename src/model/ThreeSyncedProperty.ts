@@ -1,4 +1,4 @@
-import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Object3D, Quaternion, Vector3 } from "three";
 
 // TODO : DOcument that all of this is used for STATIC PROPERTIES OF THE PERFORMANCE.
 // TODO : Document that they SHOULDN T BE SET BY THE CLASSES COMPUTING THE POSITIONS AND VELOCITIES.

@@ -14,6 +14,10 @@ export type JugglerModelParams = {
      */
     hands: [HandModel, HandModel];
     /**
+     * The place where the hand is when the other hand takes a ball from it.
+     */
+    swapPos: Vector3;
+    /**
      * The juggler's name.
      */
     name: string;
@@ -69,8 +73,9 @@ export class JugglerModel {
 
     readonly _object = new Object3D();
 
-    constructor({ name, hands, position, rotation, scale }: JugglerModelParams) {
+    constructor({ name, hands, position, rotation, scale, swapPos }: JugglerModelParams) {
         this.performance = new PerformanceModelRef();
+        this.swapSpot = new SpotModel({ position: swapPos });
 
         const threeObj = this._object;
         const onHandSet = (handIdx: number, handModel: HandModel) => {

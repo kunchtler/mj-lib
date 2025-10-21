@@ -4,8 +4,7 @@ import { ballPosition } from "./BallPhysics";
 import { PerformanceModelRef } from "./PerformanceChild";
 import { Object3D, Vector3 } from "three";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
-import { ThreeSyncedScale } from "./ThreeSyncedProperty";
-import { localToWorldPosition } from "../utils";
+import { localToWorldPosition, localToWorldVector, worldToLocalPosition } from "../utils";
 import { SpotModel } from "./SpotModel";
 
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
@@ -29,7 +28,7 @@ type BallModelParams = {
      * The timeline of events (tosses, catches, ...) of the ball.
      */
     timeline?: BallTimeline;
-    scale?: Vector3;
+    // scale?: Vector3;
 };
 
 /**
@@ -46,7 +45,7 @@ export class BallModel {
      */
     id: string;
 
-    scale: ThreeSyncedScale;
+    // scale: ThreeSyncedScale;
 
     /**
      * The timeline of events (throws, catches, ...) of the ball.
@@ -57,12 +56,12 @@ export class BallModel {
 
     readonly _object = new Object3D();
 
-    constructor({ radius, id, timeline, scale }: BallModelParams) {
+    constructor({ radius, id, timeline }: BallModelParams) {
         this.id = id;
         this.radius = radius ?? 0.1;
         this.timeline = timeline ?? new BallTimeline();
-        this.scale = new ThreeSyncedScale(this._object, scale);
         this.performance = new PerformanceModelRef();
+        // this.scale = new ThreeSyncedScale(this._object, scale);
     }
 
     // scaledRadius(): number {
@@ -81,13 +80,11 @@ export class BallModel {
         // return new Vector3(this.radius);
     }
 
-    positionOverSpot(spotModel: SpotModel, local = false): Vector3 {
-        const localPos = spotModel.positionOver(this.scaledRadius());
-        if (local) {
-            return localPos;
-        } else {
-            return localToWorldPosition(localPos, spotModel._object);
-        }
+    positionOverSpot(spotModel: SpotModel): Vector3 {
+        // We proceed in world space as local space may have a scale (thus negating the axes).
+        const spotWorldPos = spotModel.position.getGlobal();
+        const spotUpWorldVec = localToWorldVector(new Vector3(0, 1, 0), spotModel._object);
+        return spotWorldPos.add(spotUpWorldVec.multiplyScalar(this.radius));
     }
 
     /**
@@ -103,7 +100,7 @@ export class BallModel {
             // To know where from it is tossed, we look at the previous event.
             // Note that this only give the origin space of the toss.
             // The toss still happens at time timeEv.
-            const [prevEvTime, prevEv] = this.timeline.prevEvent(evTime, true);
+            const [, prevEv] = this.timeline.prevEvent(evTime, true);
             if (prevEv === null) {
                 // We can't guess where the ball was tossed from.
                 return null;
@@ -131,8 +128,8 @@ export class BallModel {
                 // We need to compute where the hand would be to get the correct spot position
                 // where the ball is.
                 const spotModel = handModel.getSpotModel(prevEv.posIdx);
-                const handPosRotSca = handModel.propertiesAtTime(prevEvTime);
-                handModel._dummyObject.setProperties(handPosRotSca);
+                const handPosRot = handModel.localPositionAndRotationAtEvent(evTime, handEv);
+                handModel._dummyObject.setProperties(handPosRot);
                 const ballPos = this.positionOverSpot(spotModel);
                 handModel._dummyObject.unsetProperties();
                 return ballPos;
@@ -145,7 +142,7 @@ export class BallModel {
             // when the ball changes hand subspot)).
             const handModel = this.performance.getSurely().getHand(ev.jugglerName, ev.rightHand);
             const spotModel = handModel.getSpotModel(ev.posIdx);
-            const handPosRotSca = handModel.propertiesAtTime(evTime);
+            const handPosRotSca = handModel.localPositionAndRotationAtTime(evTime);
             handModel._dummyObject.setProperties(handPosRotSca);
             const ballPos = this.positionOverSpot(spotModel);
             handModel._dummyObject.unsetProperties();
@@ -182,7 +179,7 @@ export class BallModel {
                     .getSurely()
                     .getHand(nextEv.jugglerName, nextEv.rightHand);
                 const spotModel = handModel.getSpotModel(nextEv.posIdx);
-                const handPosRotSca = handModel.propertiesAtTime(nextEvTime);
+                const handPosRotSca = handModel.localPositionAndRotationAtTime(nextEvTime);
                 handModel._dummyObject.setProperties(handPosRotSca);
                 const ballPos = this.positionOverSpot(spotModel);
                 handModel._dummyObject.unsetProperties();
@@ -213,15 +210,21 @@ export class BallModel {
                 nextEv !== null && nextEv.type === "held" ? nextEv.posIdx : prevEv.posIdx;
             const nextEvSpotModel = handModel.getSpotModel(nextEvSpotIdx);
             // 2. We compute where the hand is.
-            const handPosRotSca = handModel.propertiesAtTime(time);
-            handModel._dummyObject.setProperties(handPosRotSca);
+            const handPosRot = handModel.localPositionAndRotationAtTime(time);
+            handModel._dummyObject.setProperties(handPosRot);
             // 3. We grab the local spots positions and interpolate in local space.
             // (hence the "true" in positionOverSpot).
-            const prevEvSpotPos = this.positionOverSpot(prevEvSpotModel, true);
-            const nextEvSpotPos = this.positionOverSpot(nextEvSpotModel, true);
+            const prevEvSpotHandPos = worldToLocalPosition(
+                this.positionOverSpot(prevEvSpotModel),
+                handModel._dummyObject.get()
+            );
+            const nextEvSpotHandPos = worldToLocalPosition(
+                this.positionOverSpot(nextEvSpotModel),
+                handModel._dummyObject.get()
+            );
             const alpha = nextEvTime === null ? 1 : (time - prevEvTime) / (nextEvTime - prevEvTime);
-            const localBallPos = prevEvSpotPos.clone().lerp(nextEvSpotPos, alpha);
-            const globalBallPos = localToWorldPosition(localBallPos, handModel._dummyObject.get());
+            const ballHandPos = prevEvSpotHandPos.clone().lerp(nextEvSpotHandPos, alpha);
+            const globalBallPos = localToWorldPosition(ballHandPos, handModel._dummyObject.get());
             // 4. Don't forget to undo the dummy object position's.
             handModel._dummyObject.unsetProperties();
             return globalBallPos;
@@ -233,23 +236,5 @@ export class BallModel {
     // rotation(time: number) {
     // We need to match the hand's rotation when held
     //TODO : What about when the hand is at an angle :/
-    // }
-
-    // TODO : ONLY NEED VELOCITY AT CATCH / TOSS !
-    // velocityAtEvent(evTime: number, ev: BallEvent | null) {
-    //     if (ev === null) {
-    //         return new Vector3(0, 0, 0);
-    //     } else if (ev.type === "airborne") {
-    //         // Velocity on toss.
-    //     } else if (ev.type === "held") {
-    //         const handModel = this.performance.get().getHand(ev.jugglerName, ev.rightHand)
-    //         const [prevEvTime, prevEv] = this.timeline.prevEvent(evTime, true);
-    //         if (prevEv === null) {
-    //             return handModel.velocityA
-    //         }
-    //         // Might be velocity on catch if airborne prev.
-    //         // If
-    //     } else {
-    //     }
     // }
 }
