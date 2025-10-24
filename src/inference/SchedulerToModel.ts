@@ -17,8 +17,8 @@ import { TableModel } from "../model/TableModel";
 import { HandTimeline } from "../model/timelines/HandTimeline";
 import { BallTimeline } from "../model/timelines/BallTimeline";
 
-//TODO : In balls, rename "name" to "ID".
-//TODO : Rename MusicBeatConverter to MusicConverter ?
+//TODO : Rename this file to SchedulerToTimeline.
+//TODO : Rework MusicScoreConverter...
 
 export const MAX_TABLE_UNIT_TRANSITION_TIME = 0.5;
 export const MAX_TIME_SS_HEIGHT_1 = 0.25;
@@ -28,6 +28,7 @@ export type PostSchedulerParams = {
         string,
         {
             table?: string;
+            initialHeldState: [string[], string[]];
             events: SymbolicEvent<Fraction>[];
         }
     >;
@@ -48,6 +49,8 @@ export type PerformanceTimelines = {
     balls: Map<string, BallTimeline>;
 };
 
+
+
 export function createModelTimelines({
     jugglers,
     ballIDs,
@@ -57,6 +60,16 @@ export function createModelTimelines({
     jugglers: Map<string, SymbolicEvent<Fraction>[]>;
     scoreConverter: ScoreConverter;
 }): PerformanceTimelines {
+
+    for (const [jugglerName, events] of jugglers) {
+        const heldState: [(string | undefined)[], (string | undefined)[]] = [[], []]
+        const 
+        for (const {beat, tempo, tosses, setupHands} of events) {
+            
+        }
+    }
+
+
     // Create blank timelines for balls and jugglers.
     const jugglerTimelines = new Map<string, [HandTimeline, HandTimeline]>();
     const ballTimelines = new Map<string, BallTimeline>();

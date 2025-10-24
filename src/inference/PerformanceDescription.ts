@@ -98,10 +98,19 @@ export type BallTemplate = {
 
 export type ColorDescription = number | string;
 
+export type SpotDescription = {
+    position: [number, number, number];
+    rotation?: [number, number, number]; // Rotation indicates with its "y" axis where the up is, and therefore how the ball should be put on top of the spot.
+};
+
 export type HandDescription = {
-    tossSpot: [number, number, number]; // Relative to juggler origin. //P
-    catchSpot: [number, number, number]; // Relative to juggler origin. //P
-    restSpot?: [number, number, number]; // Relative to juggler origin. //P
+    tossSpot: SpotDescription; // Relative to juggler origin. //P
+    catchSpot: SpotDescription; // Relative to juggler origin. //P
+    restSpot?: SpotDescription; // Relative to juggler origin. //P
+    length?: number; // From wrist to fingertip.
+    width?: number; // From thumb to little finger.
+    depth?: number; // From palm to back.
+    heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
     visible?: boolean; //P
 };
 
@@ -110,6 +119,7 @@ export type BodyDescription = {
     width?: number; //P
     depth?: number; //P
     color?: ColorDescription; //P
+    swapSpot: SpotDescription;
     visible?: boolean; //P
 };
 
@@ -139,7 +149,7 @@ export type JugglerDescription<JugglingPhraseType> = {
 //TODO : WHEN TO HAVE "immutable" data format ?
 //TODO : Separate what is needed to create the Timelines (T) from the physical layer (P) ??? We may not want to have to specify P when doing T...
 
-export type SpotDescription = {
+export type TableSpotDescription = SpotDescription & {
     name: string; //T
     acceptedBallName?: string; //T
     position: [number, number, number]; // Relative to table origin. //P
@@ -150,7 +160,7 @@ export type TableTemplate = {
     height?: number; //P
     width?: number; //P
     depth?: number; //P
-    spots: SpotDescription[]; //T+P
+    spots: TableSpotDescription[]; //T+P
     unknownSpot?: [number, number, number]; // Relative to table origin. //P
 };
 
@@ -280,8 +290,12 @@ export type MiseEnScene = {
         spots: {
             name: string;
             position: [number, number, number];
+            rotation?: [number, number, number];
         }[];
-        unknownSpot?: [number, number, number];
+        unknownSpot?: {
+            position: [number, number, number];
+            rotation?: [number, number, number];
+        };
     }[];
 };
 

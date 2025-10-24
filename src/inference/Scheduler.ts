@@ -104,8 +104,12 @@ export type Hands<ContentType> = [ContentType[], ContentType[]];
 export type SchedulerRes = Map<
     string,
     {
-        events: SymbolicEvent<Fraction>[];
-        states: (JugglerState & { beat: Fraction })[];
+        timeline: {
+            beat: Fraction;
+            state: JugglerState;
+            event?: SymbolicEvent<Fraction>;
+            postCatchPreTossHeldState?: [BallID[], BallID[]];
+        }[];
         errorLogger: FracTimedErrorLogger;
     }
 >;
@@ -142,7 +146,6 @@ export type SymbolicToss<BeatT> = {
 };
 
 export type SymbolicEvent<BeatType> = {
-    beat: BeatType;
     tosses: SymbolicToss<BeatType>[];
     tempo: Fraction;
     setupHands?: MoveBall[];
@@ -219,8 +222,7 @@ export class Scheduler {
         const schedulerResults: SchedulerRes = new Map();
         for (const [jugglerName, { manager }] of this.jugglers) {
             schedulerResults.set(jugglerName, {
-                events: [],
-                states: [],
+                timeline: [],
                 errorLogger: manager.errorLogger
             });
         }
@@ -242,7 +244,7 @@ export class Scheduler {
             for (const [jugglerName, { cache }] of this.jugglers) {
                 schedulerResults
                     .get(jugglerName)
-                    ?.states.push({ ...cache.state, beat: new Fraction(0) });
+                    ?.timeline.push({ beat: new Fraction(0), state: cache.state });
             }
         } else {
             // Have as first juggler state beat one in tempo, which is <= the first global beat.
@@ -260,7 +262,7 @@ export class Scheduler {
                 }
                 schedulerResults
                     .get(jugglerName)
-                    ?.states.push({ ...cache.state, beat: firstJugglerBeat });
+                    ?.timeline.push({ beat: firstJugglerBeat, state: cache.state });
             }
         }
 
@@ -299,7 +301,9 @@ export class Scheduler {
             // We maintain a set of all juggler's name that either tossed or add
             // balls added to their airborne state, in order to record their new
             // state by the end.
-            const jugglersWithNewState = new Set<string>();
+            // The value is whether there is a new event or not, or only a new
+            // state which we'll fecth from cache.
+            const jugglersWithNewState = new Map<string, SymbolicEvent<Fraction> | undefined>();
             // We keep track of which balls are tossed to whom.
             const tossedTo = new Map<string, HalfCompletedToss[]>();
             for (const name of this.jugglers.keys()) {
@@ -320,7 +324,7 @@ export class Scheduler {
                     cache.state = res.state;
                     catches.push(...res.catches);
                     // Tag the juggler has having a new state.
-                    jugglersWithNewState.add(jugglerName);
+                    jugglersWithNewState.set(jugglerName, undefined);
                 } else {
                     const res = manager.processEvent(cache.nextEventIdx, cache.state);
                     catches.push(...res.catches);
@@ -329,9 +333,8 @@ export class Scheduler {
                     cache.nextEventIdx++; // Bump the relevant event index.
                     cache.state = res.state; // Update the juggler's state.
 
-                    // Add the partially completed event to the result.
-                    schedulerResults.get(jugglerName)!.events.push({
-                        beat: nextBeatOfInterest,
+                    // Tag the jugler has having a new state with a new event.
+                    jugglersWithNewState.set(jugglerName, {
                         tempo: res.tempo,
                         // We leave the tosses empty for now, as they'll be filled in
                         // with additional info when caught by the receiving juggler.
@@ -343,23 +346,19 @@ export class Scheduler {
                         // Assign to the tossedTo map the tosses made to each juggler.
                         tossedTo.get(toss.to.juggler)?.push(toss);
                     }
-
-                    // Tag the juggler as having a new state.
-                    if (
-                        res.tosses.length !== 0 ||
-                        (res.handsInstructions !== undefined && res.handsInstructions.length !== 0)
-                    ) {
-                        jugglersWithNewState.add(jugglerName);
-                    }
                 }
             }
 
             // Use the catches to complete previous toss information.
+            // Note : a ball can't be tossed AND caught on the same beat.
             for (const { ballID, ballIdx, handIdx } of catches) {
                 const { toss, resultsIdx } = airborneBalls.get(ballID)!;
                 airborneBalls.delete(ballID);
-                const ev = schedulerResults.get(toss.from.juggler)!.events[resultsIdx];
-                ev.tosses.push({
+                const event = schedulerResults.get(toss.from.juggler)?.timeline[resultsIdx].event;
+                if (event === undefined) {
+                    throw Error("Shouldn't happen.");
+                }
+                event.tosses.push({
                     ballID: ballID,
                     from: toss.from,
                     to: {
@@ -379,24 +378,24 @@ export class Scheduler {
                 // Update the cache's state. No need to bump the event idx.
                 cache.state = manager.addTossesToState(tosses, cache.state);
                 // Tag the juggler has having a new state.
-                if (tosses.length !== 0) {
-                    jugglersWithNewState.add(jugglerName);
+                if (tosses.length !== 0 && !jugglersWithNewState.has(jugglerName)) {
+                    jugglersWithNewState.set(jugglerName, undefined);
                 }
 
                 // Remember the ball's info to complete them later.
                 for (const toss of tosses) {
                     // We do this here since "catches are made before tosses".
-                    const resultsIdx = schedulerResults.get(toss.from.juggler)!.events.length - 1;
+                    const resultsIdx = schedulerResults.get(toss.from.juggler)!.timeline.length;
                     airborneBalls.set(toss.ballID, { toss, resultsIdx });
                 }
             }
 
             // For any juggler that tossed or received balls, record their state.
-            for (const jugglerName of jugglersWithNewState) {
+            for (const [jugglerName, event] of jugglersWithNewState) {
                 const state = this.jugglers.get(jugglerName)!.cache.state;
                 schedulerResults
-                    .get(jugglerName)
-                    ?.states.push({ ...state, beat: nextBeatOfInterest });
+                    .get(jugglerName)!
+                    .timeline.push({ beat: nextBeatOfInterest, state: state, event: event });
             }
         }
 
