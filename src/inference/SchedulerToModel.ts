@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { Hands, SymbolicEvent } from "./Scheduler";
+import { Hands, JugglerState, PartialHeldState, SymbolicEvent } from "./Scheduler";
 import { ScoreConverter, MusicTempo } from "./ScoreConverter";
 import {
     CatchEvent,
@@ -15,7 +15,7 @@ import { HandModel } from "../model/HandModel";
 import { BallModel } from "../model/BallModel";
 import { TableModel } from "../model/TableModel";
 import { HandTimeline } from "../model/timelines/HandTimeline";
-import { BallTimeline } from "../model/timelines/BallTimeline";
+import { BallTimeline, HeldBallEvent } from "../model/timelines/BallTimeline";
 
 //TODO : Rename this file to SchedulerToTimeline.
 //TODO : Rework MusicScoreConverter...
@@ -49,27 +49,15 @@ export type PerformanceTimelines = {
     balls: Map<string, BallTimeline>;
 };
 
-
-
 export function createModelTimelines({
     jugglers,
     ballIDs,
     scoreConverter
 }: {
     ballIDs: Set<string>;
-    jugglers: Map<string, SymbolicEvent<Fraction>[]>;
+    jugglers: Map<string, { timeline: SymbolicEvent<Fraction>[]; tableID?: string }>;
     scoreConverter: ScoreConverter;
 }): PerformanceTimelines {
-
-    for (const [jugglerName, events] of jugglers) {
-        const heldState: [(string | undefined)[], (string | undefined)[]] = [[], []]
-        const 
-        for (const {beat, tempo, tosses, setupHands} of events) {
-            
-        }
-    }
-
-
     // Create blank timelines for balls and jugglers.
     const jugglerTimelines = new Map<string, [HandTimeline, HandTimeline]>();
     const ballTimelines = new Map<string, BallTimeline>();
@@ -80,23 +68,98 @@ export function createModelTimelines({
         ballTimelines.set(ballID, new BallTimeline());
     }
 
-    // TODO : In converting real time, NEED TO USE SCORE CONVERTER
+    // Handle the initial state ball's location.
+    // The initial state is the state of the first event.
+    for (const [jugglerName, { timeline: symbolicTimeline, tableID }] of jugglers) {
+        if (symbolicTimeline.length === 0) {
+            continue;
+        }
+        const initialState = symbolicTimeline[0].state;
+        const initialTime = scoreConverter
+            .convertBeatToRealTime(symbolicTimeline[0].beat)
+            .valueOf();
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (let ballIdx = 0; ballIdx < initialState.held[handIdx].length; ballIdx++) {
+                const ballID = initialState.held[handIdx][ballIdx];
+                ballTimelines.get(ballID)!.addEvent(initialTime, {
+                    type: "held",
+                    jugglerName,
+                    posIdx: ballIdx,
+                    rightHand: handIdx === 1
+                });
+            }
+        }
+        if (initialState.table !== undefined && tableID !== undefined) {
+            for (let [spotName, ballID] of initialState.table.namedSpot) {
+                ballTimelines
+                    .get(ballID)!
+                    .addEvent(initialTime, { type: "table", tableID, tableSpot: spotName });
+            }
+            for (let [spotName, ballID] of initialState.table.unknown) {
+                ballTimelines
+                    .get(ballID)!
+                    .addEvent(initialTime, { type: "table", tableID, tableSpot: undefined });
+            }
+        }
+    }
 
     // Populate each timeline.
-    for (const [jugglerName, events] of jugglers) {
-        for (const ev of events) {
+    for (const [jugglerName, { timeline: symbolicTimeline, tableID }] of jugglers) {
+        for (let evIdx = 0; evIdx < symbolicTimeline.length; evIdx++) {
+            const ev = symbolicTimeline[evIdx];
+            console.log(evIdx);
+            const evTime = scoreConverter.convertBeatToRealTime(ev.beat).valueOf();
+            const jugglerTimeline = jugglerTimelines.get(jugglerName)!
+            let lastHeldState: PartialHeldState | undefined = undefined;
+            let lastTime: number;
+
+            if (ev.setupHands !== undefined) {
+                // First, identify exactly what the target hand is. TODO.
+                // 
+            }
+
+            // Search for the true hand position we should take so as to not have un-needed
+            // hand ball spot movements.
+            for (let evIdx2 = evIdx; evIdx2 < symbolicTimeline.length; evIdx2++) {
+                if (evIdx2 !== evIdx && symbolicTimeline[evIdx2].setupHands !== undefined) {
+                    lastHeldState = //Setup hands
+                    break;
+                }
+                if (symbolicTimeline[evIdx2].catches !== undefined) {
+                    lastHeldState = symbolicTimeline[evIdx2].catches!.preHandState;
+                    break;
+                }
+                if (symbolicTimeline[evIdx2].tosses !== undefined) {
+                    lastHeldState = symbolicTimeline[evIdx2].tosses!.preHandState;
+                    break;
+                }
+            }
+
+
+            // Order of events after a previous toss :
+            // - the post toss (if needed)
+            // - the hands setup part (take balls, exchange).
+            // - 
+            // - the pre catch (if needed)
+            // - some time to move to the catch spot.
+            // - during the dwell time, the post catch -> pre toss
+            //
+
+            // TODO : In converting real time, NEED TO USE SCORE CONVERTER
             // TODO : Change this to truly have hand exchanges, ... by adding events ?
             // FOR NOW, if we exchange a ball hands, we put it on random table spot and retrieve it later.
             // Have somthing ebetter later with proper exchange.
             // TODO : Handle hand subposition.
             // TODO : Rework OnNamed/Unamed spot for loc, and instead have the spot be null or undefined ?
-            // 1. Identify the different moves needed by hand.
-            // TODO : Fix problem of balls not used aving no event in timeline and thus disappearing.
+            // 1. Identify the different moves n0eeded by hand.
+
             const ballsToPutOnTable: [
-                { ballID: string; spot?: string }[],
-                { ballID: string; spot?: string }[]
+                { ballID: string; spotName?: string }[],
+                { ballID: string; spotName?: string }[]
             ] = [[], []];
-            const ballsToTakeFromTable: [{ ballID: string }[], { ballID: string }[]] = [[], []];
+            const ballsToTakeFromTable: [{ ballID: string; spotName?: string }[], { ballID: string; spotName?: string }[]] = [[], []];
+            const ballsToMoveInHand: [{ballID: string; spotIdx: number}[], {ballID: string; spotIdx: number}[]] = [[], []];
+            const ballsToSwapHands: [{ballID: string; spotIdx: number}[], {ballID: string; spotIdx: number}[]] = [[], []];
             for (const ball of ev.setupHands ?? []) {
                 if (ball.from.type === "held") {
                     if (ball.to.type === "held") {
@@ -134,45 +197,89 @@ export function createModelTimelines({
             }
 
             // 2. Simulate the moves.
-            const nbMovesPut = Math.max(ballsToPutOnTable[0].length, ballsToPutOnTable[1].length);
-            const nbMovesTake = Math.max(
-                ballsToTakeFromTable[0].length,
-                ballsToTakeFromTable[1].length
-            );
-            const totalTimeToPerformExchange = ev;
-            for (let i = 0; i < 2; i++) {
-                // Compute the available time to perform those operations.
-                const nbMoves = ballsToPutOnTable[i].length + ballsToTakeFromTable[i].length;
-                let timePerMove = endTime.sub(startTime).div(nbMoves + 1);
-                const maxTimePerMove = new Fraction("1/2");
-                if (timePerMove.gt(maxTimePerMove)) {
-                    timePerMove = maxTimePerMove;
-                }
+            const nbMovesPutOrTake = Math.max(ballsToPutOnTable[0].length + ballsToTakeFromTable[0].length, ballsToPutOnTable[1].length + ballsToTakeFromTable[1].length);
+            const nbMovesExchange = ballsToSwapHands[0].length + ballsToSwapHands[1].length;
+            const nbMovesChangeHandSpot = ballsToSwapHands[0].length > 0 || ballsToSwapHands[1].length > 0 ? 1 : 0;
+            const nbMoveToCatchOrToss = ev.tosses !== undefined || ev.catches !== undefined ? 1 : 0;
+
+            const nbTotalMoves = 1 + nbMovesPutOrTake + nbMovesExchange + nbMovesChangeHandSpot + nbMoveToCatchOrToss
+            const totalTime = evTime - lastTime;
+
+            const timePerMove = Math.min(totalTime / (nbTotalMoves - 1), MAX_TABLE_UNIT_TRANSITION_TIME);
+            
+            let moveIdx: number;
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
                 // And simulate the moves.
-                let time = endTime.sub(timePerMove.mul(nbMoves));
-                for (const ball of ballsToPutOnTable[i]) {
-                    putOnTable({
-                        ball: ball,
-                        time: time,
-                        hand: juggler.hands[i],
-                        table: table,
-                        unitTime: unitTime
-                    });
-                    time = time.add(timePerMove);
+                moveIdx = 1;
+                for (const {ballID, spotName} of ballsToPutOnTable[handIdx]) {
+                    const moveTime = evTime + moveIdx * timePerMove
+                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "table", tableID, tableSpot: spotName});
+                    jugglerTimeline[handIdx].addEvent(moveTime, {type: "table", ballID, handSpotIdx, tableID, tableSpot: spotName});
+                    moveIdx++;
                 }
-                for (const ball of ballsToTakeFromTable[i]) {
-                    takeFromTable({
-                        ball: ball,
-                        time: time,
-                        hand: juggler.hands[i],
-                        table: table,
-                        unitTime: unitTime
-                    });
-                    time = time.add(timePerMove);
+                for (const {ballID, spotName} of ballsToTakeFromTable[handIdx]) {
+                    const moveTime = evTime + moveIdx * timePerMove
+                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, posIdx, rightHand: handIdx === 1});
+                    jugglerTimeline[handIdx].addEvent(moveTime, {type: "table", ballID, handSpotIdx, tableID, tableSpot: spotName});
+                    moveIdx++;
+                }
+                for (const {} of ballsToSwapHands[handIdx]) {
+                    
+                }
+            }
+            
+            moveIdx = 1 + nbMovesPutOrTake; // To sync both hands for what follows.
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const {ballID, spotIdx} of ballsToSwapHands[handIdx]) {
+                    const moveTime = evTime + moveIdx * timePerMove
+                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, posIdx: spotIdx, rightHand: !(handIdx === 1)});
+                    
+                    moveIdx++;
                 }
             }
 
             // Simulate toss.
+            if (ev.tosses !== undefined) {
+                for (const {ballID, handIdx, posIdx} of ballChangesInHands(lastHeldState, ev.tosses.preHandState)) {
+                    
+                }
+                ev.tosses.postHandState;
+                for (const toss of ev.tosses.info) {
+                    //TODO : Sounds ????
+                    ballTimelines.get(toss.ballID)!.addEvent(evTime, {
+                        type: "airborne",
+                        siteswapHeight: toss.mode.type === "Height" ? toss.mode.height : undefined
+                    });
+                    jugglerTimelines.get(toss.to.juggler)![toss.from.handIdx].addEvent(evTime, {
+                        type: "toss",
+                        ballID: toss.ballID,
+                        handSpotIdx: toss.from.ballIdx
+                    });
+                }
+            }
+
+            if (ev.catches !== undefined) {
+                if (!areHeldStateEqual(lastHeldState, ev.catches.preHandState)) {
+                }
+                ev.catches.preHandState;
+                for (const toss of ev.catches.info) {
+                    //TODO : Sounds ????
+                    ballTimelines.get(toss.ballID)!.addEvent(evTime, {
+                        type: "held",
+                        jugglerName: toss.to.juggler,
+                        posIdx: toss.to.ballIdx,
+                        rightHand: toss.to.handIdx === 1
+                    });
+                    jugglerTimelines.get(toss.to.juggler)![toss.to.handIdx].addEvent(evTime, {
+                        type: "catch",
+                        ballID: toss.ballID,
+                        handSpotIdx: toss.to.ballIdx
+                    });
+                }
+
+                lastHeldState = ev.catches.postHandState;
+            }
+
             for (const toss of ev.tosses) {
                 // Compute dwell times for a toss.
                 // x----DwellToss----x-----------Airtime-----------x----DwellCatch----x
@@ -231,7 +338,40 @@ export function createModelTimelines({
     return { jugglers: jugglerTimelines, balls: ballTimelines };
 }
 
-export function createModels({}: { timelines: PerformanceTimelines });
+export function createModels({}: { timelines: PerformanceTimelines }) {}
+
+export function areHeldStateEqual(state1: PartialHeldState, state2: PartialHeldState): boolean {
+    if (state1[0].length !== state2[0].length || state1[1].length !== state2[1].length) {
+        return false;
+    }
+    for (let handIdx = 0; handIdx < 2; handIdx++) {
+        for (let ballIdx = 0; ballIdx < state1[handIdx].length; ballIdx++) {
+            if (state1[handIdx][ballIdx] !== state2[handIdx][ballIdx]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Returns only the balls that changed hand subspot
+// Parameter constraint : they must have exactly the same balls, but in different positions.
+export function ballChangesInHands(
+    oldState: PartialHeldState,
+    newState: PartialHeldState
+): {ballID: string; handIdx: number; posIdx: number}[] {
+    const ballChanges: {ballID: string; handIdx: number; posIdx: number}[] = [];
+    for (let handIdx = 0; handIdx < 2; handIdx++) {
+        for (let posIdx = 0; posIdx < oldState[handIdx].length; posIdx++) {
+            const ballID = oldState[handIdx][posIdx];
+            if ((oldState[handIdx].length !== newState[handIdx].length || oldState[handIdx][posIdx] !== newState[handIdx][posIdx]) && ballID !== undefined) {
+                // If hand size has changed, or if the ball is different, record the change.
+                ballChanges.push({ballID, handIdx, posIdx});
+            }
+        }
+    }
+    return ballChanges;
+}
 
 //TODO : Properly add support for sounds on balls, presence or absence of table, world info ?
 export function simulateEvents({

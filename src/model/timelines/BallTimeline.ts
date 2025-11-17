@@ -10,6 +10,7 @@ import { Timeline } from "../../utils/Timeline";
 
 export type AirborneBallEvent = {
     type: "airborne";
+    siteswapHeight?: number;
 };
 
 export type HeldBallEvent = {
@@ -23,7 +24,6 @@ export type TableBallEvent = {
     type: "table";
     tableID: string;
     tableSpot: string | undefined;
-    jugglerName: string;
 };
 
 export type BallEvent = AirborneBallEvent | HeldBallEvent | TableBallEvent;
