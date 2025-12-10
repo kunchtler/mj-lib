@@ -97,7 +97,7 @@
     "immutable": "^5.1.2",
     "js-sdsl": "^4.4.2",
     "merge-refs": "^2.0.0",
-    "react": "^19.1.0",
+    "react": "~19.1.2",
     "react-dom": "^19.1.0",
     "three": "^0.176.0",
     "use-immer": "^0.11.0"

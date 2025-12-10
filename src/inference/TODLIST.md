@@ -40,3 +40,5 @@ GITHUB ISSUES for roadmap / milestones
 - more detailed hand movements over table and their order ?
 - hand topology (custom functions, how does it behave when a ball goes out)
 - swing rhythm (analog to music : how can we whange the base rhythm ? Mention it should be researched.)
+
+- npq mention in README https://github.com/lirantal/npq
