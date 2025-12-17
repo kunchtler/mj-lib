@@ -28,6 +28,20 @@ export function ballPosition(
     );
 }
 
+export function ballPosition2(
+    t0: number,
+    pos0: THREE.Vector3,
+    v0: THREE.Vector3,
+    t: number,
+    gravity = GRAVITY
+) {
+    return new THREE.Vector3(
+        v0.x * (t - t0) + pos0.x,
+        (-gravity / 2) * (t - t0) ** 2 + v0.y * (t - t0) + pos0.y,
+        v0.z * (t - t0) + pos0.z
+    );
+}
+
 /**
  * Given a ball tossed at time t0 from pos0 and caught at time t1 from pos1,
  * computes the velocity of the ball at t0 or at t1.

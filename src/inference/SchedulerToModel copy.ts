@@ -58,20 +58,6 @@ export function createModelTimelines({
     jugglers: Map<string, { timeline: SymbolicEvent<Fraction>[]; tableID?: string }>;
     scoreConverter: ScoreConverter;
 }): PerformanceTimelines {
-
-    // 1st pass : compute the tosses and catches
-    // Juggler : all times a ball is caught / received
-    // 2nd pass : complete with in between time (compute )
-
-
-
-
-
-
-
-
-
-
     // Create blank timelines for balls and jugglers.
     const jugglerTimelines = new Map<string, [HandTimeline, HandTimeline]>();
     const ballTimelines = new Map<string, BallTimeline>();
