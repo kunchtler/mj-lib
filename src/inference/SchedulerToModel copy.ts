@@ -84,7 +84,7 @@ export function createModelTimelines({
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     type: "held",
                     jugglerName,
-                    posIdx: ballIdx,
+                    handPosIdx: ballIdx,
                     rightHand: handIdx === 1
                 });
             }
@@ -219,7 +219,7 @@ export function createModelTimelines({
                 }
                 for (const {ballID, spotName} of ballsToTakeFromTable[handIdx]) {
                     const moveTime = evTime + moveIdx * timePerMove
-                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, posIdx, rightHand: handIdx === 1});
+                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, handPosIdx: posIdx, rightHand: handIdx === 1});
                     jugglerTimeline[handIdx].addEvent(moveTime, {type: "table", ballID, handSpotIdx, tableID, tableSpot: spotName});
                     moveIdx++;
                 }
@@ -232,7 +232,7 @@ export function createModelTimelines({
             for (let handIdx = 0; handIdx < 2; handIdx++) {
                 for (const {ballID, spotIdx} of ballsToSwapHands[handIdx]) {
                     const moveTime = evTime + moveIdx * timePerMove
-                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, posIdx: spotIdx, rightHand: !(handIdx === 1)});
+                    ballTimelines.get(ballID)!.addEvent(moveTime, {type: "held", jugglerName, handPosIdx: spotIdx, rightHand: !(handIdx === 1)});
                     
                     moveIdx++;
                 }
@@ -267,7 +267,7 @@ export function createModelTimelines({
                     ballTimelines.get(toss.ballID)!.addEvent(evTime, {
                         type: "held",
                         jugglerName: toss.to.juggler,
-                        posIdx: toss.to.ballIdx,
+                        handPosIdx: toss.to.ballIdx,
                         rightHand: toss.to.handIdx === 1
                     });
                     jugglerTimelines.get(toss.to.juggler)![toss.to.handIdx].addEvent(evTime, {
