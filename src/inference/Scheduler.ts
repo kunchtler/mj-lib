@@ -162,7 +162,11 @@ export type SymbolicEvent<BeatType> = {
     state: JugglerState;
     unitTime: BeatType;
     // defaultHand: "R" | "L";
-    setupHands?: MoveBall[];
+    setupHands?: {
+        preHandState: PartialHeldState;
+        moves: MoveBall[];
+        postHandState: PartialHeldState;
+    };
     catches?: {
         preHandState: PartialHeldState;
         info: SymbolicToss<BeatType>[];
@@ -405,7 +409,7 @@ export class Scheduler {
                         cache.state = res.state; // Update the juggler's state.
 
                         // Add to the scheduler's timeline output.
-                        if (res.handsInstructions !== undefined) {
+                        if (res.setupHands !== undefined) {
                             addInfoToJugglerTimeline(
                                 jugglerName,
                                 nextBeatOfInterest,
@@ -413,7 +417,7 @@ export class Scheduler {
                                 res.state,
                                 cache.nextEventIdx - 1,
                                 {
-                                    setupHands: res.handsInstructions
+                                    setupHands: res.setupHands
                                 }
                             );
                         }
@@ -1118,11 +1122,12 @@ class JugglerManager {
         beat: Fraction,
         state: JugglerState,
         handsSetup: HandsInstructions
-    ): { state: JugglerState; handMoves: MoveBall[] } {
+    ): { preState: JugglerState; postState: JugglerState; handMoves: MoveBall[] } {
         // TODO : Better error messages. Indicate state ?
         // TODO : Take into consideration we may want to put multiple balls of the same name on different spots.
         // TODO : Have a spot for unknown balls common to the case where there is a table and there is not ?
 
+        const preState = cloneState(state);
         state = cloneState(state);
 
         // Flag to indicate if the user has a table or not.
@@ -1290,8 +1295,9 @@ class JugglerManager {
                 handMoves.push({ id: ballID, from: move.from, to: move.to });
             }
             return {
-                state: state,
-                handMoves: handMoves
+                preState,
+                handMoves: handMoves,
+                postState: state
             };
         }
 
@@ -1610,8 +1616,9 @@ class JugglerManager {
             handMoves.push({ id: ballID, from: move.from, to: move.to });
         }
         return {
-            state: state,
-            handMoves: handMoves
+            preState: state,
+            handMoves: handMoves,
+            postState: state
         };
     }
 
@@ -1622,18 +1629,32 @@ class JugglerManager {
     ): {
         tosses?: HalfCompletedTosses;
         state: JugglerState;
-        handsInstructions?: MoveBall[];
+        setupHands?: {
+            preHandState: PartialHeldState;
+            moves: MoveBall[];
+            postHandState: PartialHeldState;
+        };
         tempo: Fraction;
     } {
         const { setupHands, tempo, beat } = this.events[eventIdx];
 
         // 1. prepare the hands by placing the necessary balls on the table, and
         // setting up the hands with the contents they must have.
-        let handsInstructions: MoveBall[] | undefined = undefined;
+        let setupHandsFilled:
+            | {
+                  preHandState: PartialHeldState;
+                  moves: MoveBall[];
+                  postHandState: PartialHeldState;
+              }
+            | undefined = undefined;
         if (setupHands !== undefined) {
             const res1 = this.swapBalls(beat, state, setupHands);
-            state = res1.state;
-            handsInstructions = res1.handMoves;
+            state = res1.postState;
+            setupHandsFilled = {
+                preHandState: res1.preState.held,
+                moves: res1.handMoves,
+                postHandState: res1.postState.held
+            };
         }
 
         // 2. Toss the balls that need to be tossed.
@@ -1643,7 +1664,7 @@ class JugglerManager {
         return {
             tosses: res2.tosses,
             state: res2.state,
-            handsInstructions,
+            setupHands: setupHandsFilled,
             tempo
         };
     }
