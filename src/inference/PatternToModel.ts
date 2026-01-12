@@ -2,7 +2,6 @@ import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler, SymbolicEvent } from "./Scheduler";
 import { getFirstInsertedKey } from "../utils/Operations";
 import { ScoreConverter, MusicTempo, MusicTime } from "./ScoreConverter";
-import { simulateEvents } from "./SchedulerToModel";
 import { PerformanceModel } from "../model/PerformanceModel";
 import {
     closestWordsTo,
