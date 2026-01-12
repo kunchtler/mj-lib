@@ -5,4 +5,4 @@ export * from "./JugglerModel";
 export * from "../inference/PatternToModel";
 export * from "./PerformanceModel";
 export * from "./TableModel";
-export * from "./timelines/TimelineEvents";
+export * from "./timelines";
