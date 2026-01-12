@@ -3,7 +3,6 @@ import { HandModel } from "./HandModel";
 import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
 import { MapCallbacks } from "./MapCallbacks";
 import { PerformanceModelRef } from "./PerformanceChild";
-import { SpotModel } from "./SpotModel";
 
 /**
  * Interface for the constructor of JugglerModel.
@@ -67,15 +66,15 @@ export class JugglerModel {
     /**
      * The place where the hand is when the other hand takes a ball from it.
      */
-    swapSpot: SpotModel;
+    // swapSpot: SpotModel;
 
     performance: PerformanceModelRef;
 
     readonly _object = new Object3D();
 
-    constructor({ name, hands, position, rotation, scale, swapPos }: JugglerModelParams) {
+    constructor({ name, hands, position, rotation, scale }: JugglerModelParams) {
         this.performance = new PerformanceModelRef();
-        this.swapSpot = new SpotModel({ position: swapPos });
+        // this.swapSpot = new SpotModel({ position: swapPos });
 
         const threeObj = this._object;
         const onHandSet = (handIdx: number, handModel: HandModel) => {

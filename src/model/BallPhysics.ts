@@ -111,3 +111,40 @@ export function ballVelocity(
     const v0 = ballVelocityAtStartEnd(pos0, t0, pos1, t1, true, gravity);
     return new THREE.Vector3(v0.x, -gravity * t + v0.y, v0.z);
 }
+
+const defaultUpVector = new THREE.Vector3(0, 1, 0);
+
+/**
+ * Computes the position at time t of a ball obducted by a UFO at time t0 from pos0
+ * and set free at time t1 to pos1.
+ * @param pos0 the position the ball is tossed from.
+ * @param t0 the time the ball is tossed.
+ * @param pos1 the position where the ball is caught.
+ * @param t1 the time the ball is caught.
+ * @param t a time.
+ * @param ufoBeamHeight the distance the ball flies (defaults to 0.3).
+ * @param upVector the vector the ball flies along (defaults to THREE.Vector3(0, 1, 0)).
+ * @returns the position of the ball at time t. If t is smaller than t0 or greater than t1, the position returned is in the continuation of the parabola of the trajectory.
+ */
+export function ufoBallPosition(
+    pos0: THREE.Vector3,
+    t0: number,
+    pos1: THREE.Vector3,
+    t1: number,
+    t: number,
+    ufoBeamHeight = 0.3,
+    upVector = defaultUpVector
+): THREE.Vector3 {
+    const tMid = (t0 + t1) / 2;
+    if (t <= t0) {
+        return pos0;
+    } else if (t >= t1) {
+        return pos1;
+    } else if (t0 < tMid) {
+        const posMid0 = pos0.clone().add(upVector.multiplyScalar(ufoBeamHeight));
+        return pos0.clone().lerp(posMid0, (tMid - t) / (tMid - t0));
+    } else {
+        const posMid1 = pos1.clone().add(upVector.multiplyScalar(ufoBeamHeight));
+        return posMid1.clone().lerp(pos1, (t - tMid) / (t1 - tMid));
+    }
+}

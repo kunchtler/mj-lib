@@ -46,6 +46,7 @@ export type HandModelParams = {
      * for its foreseable future.
      */
     restPos?: Vector3;
+    swapPos?: Vector3;
     holdSpotsPos?: Map<number, Vector3>;
     defaultHoldSpotNumber?: number;
     /**
@@ -74,6 +75,10 @@ export class HandModel {
      * for its foreseable future.
      */
     restSpot: SpotModel;
+    /**
+     * The place where the hand is when swapping balls with the table / other hand.
+     */
+    swapSpot: SpotModel;
 
     /**
      * An array of all spots the ball can be held in hand.
@@ -101,6 +106,7 @@ export class HandModel {
         catchPos,
         restPos,
         tossPos,
+        swapPos,
         holdSpotsPos,
         defaultHoldSpotNumber,
         timeline,
@@ -116,6 +122,10 @@ export class HandModel {
         ]);
         this.restSpot = new SpotModel({
             position: restPos
+        });
+        swapPos ??= restPos.clone();
+        this.swapSpot = new SpotModel({
+            position: swapPos
         });
         this.jugglerName = jugglerName;
         // this.swapSpot = new SpotModel({
@@ -218,85 +228,101 @@ export class HandModel {
 
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
+    // evTime is asked only to have consistent method call with BallModel.
     localPositionAndRotationAtEvent(
         evTime: number | null,
         ev: HandEvent[] | HandEvent | null
     ): { position: Vector3; rotation: Euler } {
         // TODO : ball scale should be a NUMBER, not a VECTOR
         if (ev === null || evTime === null) {
-            return { position: this.restSpot.position.getLocal(), rotation: new Euler(0, 0, 0) };
+            return {
+                position: this.restSpot.position.getLocal(),
+                rotation: this.restSpot.rotation.getLocal()
+            };
         }
         if (Array.isArray(ev)) {
             // The position of the event is the position of the last element in the list.
             if (ev.length === 0) {
                 return {
                     position: this.restSpot.position.getLocal(),
-                    rotation: new Euler(0, 0, 0)
+                    rotation: this.restSpot.rotation.getLocal()
                 };
             } else {
                 return this.localPositionAndRotationAtEvent(evTime, ev[ev.length - 1]);
             }
         } else if (ev.type == "catch") {
-            return { position: this.catchSpot.position.getLocal(), rotation: new Euler(0, 0, 0) };
+            return {
+                position: this.catchSpot.position.getLocal(),
+                rotation: this.catchSpot.rotation.getLocal()
+            };
         } else if (ev.type === "toss") {
-            return { position: this.tossSpot.position.getLocal(), rotation: new Euler(0, 0, 0) };
-        } else if (ev.type === "table") {
-            // More complex : the hand is turned upside down, palm facing the table,
-            // so that the position of the ball it deposits matches the position the
-            // ball will have on the table.
-            // TODO : The hand rotation. Not 180 degrees so that it turns in the right direction ?
-            // TODO : this.performance.get().balls.getSurely(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.balls.getSurely(...) ?
-            // TODO : Handle ball scale... SHOUDL BE NUMBER THAT WON T STRETCH BASED ON ANNOUNCED BALL RADIUS.
-            // MAKE IT SO THE BALL RADIUS GETS APPLIED IN GLOBAL COORD IF POSSIBLE ?
-            // TODO : Cleanup unused functions, or creat useful ones.
-            const tableModel = this.performance.getSurely().tables.getSurely(ev.tableID);
-            const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
-            const spotModel = tableModel.getSpotModel(ev.tableSpot);
-            const jugglerModel = this.getJugglerModel();
-            // Then we add the ball's radius along the spot's "up" to get the ball's global position.
-            const ballWorldPos = ballModel.positionOverSpot(spotModel);
-            // Then we add the ball's radius along the juggler's "up" to get the hand and ball point of contact.
-            const jugglerUpWorldVec = localToWorldVector(
-                new Vector3(0, 1, 0),
-                jugglerModel._object
-            );
-            const ballHandContactWorldPos = ballWorldPos
-                .clone()
-                .add(jugglerUpWorldVec.clone().multiplyScalar(ballModel.radius));
-            const ballHandContactJugglerPos = worldToLocalPosition(
-                ballHandContactWorldPos,
-                jugglerModel._object
-            );
-            // Finally, knowing the hand spot, we compute the hand's position and rotation.
-            const handRot = new Euler(Math.PI, 0, 0);
-            const handJugglerPos = this.localPositionByHoldSpotPosition(
-                ev.handSpotIdx,
-                ballHandContactJugglerPos,
-                handRot
-            );
-            return { position: handJugglerPos, rotation: handRot };
+            return {
+                position: this.tossSpot.position.getLocal(),
+                rotation: this.tossSpot.rotation.getLocal()
+            };
         } else {
-            // Complex movement when a ball swaps hands :
-            // - the ball's center is on swapSpot.
-            // - the hand that has the ball (that gives it) goes below the ball.
-            // - the hand that receives the ball (that takes it) faces downwards and retreives the ball from above.
-            const jugglerModel = this.performance.getSurely().jugglers.getSurely(this.jugglerName);
-            const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
-            // Compute the point of contact position with the ball.
-            const ballScaledRadius = ballModel.scaledRadiusInObjectBasis(jugglerModel._object).y;
-            // If we retrieve, the point of contact is below the ball, else above.
-            // We are in the juggler's coordinates.
-            const ballHandContactPosition = jugglerModel.swapSpot.position.getLocal();
-            ballHandContactPosition.y += (ev.isGivingHand ? -1 : 1) * ballScaledRadius;
-            // const spotModel = this.getSpotModel(ev.handSpotIdx)
-            const handRotation = new Euler(ev.isGivingHand ? 0 : Math.PI, 0, 0);
-            const handPosition = this.localPositionByHoldSpotPosition(
-                ev.handSpotIdx,
-                ballHandContactPosition,
-                handRotation
-            );
-            return { position: handPosition, rotation: handRotation };
+            return {
+                position: this.restSpot.position.getLocal(),
+                rotation: this.restSpot.rotation.getLocal()
+            };
         }
+        // } else if (ev.type === "table") {
+        //     // More complex : the hand is turned upside down, palm facing the table,
+        //     // so that the position of the ball it deposits matches the position the
+        //     // ball will have on the table.
+        //     // TODO : The hand rotation. Not 180 degrees so that it turns in the right direction ?
+        //     // TODO : this.performance.get().balls.getSurely(...) is kinda ugly... Better to have custom getter / setter to achieve : this.performance.balls.getSurely(...) ?
+        //     // TODO : Handle ball scale... SHOUDL BE NUMBER THAT WON T STRETCH BASED ON ANNOUNCED BALL RADIUS.
+        //     // MAKE IT SO THE BALL RADIUS GETS APPLIED IN GLOBAL COORD IF POSSIBLE ?
+        //     // TODO : Cleanup unused functions, or creat useful ones.
+        //     const tableModel = this.performance.getSurely().tables.getSurely(ev.tableID);
+        //     const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
+        //     const spotModel = tableModel.getSpotModel(ev.tableSpot);
+        //     const jugglerModel = this.getJugglerModel();
+        //     // Then we add the ball's radius along the spot's "up" to get the ball's global position.
+        //     const ballWorldPos = ballModel.positionOverSpot(spotModel);
+        //     // Then we add the ball's radius along the juggler's "up" to get the hand and ball point of contact.
+        //     const jugglerUpWorldVec = localToWorldVector(
+        //         new Vector3(0, 1, 0),
+        //         jugglerModel._object
+        //     );
+        //     const ballHandContactWorldPos = ballWorldPos
+        //         .clone()
+        //         .add(jugglerUpWorldVec.clone().multiplyScalar(ballModel.radius));
+        //     const ballHandContactJugglerPos = worldToLocalPosition(
+        //         ballHandContactWorldPos,
+        //         jugglerModel._object
+        //     );
+        //     // Finally, knowing the hand spot, we compute the hand's position and rotation.
+        //     const handRot = new Euler(Math.PI, 0, 0);
+        //     const handJugglerPos = this.localPositionByHoldSpotPosition(
+        //         ev.handSpotIdx,
+        //         ballHandContactJugglerPos,
+        //         handRot
+        //     );
+        //     return { position: handJugglerPos, rotation: handRot };
+        // } else {
+        //     // Complex movement when a ball swaps hands :
+        //     // - the ball's center is on swapSpot.
+        //     // - the hand that has the ball (that gives it) goes below the ball.
+        //     // - the hand that receives the ball (that takes it) faces downwards and retreives the ball from above.
+        //     const jugglerModel = this.performance.getSurely().jugglers.getSurely(this.jugglerName);
+        //     const ballModel = this.performance.getSurely().balls.getSurely(ev.ballID);
+        //     // Compute the point of contact position with the ball.
+        //     const ballScaledRadius = ballModel.scaledRadiusInObjectBasis(jugglerModel._object).y;
+        //     // If we retrieve, the point of contact is below the ball, else above.
+        //     // We are in the juggler's coordinates.
+        //     const ballHandContactPosition = jugglerModel.swapSpot.position.getLocal();
+        //     ballHandContactPosition.y += (ev.isGivingHand ? -1 : 1) * ballScaledRadius;
+        //     // const spotModel = this.getSpotModel(ev.handSpotIdx)
+        //     const handRotation = new Euler(ev.isGivingHand ? 0 : Math.PI, 0, 0);
+        //     const handPosition = this.localPositionByHoldSpotPosition(
+        //         ev.handSpotIdx,
+        //         ballHandContactPosition,
+        //         handRotation
+        //     );
+        //     return { position: handPosition, rotation: handRotation };
+        // }
     }
 
     velocityAtEvent(evTime: number | null, ev: HandEvent[] | HandEvent | null): Vector3 {

@@ -1,11 +1,14 @@
 import { BallEvent } from "./timelines/BallTimeline";
 import { BallTimeline } from "./timelines/BallTimeline";
-import { ballPosition } from "./BallPhysics";
+import { ballPosition as tossedBallPosition, ufoBallPosition } from "./BallPhysics";
 import { PerformanceModelRef } from "./PerformanceChild";
-import { Object3D, Vector3 } from "three";
+import { Euler, Object3D, Vector3 } from "three";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
 import { localToWorldPosition, localToWorldVector, worldToLocalPosition } from "../utils";
 import { SpotModel } from "./SpotModel";
+import { MAX_UFO_TIME } from "../inference";
+import { TableModel } from "./TableModel";
+import { HandModel } from "./HandModel";
 
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : What is readonly ?
@@ -95,65 +98,48 @@ export class BallModel {
     positionAtEvent(evTime: number | null, ev: BallEvent | null): Vector3 | null {
         if (evTime === null || ev === null) {
             return null;
-        } else if (ev.type === "airborne") {
-            // At this event, the ball has just been launched in the air.
-            // To know where from it is tossed, we look at the previous event.
-            // Note that this only give the origin space of the toss.
-            // The toss still happens at time timeEv.
+        } else if (ev.location.type === "onTable") {
+            const spotModel = this.performance
+                .getSurely()
+                .tables.getSurely(ev.location.tableID)
+                .getSpotModel(ev.location.spot);
+            return this.positionOverSpot(spotModel);
+        } else {
+            // The ball is held, so we need to know where the hand is.
+            const handModel = this.performance
+                .getSurely()
+                .getHand(ev.location.jugglerName, ev.location.rightHand);
+            // If the event corresponds to a toss or a catch, we have to be careful
+            // to avoid an infinite loop :
+            // (... -> Ball.positionAtEvent -> Hand.positionAtTime
+            // -> Hand.velocityAtEvent -> Ball.positionAtEvent -> ...)
+            // Indeed, we need to know the ball's velocity vector to arc the hand's
+            // trajectory correctly. To know that, we need to know the balls toss / catch
+            // position.
+            // (This loop is avoided for other events as the hand's velocity is null.)
             const [, prevEv] = this.timeline.prevEvent(evTime, true);
-            if (prevEv === null) {
-                // We can't guess where the ball was tossed from.
-                return null;
-            } else if (prevEv.type === "airborne") {
-                // Impossible, the ball won't be tossed twice before falling.
-                return null;
-            } else if (prevEv.type === "table") {
-                // Sure, it is weird, the ball was tossed from the table...
-                // But is seems funny to be able to do so.
-                const spotModel = this.performance
-                    .getSurely()
-                    .tables.getSurely(prevEv.tableID)
-                    .getSpotModel(prevEv.tableSpot);
-                return this.positionOverSpot(spotModel);
-            } else {
-                // The ball was in a juggler's hands, where there must be a matching
-                // event at toss time (to stop position computation recursion).
-                const handModel = this.performance
-                    .getSurely()
-                    .getHand(prevEv.jugglerName, prevEv.rightHand);
+            let handPosRot: {
+                position: Vector3;
+                rotation: Euler;
+            };
+            if (ev.transition.type === "airborne" || prevEv?.transition.type === "airborne") {
+                // It's a toss (1st case) or a catch (second case).
+                // So there must be a corresponding catch / toss event for the hand.
                 const handEv = handModel.timeline.getElementByKey(evTime);
                 if (handEv === undefined) {
                     return null;
                 }
-                // We need to compute where the hand would be to get the correct spot position
-                // where the ball is.
-                const spotModel = handModel.getSpotModel(prevEv.posIdx);
-                const handPosRot = handModel.localPositionAndRotationAtEvent(evTime, handEv);
-                handModel._dummyObject.setProperties(handPosRot);
-                const ballPos = this.positionOverSpot(spotModel);
-                handModel._dummyObject.unsetProperties();
-                return ballPos;
+                handPosRot = handModel.localPositionAndRotationAtEvent(evTime, handEv);
+            } else {
+                // We need to ask for the hand position at that event.
+                handPosRot = handModel.localPositionAndRotationAtTime(evTime);
             }
-        } else if (ev.type === "held") {
-            // We need to compute where the hand would be to get the correct
-            // spot position where the ball is.
-            // (The held event may not match with an event in hand (it does
-            // when the ball is caught or tossed, but does not necessarily
-            // when the ball changes hand subspot)).
-            const handModel = this.performance.getSurely().getHand(ev.jugglerName, ev.rightHand);
-            const spotModel = handModel.getSpotModel(ev.posIdx);
-            const handPosRotSca = handModel.localPositionAndRotationAtTime(evTime);
-            handModel._dummyObject.setProperties(handPosRotSca);
+            // We can now given the hand's transform compute where the ball would be held.
+            const spotModel = handModel.getSpotModel(ev.location.spotIdx);
+            handModel._dummyObject.setProperties(handPosRot);
             const ballPos = this.positionOverSpot(spotModel);
             handModel._dummyObject.unsetProperties();
             return ballPos;
-        } else {
-            // The table won't move, so nor do its spots.
-            const spotModel = this.performance
-                .getSurely()
-                .tables.getSurely(ev.tableID)
-                .getSpotModel(ev.tableSpot);
-            return this.positionOverSpot(spotModel);
         }
     }
 
@@ -163,73 +149,119 @@ export class BallModel {
      */
     positionAtTime(time: number): Vector3 {
         const [prevEvTime, prevEv] = this.timeline.prevEvent(time);
+        const [nextEvTime, nextEv] = this.timeline.nextEvent(time);
 
         if (prevEv === null) {
             // We need to look at the next event to figure out where the ball should be.
-            const [nextEvTime, nextEv] = this.timeline.nextEvent(time);
             if (nextEv === null) {
                 // The ball has no event in its timeline. It goes nowhere.
                 return this.positionAtEvent(nextEvTime, nextEv) ?? VERY_VERY_FAR_VEC.clone();
-            } else if (nextEv.type === "airborne") {
-                // The ball was tossed, but we don't know from where.
+            } else if (nextEv.location.type === "onTable") {
+                // The ball is on the table, which does not move.
                 return this.positionAtEvent(nextEvTime, nextEv) ?? VERY_VERY_FAR_VEC.clone();
-            } else if (nextEv.type === "held") {
-                // The ball is held, so it is in hand and we look at where the hand is to get where the spot the ball is on is.
+            } else {
+                // The ball is held, so we look where the hand is to get where the ball's spot is.
                 const handModel = this.performance
                     .getSurely()
-                    .getHand(nextEv.jugglerName, nextEv.rightHand);
-                const spotModel = handModel.getSpotModel(nextEv.posIdx);
+                    .getHand(nextEv.location.jugglerName, nextEv.location.rightHand);
+                const spotModel = handModel.getSpotModel(nextEv.location.spotIdx);
                 const handPosRotSca = handModel.localPositionAndRotationAtTime(nextEvTime);
                 handModel._dummyObject.setProperties(handPosRotSca);
                 const ballPos = this.positionOverSpot(spotModel);
                 handModel._dummyObject.unsetProperties();
                 return ballPos;
-            } else {
-                // Get the position when set on table.
-                return this.positionAtEvent(nextEvTime, nextEv) ?? VERY_VERY_FAR_VEC.clone();
             }
-        } else if (prevEv.type === "airborne") {
-            // If the ball toss and catch positions are computable, make it fly.
-            const posAtToss = this.positionAtEvent(prevEvTime, prevEv);
-            const [nextEvTime, nextEv] = this.timeline.nextEvent(time);
-            const posAtCatch = this.positionAtEvent(nextEvTime, nextEv);
-            if (posAtToss === null || posAtCatch === null || nextEvTime === null) {
+        } else if (
+            prevEv.transition.type === "keep" ||
+            (prevEv.transition.type === "slideInHand" && nextEv === null)
+        ) {
+            // The ball remains where it stands.
+            if (prevEv.location.type === "onTable") {
+                return this.positionAtEvent(prevEvTime, prevEv) ?? VERY_VERY_FAR_VEC.clone();
+            } else {
+                // The ball is held.
+                const handModel = this.performance
+                    .getSurely()
+                    .getHand(prevEv.location.jugglerName, prevEv.location.rightHand);
+                const spotModel = handModel.getSpotModel(prevEv.location.spotIdx);
+                const handPosRotSca = handModel.localPositionAndRotationAtTime(prevEvTime);
+                handModel._dummyObject.setProperties(handPosRotSca);
+                const ballPos = this.positionOverSpot(spotModel);
+                handModel._dummyObject.unsetProperties();
+                return ballPos;
+            }
+        } else if (prevEv.transition.type === "airborne" || prevEv.transition.type === "ufo") {
+            // If we can compute the starting and ending positions, we know
+            // what trajectory to give the ball.
+            const prevEvPos = this.positionAtEvent(prevEvTime, prevEv);
+            const nextEvPos = this.positionAtEvent(nextEvTime, nextEv);
+            // Give the correct trajectory.
+            if (prevEv.transition.type === "airborne") {
+                if (prevEvPos === null || nextEvPos === null || nextEvTime === null) {
+                    return VERY_VERY_FAR_VEC.clone();
+                }
+                return tossedBallPosition(prevEvPos, prevEvTime, nextEvPos, nextEvTime, time);
+            } else {
+                if (prevEvPos === null) {
+                    return VERY_VERY_FAR_VEC.clone();
+                }
+                return ufoBallPosition(
+                    prevEvPos,
+                    prevEvTime,
+                    VERY_VERY_FAR_VEC,
+                    prevEvTime + MAX_UFO_TIME,
+                    time
+                );
+            }
+        } else {
+            // The ball slides locally. (so it needs to be on the same object)
+            if (nextEvTime === null) {
+                // The event was treated in a previous condition.
+                console.error("Shouldn't happen.");
+                return VERY_VERY_FAR_VEC.clone();
+            } else if (
+                prevEv.location.type === "onTable" &&
+                nextEv.location.type === "onTable" &&
+                prevEv.location.tableID === nextEv.location.tableID
+            ) {
+                // We gather the spot positions.
+                const tableModel = this.performance
+                    .getSurely()
+                    .tables.getSurely(prevEv.location.tableID);
+                const prevEvPos = tableModel.getSpotPosition(prevEv.location.spot);
+                const nextEvPos = tableModel.getSpotPosition(nextEv.location.spot);
+                // We interpolate between the position.
+                return prevEvPos.lerp(nextEvPos, (nextEvTime - time) / (nextEvTime - prevEvTime));
+            } else if (
+                prevEv.location.type === "held" &&
+                nextEv.location.type === "held" &&
+                prevEv.location.jugglerName === nextEv.location.jugglerName &&
+                prevEv.location.spotIdx === nextEv.location.spotIdx
+            ) {
+                // We gather the tableModel and spotModels.
+                const handModel = this.performance
+                    .getSurely()
+                    .getHand(prevEv.location.jugglerName, prevEv.location.rightHand);
+                const prevSpotModel = handModel.getSpotModel(prevEv.location.spotIdx);
+                const nextSpotModel = handModel.getSpotModel(nextEv.location.spotIdx);
+
+                // We move the hand to where it is at the resquested time.
+                const handPosRot = handModel.localPositionAndRotationAtTime(time);
+                handModel._dummyObject.setProperties(handPosRot);
+
+                // We grab the balls positions at that time and interpolate between them.
+                const prevSpotBallPos = this.positionOverSpot(prevSpotModel);
+                const nextSpotBallPos = this.positionOverSpot(nextSpotModel);
+                const ballHandPos = prevSpotBallPos
+                    .clone()
+                    .lerp(nextSpotBallPos, (time - prevEvTime) / (nextEvTime - prevEvTime));
+
+                // Finally, we undo the dummy object position's.
+                handModel._dummyObject.unsetProperties();
+                return ballHandPos;
+            } else {
                 return VERY_VERY_FAR_VEC.clone();
             }
-            return ballPosition(posAtToss, prevEvTime, posAtCatch, nextEvTime, time);
-        } else if (prevEv.type === "held") {
-            // We ask the hand where the spot is.
-            // TODO : Place in the correct spot, and if needed have spot transition.
-            const [nextEvTime, nextEv] = this.timeline.nextEvent(time);
-            const handModel = this.performance
-                .getSurely()
-                .getHand(prevEv.jugglerName, prevEv.rightHand);
-            // 1. We look for the spot of the previous event, and the spot of the next event.
-            const prevEvSpotModel = handModel.getSpotModel(prevEv.posIdx);
-            const nextEvSpotIdx =
-                nextEv !== null && nextEv.type === "held" ? nextEv.posIdx : prevEv.posIdx;
-            const nextEvSpotModel = handModel.getSpotModel(nextEvSpotIdx);
-            // 2. We compute where the hand is.
-            const handPosRot = handModel.localPositionAndRotationAtTime(time);
-            handModel._dummyObject.setProperties(handPosRot);
-            // 3. We grab the local spots positions and interpolate in local space.
-            // (hence the "true" in positionOverSpot).
-            const prevEvSpotHandPos = worldToLocalPosition(
-                this.positionOverSpot(prevEvSpotModel),
-                handModel._dummyObject.get()
-            );
-            const nextEvSpotHandPos = worldToLocalPosition(
-                this.positionOverSpot(nextEvSpotModel),
-                handModel._dummyObject.get()
-            );
-            const alpha = nextEvTime === null ? 1 : (time - prevEvTime) / (nextEvTime - prevEvTime);
-            const ballHandPos = prevEvSpotHandPos.clone().lerp(nextEvSpotHandPos, alpha);
-            const globalBallPos = localToWorldPosition(ballHandPos, handModel._dummyObject.get());
-            // 4. Don't forget to undo the dummy object position's.
-            handModel._dummyObject.unsetProperties();
-            return globalBallPos;
-        } else {
-            return this.positionAtEvent(prevEvTime, prevEv) ?? VERY_VERY_FAR_VEC.clone();
         }
     }
 

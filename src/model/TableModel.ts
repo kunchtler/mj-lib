@@ -109,8 +109,8 @@ export class TableModel {
         return this._object;
     }
 
-    getSpotModel(spot: string | undefined): SpotModel {
-        if (spot === undefined) {
+    getSpotModel(spot: string | null): SpotModel {
+        if (spot === null) {
             return this.unkownSpot;
         }
         return this.spots.get(spot) ?? this.unkownSpot;
@@ -121,7 +121,7 @@ export class TableModel {
      * @param spot the spot's name.
      * @returns the ball's spot on the table as is specified in the ballsSpots attribute. If it is not found, it goes to a designated unknownBallSpot.
      */
-    getSpotPosition(spot?: string): Vector3 {
+    getSpotPosition(spot: string | null): Vector3 {
         return this.getSpotModel(spot).position.getGlobal();
     }
 }
