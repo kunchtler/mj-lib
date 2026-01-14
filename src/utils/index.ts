@@ -6,6 +6,7 @@ export * from "./SetOperations";
 export * from "./constants";
 export * from "./stringifyEvent";
 export * from "./utils";
+export * from "./utilityTypes";
 
 export * from "./spline/index";
 export * from "./three/index";
