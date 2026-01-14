@@ -44,7 +44,7 @@ export class ScoreConverter {
                     Fraction
                 ]
         );
-        this.signatureChanges = new Timeline(signatureChangesOnlyFractions);
+        this.signatureChanges = new Timeline({ container: signatureChangesOnlyFractions });
         if (this.signatureChanges.empty()) {
             throw Error("Must provide at least one signature.");
         }
@@ -55,7 +55,7 @@ export class ScoreConverter {
                     { note: note instanceof Fraction ? note : new Fraction(note), bpm: bpm }
                 ] as [number, MusicTempo]
         );
-        this.tempoChanges = new Timeline(tempoChangesOnlyFraction);
+        this.tempoChanges = new Timeline({ container: tempoChangesOnlyFraction });
         if (this.tempoChanges.empty()) {
             throw Error("Must provide at least one tempo indication.");
         }
