@@ -1,5 +1,9 @@
-//TODO : Rewrite more cleanly with Immer.js ?
+/*
+Have an easy way to set things.
+That gets transformed into a convenient way to use them in code.
+// TODO : Remove from the most complete object the templates (makes more sense code-wise).
 
+*/
 /**
  * A MusicBeatConverter expressed in a JSON-friendly format. It stores information about the music to be synced with. It is an array of two elements arrays :
  * - the second one indicates the current tempo and signature.
@@ -14,6 +18,8 @@
  */
 import Fraction from "fraction.js";
 import { ScoreConverter } from "./ScoreConverter";
+import { BallSound } from "../model";
+import { DeepRequired } from "../utils";
 
 //TODO : add beat to the object rather than have a 2-array element.
 //TODO : useHand ?
@@ -90,7 +96,9 @@ export type JSONScoreConverter = ScoreConverterGenerics<
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T
     color?: number | string; //P
-    soundOnCatch?: string; //A
+    radius?: number;
+    soundOnCatch?: BallSound; //A
+    soundOnToss?: BallSound;
     // soundOnToss?: BallSound;
     // soundWhileAirborne?: BallSound;
     // soundOnCatch?: BallSound;
@@ -103,23 +111,53 @@ export type SpotDescription = {
     rotation?: [number, number, number]; // Rotation indicates with its "y" axis where the up is, and therefore how the ball should be put on top of the spot.
 };
 
-export type HandDescription = {
-    tossSpot: SpotDescription; // Relative to juggler origin. //P
-    catchSpot: SpotDescription; // Relative to juggler origin. //P
-    restSpot?: SpotDescription; // Relative to juggler origin. //P
+// TODO : How to provide the flexibility of placing the spots with a more gentle approach to generating them ?
+// Answer : have the most convenient object with code ?, and have a more convenient object to manipulate for the specification.
+// It could be that in most convenient object with code, there are no templates.
+export type HandDescriptionHelper = {
+    // Mesh related properties.
     length?: number; // From wrist to fingertip.
     width?: number; // From thumb to little finger.
     depth?: number; // From palm to back.
     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
     visible?: boolean; //P
+    scale?: [number, number, number];
+    spotsBuild?: {
+        catchTossDistance?: number;
+        spotsHeight?: number;
+        distanceToMirroringLine?: number;
+        jugglingPlaneDistanceFromJuggler?: number;
+    };
 };
+
+export type HandDescription = {
+    length?: number; // From wrist to fingertip.
+    width?: number; // From thumb to little finger.
+    depth?: number; // From palm to back.
+    visible?: boolean; //P
+    // TODO : have hand spot templates to avoid redundancy.
+    // TODO : find a way to make optional.
+    tossSpot: SpotDescription; // Relative to juggler origin. //P
+    catchSpot: SpotDescription; // Relative to juggler origin. //P
+    restSpot?: SpotDescription; // Relative to juggler origin. //P
+    swapSpot?: SpotDescription; // Relative to juggler origin. //P
+    heldSpots?: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
+};
+
+// export type HandHeldSpotsTemplate = {
+//     name: string;
+//     // Mesh related properties.
+//     length?: number; // From wrist to fingertip.
+//     width?: number; // From thumb to little finger.
+//     depth?: number; // From palm to back.
+//     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
+// };
 
 export type BodyDescription = {
     height?: number; //P
     width?: number; //P
     depth?: number; //P
     color?: ColorDescription; //P
-    swapSpot: SpotDescription;
     visible?: boolean; //P
 };
 
@@ -134,9 +172,9 @@ export type JugglerDescription<JugglingPhraseType> = {
     // id?: string; //TODO : Name should already be unique (else how can we pass ?) //T
     position?: [number, number, number]; // Relative to performance origin. //P
     rotation?: [number, number, number]; // Relative to performance origin. //P
-    scale?: number; //P
-    leftHand?: HandDescription; //P
-    rightHand?: HandDescription; //P
+    scale?: [number, number, number]; //P
+    leftHand?: HandDescriptionHelper; //P
+    rightHand?: HandDescriptionHelper; //P
     body?: BodyDescription; //P
     table?: TableDescription; //T+P
     ballsHeldAtStart?: [BallDescription[], BallDescription[]]; //T
@@ -152,8 +190,12 @@ export type JugglerDescription<JugglingPhraseType> = {
 export type TableSpotDescription = SpotDescription & {
     name: string; //T
     acceptedBallName?: string; //T
-    position: [number, number, number]; // Relative to table origin. //P
 };
+
+// export type HandTemplate = {
+//     name: string;
+//     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
+// };
 
 export type TableTemplate = {
     name: string; //T
@@ -161,7 +203,7 @@ export type TableTemplate = {
     width?: number; //P
     depth?: number; //P
     spots: TableSpotDescription[]; //T+P
-    unknownSpot?: [number, number, number]; // Relative to table origin. //P
+    unknownSpot?: SpotDescription; // Relative to table origin. //P
 };
 
 export type TableDescription = {
@@ -169,7 +211,9 @@ export type TableDescription = {
     template: string; //T
     position?: [number, number, number]; // Relative to performance origin. //P
     rotation?: [number, number, number]; // Relative to performance origin. //P
-    scale?: number; //P
+    scale?: [number, number, number]; //P
+    color?: ColorDescription;
+    visible?: boolean;
     ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
@@ -211,6 +255,7 @@ export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterTyp
     /** Each  */
     ballTemplates: BallTemplate[];
     jugglers: JugglerDescription<JugglingPhraseType>[];
+    // handTemplates: HandTemplate[];
     tableTemplates?: TableTemplate[];
     scoreConverter?: ScoreConverterType;
 };
@@ -261,25 +306,51 @@ export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
 export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
 export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
 
-export type MiseEnScene = {
+export type JugglingScoreHelper = {
+    ballTemplates: {
+        name: string;
+    }[];
+    jugglers: {
+        name: string;
+        table?: {
+            template: string;
+            ballsOnTableAtStart?: BallOnTable[];
+        };
+        ballsHeldAtStart?: [BallDescription[], BallDescription[]];
+        jugglingPhrases?: JSONJugglingPhrase[];
+    }[];
+    tableTemplates?: {
+        name: string;
+        spots: {
+            name: string;
+            acceptedBallName?: string;
+        }[];
+    }[];
+    scoreConverter?: JSONScoreConverter;
+};
+
+export type MiseEnSceneHelper = {
     ballTemplates: {
         name: string;
         color?: ColorDescription;
-        soundOnCatch?: string;
+        radius?: number;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;
         position?: [number, number, number];
         rotation?: [number, number, number];
-        scale?: number;
-        leftHand?: HandDescription;
-        rightHand?: HandDescription;
+        scale?: [number, number, number];
+        handBuilder?: HandDescriptionHelper;
         body?: BodyDescription;
         table?: {
             template: string;
             position?: [number, number, number];
             rotation?: [number, number, number];
-            scale?: number;
+            color?: ColorDescription;
+            scale?: [number, number, number];
+            visible?: boolean;
         };
     }[];
     tableTemplates?: {
@@ -299,6 +370,46 @@ export type MiseEnScene = {
     }[];
 };
 
+// TODO : Check if scale is working correctly.
+export type MiseEnScene = {
+    ballTemplates: {
+        name: string;
+        color: ColorDescription;
+        radius: number;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
+    }[];
+    jugglers: {
+        name: string;
+        position: [number, number, number];
+        rotation: [number, number, number];
+        scale: [number, number, number];
+        leftHand: DeepRequired<HandDescription>;
+        rightHand: DeepRequired<HandDescription>;
+        body: DeepRequired<BodyDescription>;
+        table?: {
+            id: string;
+            height: number;
+            width: number;
+            depth: number;
+            visible: boolean;
+            position: [number, number, number];
+            rotation: [number, number, number];
+            scale: [number, number, number];
+            color: ColorDescription;
+            spots: {
+                name: string;
+                position: [number, number, number];
+                rotation: [number, number, number];
+            }[];
+            unknownSpot: {
+                position: [number, number, number];
+                rotation: [number, number, number];
+            };
+        };
+    }[];
+};
+
 // Uncomment to see if typescript complains about incompatible types.
 
 // function foo(x: JugglingScore) {}
@@ -309,3 +420,9 @@ export type MiseEnScene = {
 // goo(a);
 // let aJSON: JSONPerformanceDescription;
 // fooJSON(aJSON);
+
+// type test = MiseEnScene & PerformanceDescription;
+// let x: test;
+// let y: JugglingScore;
+// y = x;
+// x = y;
