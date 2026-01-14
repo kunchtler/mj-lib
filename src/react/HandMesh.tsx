@@ -1,12 +1,11 @@
 import * as THREE from "three";
+import { createHandGeometry, createHandMaterial } from "./Default3DModels";
 import {
-    createHandGeometry,
-    createHandMaterial,
     DEFAULT_HAND_COLOR,
-    DEFAULT_HAND_HEIGHT_SEGMENT,
-    DEFAULT_HAND_RADIUS,
-    DEFAULT_HAND_WIDTH_SEGMENT
-} from "./Default3DModels";
+    DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
+    DEFAULT_HAND_SPHERE_RADIUS,
+    DEFAULT_HAND_SPHERE_WIDTH_SEGMENT
+} from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
 export type HandMeshProps = {
@@ -18,9 +17,9 @@ export type HandMeshProps = {
 };
 
 export function HandMesh({
-    radius = DEFAULT_HAND_RADIUS,
-    widthSegments = DEFAULT_HAND_WIDTH_SEGMENT,
-    heightSegments = DEFAULT_HAND_HEIGHT_SEGMENT,
+    radius = DEFAULT_HAND_SPHERE_RADIUS,
+    widthSegments = DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
+    heightSegments = DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
     color = DEFAULT_HAND_COLOR,
     ref
 }: HandMeshProps) {

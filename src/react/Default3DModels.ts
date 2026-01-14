@@ -1,12 +1,22 @@
 import * as THREE from "three";
-
-////////// Juggler //////////
-
-export const DEFAULT_JUGGLER_CUBE_HEIGHT = 1.8;
-export const DEFAULT_JUGGLER_CUBE_WIDTH = 0.5;
-export const DEFAULT_JUGGLER_CUBE_DEPTH = 0.3;
-export const DEFAULT_JUGGLER_CUBE_COLOR = 0x202020;
-export const DEFAULT_JUGGLER_CUBE_ARM_LENGTH = 0.4;
+import {
+    DEFAULT_JUGGLER_CUBE_HEIGHT,
+    DEFAULT_JUGGLER_CUBE_WIDTH,
+    DEFAULT_JUGGLER_CUBE_DEPTH,
+    DEFAULT_JUGGLER_CUBE_COLOR,
+    DEFAULT_HAND_COLOR,
+    DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
+    DEFAULT_HAND_SPHERE_RADIUS,
+    DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
+    DEFAULT_BALL_COLOR,
+    DEFAULT_BALL_HEIGHT_SEGMENT,
+    DEFAULT_BALL_RADIUS,
+    DEFAULT_BALL_WIDTH_SEGMENT,
+    DEFAULT_TABLE_COLOR,
+    DEFAULT_TABLE_DEPTH,
+    DEFAULT_TABLE_HEIGHT,
+    DEFAULT_TABLE_WIDTH
+} from "../constants/miseEnSceneDefaultValues";
 
 export function createJugglerCubeGeometry({
     height = DEFAULT_JUGGLER_CUBE_HEIGHT,
@@ -26,17 +36,10 @@ export function createJugglerMaterial({
     return new THREE.MeshPhongMaterial({ color: color });
 }
 
-////////// Hand //////////
-
-export const DEFAULT_HAND_RADIUS = 0.05;
-export const DEFAULT_HAND_WIDTH_SEGMENT = 8;
-export const DEFAULT_HAND_HEIGHT_SEGMENT = 4;
-export const DEFAULT_HAND_COLOR = 0xffdbac;
-
 export function createHandGeometry({
-    radius = DEFAULT_HAND_RADIUS,
-    widthSegments = DEFAULT_HAND_WIDTH_SEGMENT,
-    heightSegments = DEFAULT_HAND_HEIGHT_SEGMENT
+    radius = DEFAULT_HAND_SPHERE_RADIUS,
+    widthSegments = DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
+    heightSegments = DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT
 }: {
     radius?: number;
     widthSegments?: number;
@@ -50,13 +53,6 @@ export function createHandMaterial({
 }: { color?: THREE.ColorRepresentation } = {}) {
     return new THREE.MeshPhongMaterial({ color: color });
 }
-
-////////// Ball //////////
-
-export const DEFAULT_BALL_RADIUS = 0.1;
-export const DEFAULT_BALL_WIDTH_SEGMENT = 8;
-export const DEFAULT_BALL_HEIGHT_SEGMENT = 8;
-export const DEFAULT_BALL_COLOR = "red";
 
 export function createBallGeometry({
     radius = DEFAULT_BALL_RADIUS,
@@ -75,13 +71,6 @@ export function createBallMaterial({
 }: { color?: THREE.ColorRepresentation } = {}) {
     return new THREE.MeshPhongMaterial({ color: color });
 }
-
-////////// Table //////////
-
-export const DEFAULT_TABLE_HEIGHT = 1.0;
-export const DEFAULT_TABLE_WIDTH = 1.1;
-export const DEFAULT_TABLE_DEPTH = 0.7;
-export const DEFAULT_TABLE_COLOR = "maroon";
 
 export function createTableGeometry({
     height = DEFAULT_TABLE_HEIGHT,

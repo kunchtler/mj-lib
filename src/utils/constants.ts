@@ -26,3 +26,4 @@ export const VECTOR3_STRUCTURE: Structure<THREE.Vector3, number> = {
     multiplyByScalar: V3SCA,
     zero: new THREE.Vector3(0, 0, 0)
 };
+

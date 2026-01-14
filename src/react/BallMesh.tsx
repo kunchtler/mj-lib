@@ -1,12 +1,11 @@
 import * as THREE from "three";
+import { createBallGeometry, createBallMaterial } from "./Default3DModels";
 import {
-    createBallGeometry,
-    createBallMaterial,
     DEFAULT_BALL_COLOR,
     DEFAULT_BALL_HEIGHT_SEGMENT,
     DEFAULT_BALL_RADIUS,
     DEFAULT_BALL_WIDTH_SEGMENT
-} from "./Default3DModels";
+} from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 import { ThreeElements } from "@react-three/fiber";
 

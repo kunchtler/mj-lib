@@ -1,12 +1,14 @@
 import * as THREE from "three";
 import {
     createJugglerCubeGeometry as createBodyGeometry,
-    createJugglerMaterial as createBodyMaterial,
+    createJugglerMaterial as createBodyMaterial
+} from "./Default3DModels";
+import {
     DEFAULT_JUGGLER_CUBE_COLOR,
     DEFAULT_JUGGLER_CUBE_DEPTH,
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH
-} from "./Default3DModels";
+} from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
 export type BodyMeshProps = {

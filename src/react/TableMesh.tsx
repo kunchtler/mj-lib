@@ -1,12 +1,11 @@
 import * as THREE from "three";
+import { createTableGeometry, createTableMaterial } from "./Default3DModels";
 import {
-    createTableGeometry,
-    createTableMaterial,
     DEFAULT_TABLE_COLOR,
     DEFAULT_TABLE_DEPTH,
     DEFAULT_TABLE_HEIGHT,
     DEFAULT_TABLE_WIDTH
-} from "./Default3DModels";
+} from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
 export type TableMeshProps = {
