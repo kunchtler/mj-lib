@@ -578,7 +578,7 @@ class JugglerManager {
     events: SchedulerEvent[];
     errorLogger: TimedErrorLogger<Fraction>;
     ballIDMap: Map<BallID, BallTemplateName>;
-    tableSpots: Map<SpotName, BallID>;
+    tableSpots: Map<SpotName, BallTemplateName>;
 
     //TODO : Document that currentbeat : state does not exist yet. But info on tempo and usehand might ! Misleading name ?
     //TODO : When only siteswap height 3 was given, should we deafult to:
@@ -592,7 +592,7 @@ class JugglerManager {
         events: SchedulerEvent[],
         ballIDMap: Map<string, string>,
         errorLogger: TimedErrorLogger<Fraction>,
-        tableSpots?: Map<SpotName, BallID>
+        tableSpots?: Map<SpotName, BallTemplateName>
     ) {
         this.errorLogger = errorLogger;
         this.jugglerName = name;
@@ -1145,14 +1145,18 @@ class JugglerManager {
         const ballsLocation = new BallsLocation(state, this.ballIDMap, this.tableSpots);
 
         // 1. Put all balls that have been specified to go on the table
-        if (!tableAllowed && handsSetup.place !== undefined && handsSetup.place.length > 0) {
+        if (
+            !tableAllowed &&
+            handsSetup.placeBalls !== undefined &&
+            handsSetup.placeBalls.length > 0
+        ) {
             this.logError(
                 beat,
                 "Error",
                 `Can't put balls on a table as no table as been specified for this juggler. Continue without putting any ball.`
             );
-        } else if (handsSetup.place !== undefined) {
-            for (const putBall of handsSetup.place) {
+        } else if (handsSetup.placeBalls !== undefined) {
+            for (const putBall of handsSetup.placeBalls) {
                 let handIdx: number;
                 let ballID: string;
                 let ballIdx: number;
@@ -1286,7 +1290,7 @@ class JugglerManager {
         }
 
         // 2. If no new hands are specified, we stop there. TODO
-        if (handsSetup.have === undefined) {
+        if (handsSetup.haveBalls === undefined) {
             // Prepare the returned state.
             state = updateHeldOfState(state, movedBalls, handsSetup);
             state = updateTableOfState(state, movedBalls);
@@ -1333,9 +1337,9 @@ class JugglerManager {
         }>();
 
         for (let handIdx = 0; handIdx < 2; handIdx++) {
-            for (let ballIdx = 0; ballIdx < handsSetup.have[handIdx].length; ballIdx++) {
+            for (let ballIdx = 0; ballIdx < handsSetup.haveBalls[handIdx].length; ballIdx++) {
                 unhandledBallsInNewHands.add({
-                    info: handsSetup.have[handIdx][ballIdx],
+                    info: handsSetup.haveBalls[handIdx][ballIdx],
                     handIdx,
                     ballIdx
                 });
@@ -1428,7 +1432,7 @@ class JugglerManager {
             handsSetup: HandsInstructions
         ): JugglerState {
             state = cloneState(state);
-            if (handsSetup.have === undefined) {
+            if (handsSetup.haveBalls === undefined) {
                 // We've only placed balls on the table.
                 state.held = ballsLocation.reconstructHeldState();
                 return state;
@@ -1436,8 +1440,8 @@ class JugglerManager {
             // Construct the new hands with ball IDs, to contruct the whole new state.
             // We will add one by one the ball IDs in their respective spot.
             const newHeldState: PartialHeldState = [
-                Array<string | undefined>(handsSetup.have[0].length).fill(undefined),
-                Array<string | undefined>(handsSetup.have[0].length).fill(undefined)
+                Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined),
+                Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined)
             ];
             for (const [ballID, move] of movedBalls) {
                 if (move.to.type === "held") {

@@ -19,7 +19,7 @@ That gets transformed into a convenient way to use them in code.
 import Fraction from "fraction.js";
 import { ScoreConverter } from "./ScoreConverter";
 import { BallSound } from "../model";
-import { DeepRequired } from "../utils";
+import { DeepFuse, DeepRequired } from "../utils";
 
 //TODO : add beat to the object rather than have a 2-array element.
 //TODO : useHand ?
@@ -233,12 +233,12 @@ export type HandsInstructions = {
      * All balls that are specified as being put on a particular table spot.
      * It happens before taking new balls in hand, before making any toss.
      */
-    place?: PutBall[];
+    placeBalls?: PutBall[];
     /**
      * The balls held in hands just after having (possibly) put balls on the table,
      * and just before tossing the balls.
      */
-    have?: [TakeBall[], TakeBall[]];
+    haveBalls?: [TakeBall[], TakeBall[]];
 };
 
 export type JugglingPhraseGenerics<PatternTimeType, FractionType> = {
@@ -304,9 +304,108 @@ export type JSONJugglingPhrase = JugglingPhraseGenerics<JSONTime, number | strin
 export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
 
 export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
-export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
+// export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
+
+export type JugglingScore = {
+    // ballTemplates: {
+    //     name: string;
+    // }[];
+    jugglers: {
+        name: string;
+        table?: {
+            id: string;
+            ballsOnTableAtStart: {
+                id: string;
+                templateName: string; // Todo : differentiate template name from sound category ?
+                spot?: string;
+            }[];
+            spots: {
+                name: string;
+                acceptedBallName?: string;
+            }[];
+        };
+        ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
+        jugglingPhrases: {
+            startTime:
+                | { type: "followPreviousPhrase" }
+                | { type: "byToss"; toss: string | number }
+                // | { type: "byBeat"; beat: string | number } //TODO : Remove this option ?
+                | {
+                      type: "byScore"; //TODO : Rename ?
+                      bar: number;
+                      beatInBar: string | number; //TODO : Rename ?
+                  };
+            baseTempo?:
+                | { type: "byMinute"; tossesPerMinute: string | number }
+                // | { type: "perBeat"; tossesPerBeat: string | number } //TODO : Remove this option ?
+                | {
+                      type: "byScore"; //TODO : Rename ?
+                      noteDuration: string | number;
+                      tossesPerNote: string | number;
+                  };
+            tempoMultiplier?: string | number;
+            setupHands?: HandsInstructions;
+            pattern?: string;
+        }[];
+    }[];
+    scoreRhythm?: {
+        bar: number;
+        timeSignature?: {
+            beatDuration: string | number;
+            beatsPerBar: string | number;
+        };
+        tempo?: {
+            noteDuration: string | number;
+            notesPerMinute: number;
+        };
+    }[];
+};
+
+// export type JugglingScore2 = {
+//     // ballTemplates: {
+//     //     name: string;
+//     // }[];
+//     jugglers: {
+//         name: string;
+//         initialState: {
+//             hands: [
+//                 (Required<BallDescription> | undefined)[],
+//                 (Required<BallDescription> | undefined)[]
+//             ];
+//             table?: {
+//                 id: string;
+//                 spots: {
+//                     spot: string;
+//                     ball?: Required<BallDescription>;
+//                     templateName: string; // TODO : differentiate template name from sound category ?
+//                 }[];
+//                 unknownSpots: Required<BallDescription>[];
+//             };
+//         };
+//         // events: {
+//         //     beat: string | number;
+//         //     tossesPerBeat: string | number;
+//         //     setupHands?: HandsInstructions;
+//         //     pattern?: string;
+//         // }[];
+//     }[];
+//     scoreRhythm?: {
+//         bar: number;
+//         timeSignature?: {
+//             beatDuration: string | number;
+//             beatsPerBar: string | number;
+//         };
+//         tempo?: {
+//             noteDuration: string | number;
+//             notesPerMinute: number;
+//         };
+//     }[];
+// };
+
+// TOCONTINUE : Faire la version exhaustive (à pattern près) de JugglingScore.
 
 export type JugglingScoreHelper = {
+    version: string;
     ballTemplates: {
         name: string;
     }[];
@@ -314,10 +413,35 @@ export type JugglingScoreHelper = {
         name: string;
         table?: {
             template: string;
-            ballsOnTableAtStart?: BallOnTable[];
+            ballsOnTableAtStart?: {
+                name: string;
+                id?: string | undefined;
+                spot?: string | undefined;
+            }[];
         };
         ballsHeldAtStart?: [BallDescription[], BallDescription[]];
-        jugglingPhrases?: JSONJugglingPhrase[];
+        jugglingPhrases?: {
+            startTime:
+                | { type: "followPreviousPhrase" }
+                | { type: "byToss"; toss: string | number }
+                // | { type: "byBeat"; beat: string | number } //TODO : Remove this option ?
+                | {
+                      type: "byScore"; //TODO : Rename ?
+                      bar: number;
+                      beatInBar: string | number; //TODO : Rename ?
+                  };
+            baseTempo?:
+                | { type: "byMinute"; tossesPerMinute: string | number }
+                // | { type: "perBeat"; tossesPerBeat: string | number } //TODO : Remove this option ?
+                | {
+                      type: "byScore"; //TODO : Rename ?
+                      noteDuration: string | number;
+                      tossesPerNote: string | number;
+                  };
+            tempoMultiplier?: string | number;
+            setupHands?: HandsInstructions;
+            pattern?: string;
+        }[];
     }[];
     tableTemplates?: {
         name: string;
@@ -326,10 +450,21 @@ export type JugglingScoreHelper = {
             acceptedBallName?: string;
         }[];
     }[];
-    scoreConverter?: JSONScoreConverter;
+    scoreRhythm?: {
+        bar: number;
+        timeSignature?: {
+            beatDuration: string | number;
+            beatsPerBar: string | number;
+        };
+        tempo?: {
+            noteDuration: string | number;
+            notesPerBeat: number;
+        };
+    }[];
 };
 
 export type MiseEnSceneHelper = {
+    version: string;
     ballTemplates: {
         name: string;
         color?: ColorDescription;
@@ -426,3 +561,5 @@ export type MiseEnScene = {
 // let y: JugglingScore;
 // y = x;
 // x = y;
+
+// TODO : Separate in Mise En Scene what is useful for the trajectories computations and what is useful for the models.

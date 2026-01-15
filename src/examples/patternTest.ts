@@ -162,16 +162,16 @@ export const score5: JSONJugglingScore = {
             jugglingPhrases: [
                 {
                     startTime: 0,
-                    setupHands: { have: [[], []] }
+                    setupHands: { haveBalls: [[], []] }
                 },
                 {
                     startTime: 1,
-                    setupHands: { have: [[{ name: "Do" }], [{ name: "Re" }]] }
+                    setupHands: { haveBalls: [[{ name: "Do" }], [{ name: "Re" }]] }
                 },
                 {
                     startTime: 2,
                     setupHands: {
-                        have: [
+                        haveBalls: [
                             [{ id: "Do_b" }, { id: "Do_a" }],
                             [{ id: "Re_a" }, { id: "Re_b" }]
                         ]
@@ -180,7 +180,7 @@ export const score5: JSONJugglingScore = {
                 {
                     startTime: 3,
                     setupHands: {
-                        place: [
+                        placeBalls: [
                             { id: "Do_a", toSpot: "DoSpot1" },
                             { id: "Do_b", toSpot: "DoSpot2" },
                             { name: "Re" },
@@ -191,7 +191,7 @@ export const score5: JSONJugglingScore = {
                 {
                     startTime: 4,
                     setupHands: {
-                        have: [[{ name: "Do", fromSpot: "DoSpot1" }], []]
+                        haveBalls: [[{ name: "Do", fromSpot: "DoSpot1" }], []]
                     }
                 }
             ]
@@ -233,7 +233,7 @@ export const score6: JSONJugglingScore = {
                 {
                     startTime: 25,
                     setupHands: {
-                        have: [
+                        haveBalls: [
                             [{ name: "Do" }, { name: "Do" }],
                             [{ name: "Re" }, { name: "Mi" }]
                         ]
@@ -243,7 +243,7 @@ export const score6: JSONJugglingScore = {
                 {
                     startTime: 40,
                     setupHands: {
-                        have: [
+                        haveBalls: [
                             [{ name: "Do" }, { name: "Do" }],
                             [{ name: "Re" }, { name: "Mi" }]
                         ]

@@ -637,7 +637,8 @@ function filterUselessTossesAndEvents(events: HybridEvent[]): HybridEvent[] {
                 (ev.tempo === undefined || currentTempo?.equals(ev.tempo)) &&
                 ev.defaultHand === undefined &&
                 (ev.setupHands === undefined ||
-                    (ev.setupHands.have === undefined && ev.setupHands.place === undefined))
+                    (ev.setupHands.haveBalls === undefined &&
+                        ev.setupHands.placeBalls === undefined))
             )
         ) {
             newEvents.push({ ...ev, tosses: newTosses });

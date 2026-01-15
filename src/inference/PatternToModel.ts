@@ -631,14 +631,14 @@ export function checkAndGatherJugglingScoreNamesAndIDs(
         }
 
         for (const { startTime, setupHands } of jugglingPhrases ?? []) {
-            for (const ballsInHand of setupHands?.have ?? [[], []]) {
+            for (const ballsInHand of setupHands?.haveBalls ?? [[], []]) {
                 for (const ball of ballsInHand) {
                     if ("name" in ball) {
                         // All ball templates refer to existing template names.
                         handleIfNameUnknown({
-                            name: ball.name,
+                            name: ball.ballName,
                             namesList: ballTemplateNames,
-                            errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
+                            errorMessage: `Unknown ball template name "${ball.ballName}" in juggling phrases of juggler "${jugglerName}".`,
                             errorLogger: errorLogger,
                             time: startTime
                         });
@@ -676,10 +676,10 @@ export function checkAndGatherJugglingScoreNamesAndIDs(
                 }
             }
 
-            for (const ball of setupHands?.place ?? []) {
+            for (const ball of setupHands?.placeBalls ?? []) {
                 if ("name" in ball) {
                     handleIfNameUnknown({
-                        name: ball.name,
+                        name: ball.ballName,
                         namesList: ballTemplateNames,
                         errorMessage: `TODO`,
                         errorLogger: errorLogger,
