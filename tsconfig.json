@@ -29,7 +29,7 @@
     "notes/siteswap",
     "browserTest",
     "vite.config.ts",
-    "eslint.config.js"
+    "eslint.config.ts"
   ],
   "exclude": [
     "src/legacySimulator",
