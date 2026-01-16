@@ -671,7 +671,7 @@ function formatMode(
                     }
                     toss.mode = {
                         type: "Beat",
-                        beat: scoreConverter.convertMeasureToBeat(toss.mode.measureBeat)
+                        beat: scoreConverter.convertBarBeatToAbsoluteBeat(toss.mode.measureBeat)
                     };
                 } else {
                     toss.mode = { type: "Beat", beat: ev.beat.add(toss.mode.beat) };

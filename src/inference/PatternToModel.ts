@@ -1,7 +1,7 @@
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler, SymbolicEvent } from "./Scheduler";
 import { getFirstInsertedKey } from "../utils/Operations";
-import { ScoreConverter, MusicTempo, MusicTime } from "./ScoreConverter";
+import { ScoreConverter, MusicTempo, MusicBeat } from "./ScoreConverter";
 import { PerformanceModel } from "../model/PerformanceModel";
 import {
     closestWordsTo,
@@ -44,8 +44,6 @@ import { FracTimeline } from "../utils/FracTimeline";
 //TODO : Warning when ball is forcefully put in a spot of wrong kind. Is it here or in scheduler ?
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
-
-// JSONJugglingScoreToModel(score, new FracTimedErrorLogger());
 
 export function JSONJugglingScoreToModel(
     JSONJugglingScore: JSONJugglingScore,
@@ -348,7 +346,7 @@ export function convertJSONTimeToFractionTime(
         });
         return new Fraction(0);
     }
-    return scoreConverter.convertMeasureToBeat([timeJSON.bar, new Fraction(timeJSON.beat)]);
+    return scoreConverter.convertBarBeatToAbsoluteBeat([timeJSON.bar, new Fraction(timeJSON.beat)]);
 }
 
 export function convertJSONJugglingPhraseToJugglingPhrase(
@@ -379,7 +377,10 @@ export function convertJSONScoreConverterToScoreConverter(
             signatureChanges.push([bar, new Fraction(timeSignature)]);
         }
         if (tempo !== undefined) {
-            tempoChanges.push([bar, { note: new Fraction(tempo.note), bpm: tempo.bpm }]);
+            tempoChanges.push([
+                bar,
+                { noteDuration: new Fraction(tempo.note), notesPerMinute: tempo.bpm }
+            ]);
         }
     }
     return new ScoreConverter(signatureChanges, tempoChanges);

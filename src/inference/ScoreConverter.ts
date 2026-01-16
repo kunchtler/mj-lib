@@ -16,174 +16,190 @@ Two events apart by less than 0.0001 s are considered to be the same.
 // function isApproxEqual(f1: Fraction, f2: Fraction, epsilon = EPSILON): boolean {
 //     return f1.sub(f2).abs().lt(epsilon);
 // }
-function timePerMeasure(
-    signature: Fraction,
-    tempoNote: Fraction,
-    tempoBpm: number | Fraction
-): Fraction {
-    return signature.div(tempoNote).mul(new Fraction(60).div(tempoBpm));
+function barDuration(signature: TimeSignature<Fraction>, tempo: MusicTempo<Fraction>): Fraction {
+    return signature.beatDuration
+        .mul(signature.beatsPerBar)
+        .div(tempo.noteDuration)
+        .mul(60)
+        .div(tempo.notesPerMinute);
 }
 //TODO : Confusion in what a beat is (if sig 3/4 and tempo 1/4. Is beat : 0, 1, 2 or 0/4, 1/4, 2/4 ??)
-export type MusicTime = [number, Fraction];
-export type MusicTempo = { note: Fraction; bpm: number };
+export type MusicBeat = { bar: number; beat: Fraction };
+
+export type TimeSignature<FractionType> = {
+    beatDuration: FractionType;
+    beatsPerBar: FractionType;
+};
+export type MusicTempo<FractionType> = {
+    noteDuration: FractionType;
+    notesPerMinute: FractionType;
+};
 
 //TODO : Change Name.
-//TODO : More efficient to store Measure first beat as key instead of measure number ?
+//TODO : More efficient to store Bar first beat as key instead of bar number ?
 export class ScoreConverter {
-    readonly signatureChanges: Timeline<number, Fraction>;
-    readonly tempoChanges: Timeline<number, MusicTempo>;
+    readonly signatureChanges: Timeline<number, TimeSignature<Fraction>>;
+    readonly tempoChanges: Timeline<number, MusicTempo<Fraction>>;
 
     constructor(
-        signatureChanges: [number, Fraction | string][],
-        tempoChanges: [number, MusicTempo][]
+        signatureChanges: {
+            bar: number;
+            tempo: TimeSignature<Fraction | string | number>;
+        }[],
+        tempoChanges: { bar: number; tempo: MusicTempo<Fraction | string | number> }[]
     ) {
-        const signatureChangesOnlyFractions = signatureChanges.map(
-            ([measure, beat]) =>
-                [measure, beat instanceof Fraction ? beat : new Fraction(beat)] as [
-                    number,
-                    Fraction
-                ]
-        );
-        this.signatureChanges = new Timeline({ container: signatureChangesOnlyFractions });
+        const signatureChangesContainer: [number, TimeSignature<Fraction>][] = [];
+        for (const { bar, tempo: timeSignature } of signatureChanges) {
+            signatureChangesContainer.push([
+                bar,
+                {
+                    beatDuration:
+                        timeSignature.beatDuration instanceof Fraction
+                            ? timeSignature.beatDuration
+                            : new Fraction(timeSignature.beatDuration),
+                    beatsPerBar:
+                        timeSignature.beatsPerBar instanceof Fraction
+                            ? timeSignature.beatsPerBar
+                            : new Fraction(timeSignature.beatsPerBar)
+                }
+            ]);
+        }
+        this.signatureChanges = new Timeline({ container: signatureChangesContainer });
         if (this.signatureChanges.empty()) {
             throw Error("Must provide at least one signature.");
         }
-        const tempoChangesOnlyFraction = tempoChanges.map(
-            ([measure, { note, bpm }]) =>
-                [
-                    measure,
-                    { note: note instanceof Fraction ? note : new Fraction(note), bpm: bpm }
-                ] as [number, MusicTempo]
-        );
-        this.tempoChanges = new Timeline({ container: tempoChangesOnlyFraction });
+
+        const tempoChangesContainer: [number, MusicTempo<Fraction>][] = [];
+        for (const { bar, tempo } of tempoChanges) {
+            tempoChangesContainer.push([
+                bar,
+                {
+                    noteDuration:
+                        tempo.noteDuration instanceof Fraction
+                            ? tempo.noteDuration
+                            : new Fraction(tempo.noteDuration),
+                    notesPerMinute:
+                        tempo.notesPerMinute instanceof Fraction
+                            ? tempo.notesPerMinute
+                            : new Fraction(tempo.notesPerMinute)
+                }
+            ]);
+        }
+        this.tempoChanges = new Timeline({ container: tempoChangesContainer });
         if (this.tempoChanges.empty()) {
             throw Error("Must provide at least one tempo indication.");
         }
     }
 
     /**
-     * Checks if a beat is inside the range of this measure, ie is in [0, signature[.
-     * @param param0 The [measure, beat] to check for.
-     * @returns whether the beat is within the measure or outside.
+     * Checks if a beat is inside the range of this bar, ie is in [0, signature.beatsPerBar[.
+     * @param param0 The [bar, beat] to check for.
+     * @returns whether the beat is within the bar or outside.
      */
-    isBeatInMeasure([measure, beat]: MusicTime): boolean {
-        let signature = this.signatureChanges.prevEvent(measure, false)[1];
+    isBeatInBar({ bar, beat }: MusicBeat): boolean {
+        let signature = this.signatureChanges.prevEvent(bar, false)[1];
         if (signature === null) {
             signature = this.signatureChanges.begin().pointer[1];
         }
-        return beat.lt(signature);
+        return beat.lt(signature.beatsPerBar);
     }
 
-    //TODO : Change name.
-    convertMeasureToBeat(musicTime: MusicTime): Fraction {
+    convertBarBeatToAbsoluteBeat(barBeat: MusicBeat): Fraction {
         // Initial validation for sanity.
-        if (!this.isBeatInMeasure(musicTime)) {
-            throw Error("Beat is outside of measure.");
+        if (!this.isBeatInBar(barBeat)) {
+            throw Error("Beat is outside of bar.");
         }
-        const [measure, beat] = musicTime;
+        const { bar, beat } = barBeat;
 
-        // In case the measure we search for is before the first documented,
+        // In case the bar we search for is before the first documented,
         // we take the initial signature.
         const it = this.signatureChanges.begin();
-        let [currentMeasure, currentSignature] = it.pointer;
-        if (measure < currentMeasure) {
-            return currentSignature.mul(measure).add(beat);
+        let [currentBar, { beatsPerBar: currentBeatsPerBar }] = it.pointer;
+        if (bar < currentBar) {
+            return currentBeatsPerBar.mul(bar).add(beat);
         }
 
         // General Case.
-        let beatAcc = currentSignature.mul(currentMeasure);
+        let beatAcc = currentBeatsPerBar.mul(currentBar);
         it.next();
-        while (it.isAccessible() && it.pointer[0] <= measure) {
-            beatAcc = beatAcc.add(currentSignature.mul(it.pointer[0] - currentMeasure));
-            [currentMeasure, currentSignature] = it.pointer;
+        while (it.isAccessible() && it.pointer[0] <= bar) {
+            beatAcc = beatAcc.add(currentBeatsPerBar.mul(it.pointer[0] - currentBar));
+            [currentBar, { beatsPerBar: currentBeatsPerBar }] = it.pointer;
             it.next();
         }
-        return beatAcc.add(currentSignature.mul(measure - currentMeasure)).add(beat);
+        return beatAcc.add(currentBeatsPerBar.mul(bar - currentBar)).add(beat);
     }
 
-    //TODO : Change name.
-    convertBeatToMeasure(beat: Fraction): MusicTime {
-        // Case when the beat is under the first known measure.
+    convertAbsoluteBeatToBarBeat(beat: Fraction): MusicBeat {
+        // Case when the beat is under the first known bar.
         const it = this.signatureChanges.begin();
-        let [currentMeasure, currentSignature] = it.pointer;
-        if (beat.lt(currentSignature.mul(currentMeasure))) {
-            const measureAnswer = beat.div(currentSignature).floor().valueOf();
+        let [currentBar, { beatsPerBar: currentBeatsPerBar }] = it.pointer;
+        if (beat.lt(currentBeatsPerBar.mul(currentBar))) {
+            const barAnswer = beat.div(currentBeatsPerBar).floor().valueOf();
             // Not computing the modulo as it may be negative.
-            const beatAnswer = beat.sub(currentSignature.mul(measureAnswer));
-            return [measureAnswer, beatAnswer];
+            const beatAnswer = beat.sub(currentBeatsPerBar.mul(barAnswer));
+            return { bar: barAnswer, beat: beatAnswer };
         }
 
         // General Case
-        let beatAcc = currentSignature.mul(currentMeasure);
+        let beatAcc = currentBeatsPerBar.mul(currentBar);
         it.next();
         while (
             it.isAccessible() &&
-            beat.sub(beatAcc).gte(currentSignature.mul(it.pointer[0] - currentMeasure))
+            beat.sub(beatAcc).gte(currentBeatsPerBar.mul(it.pointer[0] - currentBar))
         ) {
-            beatAcc = beatAcc.add(currentSignature.mul(it.pointer[0] - currentMeasure));
-            [currentMeasure, currentSignature] = it.pointer;
+            beatAcc = beatAcc.add(currentBeatsPerBar.mul(it.pointer[0] - currentBar));
+            [currentBar, { beatsPerBar: currentBeatsPerBar }] = it.pointer;
             it.next();
         }
-        const measureAnswer =
-            currentMeasure + beat.sub(beatAcc).div(currentSignature).floor().valueOf();
-        beatAcc = beatAcc.add(currentSignature.mul(measureAnswer - currentMeasure));
+        const barAnswer = currentBar + beat.sub(beatAcc).div(currentBeatsPerBar).floor().valueOf();
+        beatAcc = beatAcc.add(currentBeatsPerBar.mul(barAnswer - currentBar));
         const beatAnswer = beat.sub(beatAcc);
-        return [measureAnswer, beatAnswer];
+        return { bar: barAnswer, beat: beatAnswer };
     }
 
     convertBeatToRealTime(beat: Fraction): Fraction {
-        const musicTime = this.convertBeatToMeasure(beat);
+        const barBeat = this.convertAbsoluteBeatToBarBeat(beat);
 
         const itTempo = this.tempoChanges.begin();
-        const firstTempoMeasure = itTempo.pointer[0];
+        const firstTempoBar = itTempo.pointer[0];
         let currentTempo = itTempo.pointer[1];
         const itSignature = this.signatureChanges.begin();
-        const firstSignatureMeasure = itSignature.pointer[0];
+        const firstSignatureBar = itSignature.pointer[0];
         let currentSignature = itSignature.pointer[1];
 
-        const minMeasure =
-            firstTempoMeasure < firstSignatureMeasure ? firstTempoMeasure : firstSignatureMeasure;
+        const minBar = firstTempoBar < firstSignatureBar ? firstTempoBar : firstSignatureBar;
 
-        let time = timePerMeasure(currentSignature, currentTempo.note, currentTempo.bpm).mul(
-            minMeasure
-        );
+        let time = barDuration(currentSignature, currentTempo).mul(minBar);
 
-        // Case where the beat is before the first documented measure.
-        if (musicTime[0] < minMeasure) {
-            const lastMeasureTime = timePerMeasure(
-                currentSignature,
-                currentTempo.note,
-                currentTempo.bpm
-            );
-            time = time.add(musicTime[1].div(currentSignature).mul(lastMeasureTime));
+        // Case where the beat is before the first documented bar.
+        if (barBeat.bar < minBar) {
+            const lastBarTime = barDuration(currentSignature, currentTempo);
+            time = time.add(barBeat.beat.div(currentSignature.beatsPerBar).mul(lastBarTime));
             return time;
         }
 
         // General Case
-        for (let measureIdx = minMeasure; measureIdx < musicTime[0] + 1; measureIdx++) {
-            if (itTempo.isAccessible() && itTempo.pointer[0] === measureIdx) {
+        for (let barIdx = minBar; barIdx < barBeat.bar + 1; barIdx++) {
+            if (itTempo.isAccessible() && itTempo.pointer[0] === barIdx) {
                 currentTempo = itTempo.pointer[1];
                 itTempo.next();
             }
-            if (itSignature.isAccessible() && itSignature.pointer[0] === measureIdx) {
+            if (itSignature.isAccessible() && itSignature.pointer[0] === barIdx) {
                 currentSignature = itSignature.pointer[1];
                 itSignature.next();
             }
-            time = time.add(timePerMeasure(currentSignature, currentTempo.note, currentTempo.bpm));
+            time = time.add(barDuration(currentSignature, currentTempo));
         }
-        // We've overshot the time by a bit (counting a full measure instead of only the beat).
-        const lastMeasureTime = timePerMeasure(
-            currentSignature,
-            currentTempo.note,
-            currentTempo.bpm
-        );
-        time = time.add(musicTime[1].div(currentSignature).sub(1).mul(lastMeasureTime));
+        // We've overshot the time by a bit (counting a full bar instead of only the beat).
+        const lastBarTime = barDuration(currentSignature, currentTempo);
+        time = time.add(barBeat.beat.div(currentSignature.beatsPerBar).sub(1).mul(lastBarTime));
         return time;
     }
 
-    getTempo(beat: Fraction): MusicTempo {
-        const measure = this.convertBeatToMeasure(beat)[0];
-        const tempo = this.tempoChanges.prevEvent(measure)[1];
+    getTempo(beat: Fraction): MusicTempo<Fraction> {
+        const bar = this.convertAbsoluteBeatToBarBeat(beat).bar;
+        const tempo = this.tempoChanges.prevEvent(bar)[1];
         return tempo ?? this.tempoChanges.begin().pointer[1];
     }
 
@@ -191,29 +207,29 @@ export class ScoreConverter {
     //     const fracTime = new Fraction(time);
 
     //     const itTempo = this.tempoChanges.begin();
-    //     const firstTempoMeasure = itTempo.pointer[0];
+    //     const firstTempoBar = itTempo.pointer[0];
     //     let currentTempo = itTempo.pointer[1];
     //     const itSignature = this.signatureChanges.begin();
-    //     const firstSignatureMeasure = itSignature.pointer[0];
+    //     const firstSignatureBar = itSignature.pointer[0];
     //     let currentSignature = itSignature.pointer[1];
 
-    //     const minMeasure =
-    //         firstTempoMeasure < firstSignatureMeasure ? firstTempoMeasure : firstSignatureMeasure;
-    //     const timeAcc = timePerMeasure(currentSignature, currentTempo.note, currentTempo.bpm)
-    //         .mul(minMeasure)
+    //     const minBar =
+    //         firstTempoBar < firstSignatureBar ? firstTempoBar : firstSignatureBar;
+    //     const timeAcc = timePerBar(currentSignature, currentTempo.note, currentTempo.bpm)
+    //         .mul(minBar)
     //         .valueOf();
     //     while (timeAcc <= time) {
-    //         if (itTempo.isAccessible() && itTempo.pointer[0] === measureIdx) {
+    //         if (itTempo.isAccessible() && itTempo.pointer[0] === barIdx) {
     //             currentTempo = itTempo.pointer[1];
     //             itTempo.next();
     //         }
-    //         if (itSignature.isAccessible() && itSignature.pointer[0] === measureIdx) {
+    //         if (itSignature.isAccessible() && itSignature.pointer[0] === barIdx) {
     //             currentSignature = itSignature.pointer[1];
     //             itSignature.next();
     //         }
     //     }
 
-    //     // Case where the time is before the first known measure.
+    //     // Case where the time is before the first known bar.
 
     //     // General Case
 

@@ -598,5 +598,5 @@ export function eventsBeatList(
 
 //TODO : Fuse with timePerMeasure ?
 function jugglerUnitTime(jugglerTempo: Fraction, musicTempo: MusicTempo): Fraction {
-    return jugglerTempo.mul(new Fraction(60).div(musicTempo.bpm)).div(musicTempo.note);
+    return jugglerTempo.mul(new Fraction(60).div(musicTempo.notesPerMinute)).div(musicTempo.noteDuration);
 }
