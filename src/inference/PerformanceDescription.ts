@@ -17,7 +17,7 @@ That gets transformed into a convenient way to use them in code.
  * @module my-module
  */
 import Fraction from "fraction.js";
-import { ScoreConverter } from "./ScoreConverter";
+import { MusicTempo, ScoreConverter, TimeSignature } from "./ScoreConverter";
 import { BallSound } from "../model";
 import { DeepFuse, DeepRequired } from "../utils";
 
@@ -135,6 +135,7 @@ export type HandDescription = {
     width?: number; // From thumb to little finger.
     depth?: number; // From palm to back.
     visible?: boolean; //P
+    color?: ColorDescription;
     // TODO : have hand spot templates to avoid redundancy.
     // TODO : find a way to make optional.
     tossSpot: SpotDescription; // Relative to juggler origin. //P
@@ -189,7 +190,7 @@ export type JugglerDescription<JugglingPhraseType> = {
 
 export type TableSpotDescription = SpotDescription & {
     name: string; //T
-    acceptedBallName?: string; //T
+    acceptedBallName: string; //T
 };
 
 // export type HandTemplate = {
@@ -217,16 +218,19 @@ export type TableDescription = {
     ballsOnTableAtStart?: BallOnTable[]; //T
 };
 
-export type TakeBall = { name: string; fromSpot?: string } | { id: string };
+export type TakeBall =
+    | { type: "byName"; name: string; fromSpot?: string }
+    | { type: "byID"; id: string };
 
 export type PutBall =
     | {
+          type: "byName";
           toSpot?: string;
           name: string; //T
           fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
           //handSpotNumber: number
       }
-    | { toSpot?: string; id: string };
+    | { type: "byId"; toSpot?: string; id: string };
 
 export type HandsInstructions = {
     /**
@@ -279,37 +283,37 @@ export type BallDescription = {
     id?: string;
 };
 
-export type JugglingScoreGenerics<JugglingPhraseType, ScoreConverterType> = {
-    ballTemplates: { name: string }[];
-    jugglers: {
-        name: string;
-        table?: {
-            template: string;
-            ballsOnTableAtStart?: BallOnTable[];
-        };
-        ballsHeldAtStart?: [BallDescription[], BallDescription[]];
-        jugglingPhrases?: JugglingPhraseType[];
-    }[];
-    tableTemplates?: {
-        name: string;
-        spots: {
-            name: string;
-            acceptedBallName?: string;
-        }[];
-    }[];
-    scoreConverter?: ScoreConverterType;
-};
+// export type JugglingScoreGenerics<JugglingPhraseType, ScoreConverterType> = {
+//     ballTemplates: { name: string }[];
+//     jugglers: {
+//         name: string;
+//         table?: {
+//             template: string;
+//             ballsOnTableAtStart?: BallOnTable[];
+//         };
+//         ballsHeldAtStart?: [BallDescription[], BallDescription[]];
+//         jugglingPhrases?: JugglingPhraseType[];
+//     }[];
+//     tableTemplates?: {
+//         name: string;
+//         spots: {
+//             name: string;
+//             acceptedBallName?: string;
+//         }[];
+//     }[];
+//     scoreConverter?: ScoreConverterType;
+// };
 
-export type JSONJugglingPhrase = JugglingPhraseGenerics<JSONTime, number | string | FractionObject>;
-export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
+// export type JSONJugglingPhrase = JugglingPhraseGenerics<JSONTime, number | string | FractionObject>;
+// export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
 
-export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
+// export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
 // export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
 
 export type JugglingScore = {
-    // ballTemplates: {
-    //     name: string;
-    // }[];
+    ballTemplates: {
+        name: string;
+    }[];
     jugglers: {
         name: string;
         table?: {
@@ -321,45 +325,88 @@ export type JugglingScore = {
             }[];
             spots: {
                 name: string;
-                acceptedBallName?: string;
+                acceptedBallName: string;
+            }[];
+        };
+        ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
+        jugglingPhrases: JugglingPhrase[];
+    }[];
+    scoreRhythm?: ScoreRhythmDescription;
+};
+
+export type JugglingScore2 = {
+    ballTemplates: {
+        name: string;
+    }[];
+    jugglers: {
+        name: string;
+        table?: {
+            id: string;
+            ballsOnTableAtStart: {
+                id: string;
+                templateName: string; // Todo : differentiate template name from sound category ?
+                spot?: string;
+            }[];
+            spots: {
+                name: string;
+                acceptedBallName: string;
             }[];
         };
         ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
         jugglingPhrases: {
             startTime:
-                | { type: "followPreviousPhrase" }
-                | { type: "byToss"; toss: string | number }
-                // | { type: "byBeat"; beat: string | number } //TODO : Remove this option ?
+                | { type: "followPreviousPhrase" } // directly follows previous phrase.
+                | { type: "byToss"; toss: number } // Specify toss number.
+                | { type: "byBeat"; beat: string | number } // Specify beat counts since start.
                 | {
-                      type: "byScore"; //TODO : Rename ?
+                      type: "byBarBeat";
                       bar: number;
-                      beatInBar: string | number; //TODO : Rename ?
-                  };
+                      beatInBar: string | number;
+                  }; // Specify bar and beat in bar.
             baseTempo?:
-                | { type: "byMinute"; tossesPerMinute: string | number }
-                // | { type: "perBeat"; tossesPerBeat: string | number } //TODO : Remove this option ?
+                | { type: "perMinute"; tossesPerMinute: string | number } // self explanatory. Doesn't change when tempo or signature.beatDuration changes.
+                | { type: "perBeat"; tossesPerBeat: string | number } // Changes when scoreRhythm signature.beatDuration or tempo changes.
                 | {
-                      type: "byScore"; //TODO : Rename ?
+                      type: "perNoteDuration";
                       noteDuration: string | number;
                       tossesPerNote: string | number;
-                  };
+                  }; // changes when tempo changes, but not signature.beatDuration.
             tempoMultiplier?: string | number;
             setupHands?: HandsInstructions;
             pattern?: string;
         }[];
     }[];
-    scoreRhythm?: {
-        bar: number;
-        timeSignature?: {
-            beatDuration: string | number;
-            beatsPerBar: string | number;
-        };
-        tempo?: {
-            noteDuration: string | number;
-            notesPerMinute: number;
-        };
-    }[];
+    scoreRhythm?: ScoreRhythmDescription;
 };
+
+export type JugglingPhrase = {
+    startTime:
+        | { type: "followPreviousPhrase" } // directly follows previous phrase.
+        | { type: "byToss"; toss: number } // Specify toss number.
+        | { type: "byBeat"; beat: string | number } // Specify beat counts since start.
+        | {
+              type: "byBarBeat";
+              bar: number;
+              beatInBar: string | number;
+          }; // Specify bar and beat in bar.
+    tossesPerBeat?:
+        | { type: "perMinute"; tossesPerMinute: string | number } // self explanatory. Doesn't change when tempo or signature.beatDuration changes.
+        | { type: "perBeat"; tossesPerBeat: string | number } // Changes when scoreRhythm signature.beatDuration or tempo changes.
+        | {
+              type: "perNoteDuration";
+              noteDuration: string | number;
+              tossesPerNote: string | number;
+          }; // changes when tempo changes, but not signature.beatDuration.
+    tempoMultiplier?: string | number;
+    setupHands?: HandsInstructions;
+    pattern?: string;
+};
+
+export type ScoreRhythmDescription = {
+    bar: number;
+    timeSignature?: TimeSignature<string | number>;
+    tempo?: MusicTempo<string | number>;
+}[];
 
 // export type JugglingScore2 = {
 //     // ballTemplates: {
@@ -405,7 +452,7 @@ export type JugglingScore = {
 // TOCONTINUE : Faire la version exhaustive (à pattern près) de JugglingScore.
 
 export type JugglingScoreHelper = {
-    version: string;
+    version: "0.1";
     ballTemplates: {
         name: string;
     }[];
@@ -420,51 +467,20 @@ export type JugglingScoreHelper = {
             }[];
         };
         ballsHeldAtStart?: [BallDescription[], BallDescription[]];
-        jugglingPhrases?: {
-            startTime:
-                | { type: "followPreviousPhrase" }
-                | { type: "byToss"; toss: string | number }
-                // | { type: "byBeat"; beat: string | number } //TODO : Remove this option ?
-                | {
-                      type: "byScore"; //TODO : Rename ?
-                      bar: number;
-                      beatInBar: string | number; //TODO : Rename ?
-                  };
-            baseTempo?:
-                | { type: "byMinute"; tossesPerMinute: string | number }
-                // | { type: "perBeat"; tossesPerBeat: string | number } //TODO : Remove this option ?
-                | {
-                      type: "byScore"; //TODO : Rename ?
-                      noteDuration: string | number;
-                      tossesPerNote: string | number;
-                  };
-            tempoMultiplier?: string | number;
-            setupHands?: HandsInstructions;
-            pattern?: string;
-        }[];
+        jugglingPhrases?: JugglingPhrase[];
     }[];
     tableTemplates?: {
         name: string;
         spots: {
             name: string;
-            acceptedBallName?: string;
+            acceptedBallName: string; // TODO : Support undefined acceptedBallName ?
         }[];
     }[];
-    scoreRhythm?: {
-        bar: number;
-        timeSignature?: {
-            beatDuration: string | number;
-            beatsPerBar: string | number;
-        };
-        tempo?: {
-            noteDuration: string | number;
-            notesPerBeat: number;
-        };
-    }[];
+    scoreRhythm?: ScoreRhythmDescription;
 };
 
 export type MiseEnSceneHelper = {
-    version: string;
+    version: "0.1";
     ballTemplates: {
         name: string;
         color?: ColorDescription;
@@ -544,6 +560,44 @@ export type MiseEnScene = {
         };
     }[];
 };
+
+// export type PerformanceView = {
+//     ballTemplates: {
+//         name: string;
+//         color: ColorDescription;
+//         radius: number;
+//         soundOnCatch?: BallSound;
+//         soundOnToss?: BallSound;
+//     }[];
+//     jugglers: {
+//         name: string;
+//         leftHand: DeepRequired<HandDescription>;
+//         rightHand: DeepRequired<HandDescription>;
+//         body: DeepRequired<BodyDescription>;
+//         table?: {
+//             id: string;
+//             height: number;
+//             width: number;
+//             depth: number;
+//             visible: boolean;
+//             position: [number, number, number];
+//             rotation: [number, number, number];
+//             scale: [number, number, number];
+//             color: ColorDescription;
+//             spots: {
+//                 name: string;
+//                 position: [number, number, number];
+//                 rotation: [number, number, number];
+//             }[];
+//             unknownSpot: {
+//                 position: [number, number, number];
+//                 rotation: [number, number, number];
+//             };
+//         };
+//     }[];
+// };
+
+// export type PerformanceViewHelper = {};
 
 // Uncomment to see if typescript complains about incompatible types.
 
