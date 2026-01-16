@@ -44,12 +44,12 @@ export class ScoreConverter {
     constructor(
         signatureChanges: {
             bar: number;
-            tempo: TimeSignature<Fraction | string | number>;
+            timeSignature: TimeSignature<Fraction | string | number>;
         }[],
         tempoChanges: { bar: number; tempo: MusicTempo<Fraction | string | number> }[]
     ) {
         const signatureChangesContainer: [number, TimeSignature<Fraction>][] = [];
-        for (const { bar, tempo: timeSignature } of signatureChanges) {
+        for (const { bar, timeSignature } of signatureChanges) {
             signatureChangesContainer.push([
                 bar,
                 {
