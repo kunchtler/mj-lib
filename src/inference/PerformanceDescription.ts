@@ -33,30 +33,12 @@ import { DeepFuse, DeepRequired } from "../utils";
 // - Separate pattern from JugglerDescription ? Instead have name of the juggler in the pattern and lex/parse it ?
 // - Map sound name -> AudioBuffer ?
 
-// TODO : Rename MusciBeatConverter to ScoreConverter and measure to bar.
-// TODO : Also rename all coreesponding variables.
-
-// export type RawPreParserEvent = {
-//     tempo?: string;
-//     hands?: [string[], string[]];
-//     pattern?: string /*; useHand?: "L" | "R" */;
-// };
-
-// export type PreParserEvent = {
-//     tempo?: Fraction;
-//     hands?: [string[], string[]];
-//     pattern?: string /*; useHand?: "L" | "R" */;
-// };
-
-
-export type Sound =
-    | { type: "note"; note: string }
-    | { type: "url"; url: string }
-    | { type: "path" };
+export type Sound = { type: "note"; note: string } | { type: "url"; url: string };
+// | { type: "path" }; //TODO : Support audio buffer Base64-encoded in JSON Description.
 
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T
-    color?: number | string; //P
+    color?: ColorDescription; //P
     radius?: number;
     soundOnCatch?: BallSound; //A
     soundOnToss?: BallSound;
@@ -104,7 +86,6 @@ export type HandDescription = {
     heldSpots?: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
 };
 
-
 export type BodyDescription = {
     height?: number; //P
     width?: number; //P
@@ -135,12 +116,10 @@ export type JugglerDescription<JugglingPhraseType> = {
     // defaultCatchOrder: ;
 };
 
-
 export type TableSpotDescription = SpotDescription & {
     name: string; //T
     acceptedBallName: string; //T
 };
-
 
 export type TableTemplate = {
     name: string; //T
@@ -208,11 +187,7 @@ export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterTyp
 
 export type FractionObject = { n: bigint; d: bigint };
 export type ScoreTime<FractionType> = { bar: number; beat: FractionType };
-export type FractionParam = number | string;
-export type JSONTime = number | string | ScoreTime<FractionParam>;
-
-
-export type PerformanceDescription = PerformanceDescriptionGenerics<JugglingPhrase, ScoreConverter>;
+export type FractionType = number | string;
 
 export type BallDescription = {
     name: string;
@@ -240,82 +215,101 @@ export type JugglingScore = {
         ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
         jugglingPhrases: JugglingPhrase[];
     }[];
-    scoreRhythm?: ScoreRhythmDescription;
+    globalBeat?: GlobalBeatDescription;
 };
 
-export type JugglingScore2 = {
-    ballTemplates: {
-        name: string;
-    }[];
-    jugglers: {
-        name: string;
-        table?: {
-            id: string;
-            ballsOnTableAtStart: {
-                id: string;
-                templateName: string; // Todo : differentiate template name from sound category ?
-                spot?: string;
-            }[];
-            spots: {
-                name: string;
-                acceptedBallName: string;
-            }[];
-        };
-        ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
-        jugglingPhrases: {
-            startTime:
-                | { type: "followPreviousPhrase" } // directly follows previous phrase.
-                | { type: "byToss"; toss: number } // Specify toss number.
-                | { type: "byBeat"; beat: string | number } // Specify beat counts since start.
-                | {
-                      type: "byBarBeat";
-                      bar: number;
-                      beatInBar: string | number;
-                  }; // Specify bar and beat in bar.
-            baseTempo?:
-                | { type: "perMinute"; tossesPerMinute: string | number } // self explanatory. Doesn't change when tempo or signature.beatDuration changes.
-                | { type: "perBeat"; tossesPerBeat: string | number } // Changes when scoreRhythm signature.beatDuration or tempo changes.
-                | {
-                      type: "perNoteDuration";
-                      noteDuration: string | number;
-                      tossesPerNote: string | number;
-                  }; // changes when tempo changes, but not signature.beatDuration.
-            tempoMultiplier?: string | number;
-            setupHands?: HandsInstructions;
-            pattern?: string;
-        }[];
-    }[];
-    scoreRhythm?: ScoreRhythmDescription;
-};
+// export type JugglingScore2 = {
+//     ballTemplates: {
+//         name: string;
+//     }[];
+//     jugglers: {
+//         name: string;
+//         table?: {
+//             id: string;
+//             ballsOnTableAtStart: {
+//                 id: string;
+//                 templateName: string; // Todo : differentiate template name from sound category ?
+//                 spot?: string;
+//             }[];
+//             spots: {
+//                 name: string;
+//                 acceptedBallName: string;
+//             }[];
+//         };
+//         ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
+//         jugglingPhrases: JugglingPhrase[];
+//     }[];
+//     scoreRhythm?: ScoreRhythmDescription;
+// };
 
 export type JugglingPhrase = {
     startTime:
         | { type: "followPreviousPhrase" } // directly follows previous phrase.
-        | { type: "byToss"; toss: number } // Specify toss number.
-        | { type: "byBeat"; beat: string | number } // Specify beat counts since start.
+        | { type: "byTime"; seconds: FractionType }
+        | { type: "byBeat"; beat: FractionType } // Specify toss number.
+        | { type: "byGlobalBeat"; beat: FractionType } // Specify beat counts since start.
         | {
-              type: "byBarBeat";
+              type: "byGlobalBarBeat";
               bar: number;
-              beatInBar: string | number;
+              beatInBar: FractionType;
           }; // Specify bar and beat in bar.
-    tossesPerBeat?:
-        | { type: "perMinute"; tossesPerMinute: string | number } // self explanatory. Doesn't change when tempo or signature.beatDuration changes.
-        | { type: "perBeat"; tossesPerBeat: string | number } // Changes when scoreRhythm signature.beatDuration or tempo changes.
-        | {
-              type: "perNoteDuration";
-              noteDuration: string | number;
-              tossesPerNote: string | number;
-          }; // changes when tempo changes, but not signature.beatDuration.
-    tempoMultiplier?: string | number;
+    beatTempo?:
+        | { type: "perGlobalBeat"; beatsPerGlobalBeat: FractionType }
+        | { type: "perMinute"; beatsPerMinute: FractionType };
+    beatTempoMultiplier?: FractionType;
     setupHands?: HandsInstructions;
     pattern?: string;
 };
 
-export type ScoreRhythmDescription = {
-    bar: number;
-    timeSignature?: TimeSignature<string | number>;
-    tempo?: MusicTempo<string | number>;
-}[];
+// export type JugglingPhrase = {
+//     startTime:
+//         | { type: "followPreviousPhrase" } // directly follows previous phrase.
+//         | { type: "byToss"; toss: number } // Specify toss number.
+//         | { type: "byBeat"; beat: FractionType } // Specify beat counts since start.
+//         | {
+//               type: "byBarBeat";
+//               bar: number;
+//               beatInBar: FractionType;
+//           }; // Specify bar and beat in bar.
+//     tossesPerBeat?:
+//         | { type: "perMinute"; tossesPerMinute: FractionType } // self explanatory. Doesn't change when tempo or signature.beatDuration changes.
+//         | { type: "perBeat"; tossesPerBeat: FractionType } // Changes when scoreRhythm signature.beatDuration or tempo changes.
+//         | {
+//               type: "perNoteDuration";
+//               noteDuration: FractionType;
+//               tossesPerNote: FractionType;
+//           }; // changes when tempo changes, but not signature.beatDuration.
+//     tempoMultiplier?: FractionType;
+//     setupHands?: HandsInstructions;
+//     pattern?: string;
+// };
+
+export type GlobalBeatTime =
+    | {
+          type: "byBeat";
+          beat: FractionType;
+      }
+    | { type: "byBarBeat"; bar: number; beat: FractionType }
+    | { type: "byTime"; seconds: number };
+
+export type GlobalBeatDescription = {
+    origin?: {
+        beat: GlobalBeatTime;
+        timeInSeconds?: FractionType;
+    };
+    changes: {
+        startTime: GlobalBeatTime;
+        beatsInBar?: FractionType;
+        beatsPerMinute?: FractionType;
+        tempoMultiplier?: FractionType;
+    }[];
+};
+
+// export type ScoreRhythmDescription = {
+//     bar: number;
+//     timeSignature?: TimeSignature<FractionType>;
+//     tempo?: MusicTempo<FractionType>;
+// }[];
 
 // export type JugglingScore2 = {
 //     // ballTemplates: {
@@ -339,8 +333,8 @@ export type ScoreRhythmDescription = {
 //             };
 //         };
 //         // events: {
-//         //     beat: string | number;
-//         //     tossesPerBeat: string | number;
+//         //     beat: FractionType;
+//         //     tossesPerBeat: FractionType;
 //         //     setupHands?: HandsInstructions;
 //         //     pattern?: string;
 //         // }[];
@@ -348,11 +342,11 @@ export type ScoreRhythmDescription = {
 //     scoreRhythm?: {
 //         bar: number;
 //         timeSignature?: {
-//             beatDuration: string | number;
-//             beatsPerBar: string | number;
+//             beatDuration: FractionType;
+//             beatsPerBar: FractionType;
 //         };
 //         tempo?: {
-//             noteDuration: string | number;
+//             noteDuration: FractionType;
 //             notesPerMinute: number;
 //         };
 //     }[];
@@ -385,7 +379,7 @@ export type JugglingScoreHelper = {
             acceptedBallName: string; // TODO : Support undefined acceptedBallName ?
         }[];
     }[];
-    scoreRhythm?: ScoreRhythmDescription;
+    globalBeat?: GlobalBeatDescription;
 };
 
 export type MiseEnSceneHelper = {
