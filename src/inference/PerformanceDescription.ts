@@ -21,25 +21,6 @@ import { MusicTempo, ScoreConverter, TimeSignature } from "./ScoreConverter";
 import { BallSound } from "../model";
 import { DeepFuse, DeepRequired } from "../utils";
 
-//TODO : add beat to the object rather than have a 2-array element.
-//TODO : useHand ?
-
-//TODO : Rename
-//TODO : Rename InputEvent as part of MDN.
-//TODO : Handle Jugglers having different balls at start.
-// export interface ParserToSchedulerParams {
-//     jugglers: Map<string, FracSortedList<PreParserEvent>>;
-//     ballNames?: Set<string>;
-//     ballIDs?: Map<string, string>;
-//     musicConverter?: MusicBeatConverter;
-// }
-
-// export type TableSpot = {
-//     name: string;
-//     ball: string;
-//     // position: [number, number, number];
-// };
-
 // TODO for description : Add support for...
 // - custom meshes (imported / through Three / through Fiber)
 // - custom sounds (from file / through JS / through preloaded buffers)
@@ -67,31 +48,11 @@ import { DeepFuse, DeepRequired } from "../utils";
 //     pattern?: string /*; useHand?: "L" | "R" */;
 // };
 
-export type ScoreConverterGenerics<TimeSignatureType, NoteLengthType> = {
-    bar: number;
-    /**
-     * The current signature of the measure.
-     */
-    timeSignature?: TimeSignatureType;
-    /**
-     * The current tempo of the measure.
-     */
-    tempo?: {
-        /**
-         * A fraction corresponding to the note that we wish to specify the tempo for.
-         */
-        note: NoteLengthType;
-        /**
-         * A number corresponding to how many times the tempo's note occurs in a beat.
-         */
-        bpm: number;
-    };
-}[];
 
-export type JSONScoreConverter = ScoreConverterGenerics<
-    string | FractionObject,
-    number | string | FractionObject
->;
+export type Sound =
+    | { type: "note"; note: string }
+    | { type: "url"; url: string }
+    | { type: "path" };
 
 export type BallTemplate = {
     name: string; //TODO : Name should be unique. //T
@@ -99,9 +60,7 @@ export type BallTemplate = {
     radius?: number;
     soundOnCatch?: BallSound; //A
     soundOnToss?: BallSound;
-    // soundOnToss?: BallSound;
     // soundWhileAirborne?: BallSound;
-    // soundOnCatch?: BallSound;
 };
 
 export type ColorDescription = number | string;
@@ -145,14 +104,6 @@ export type HandDescription = {
     heldSpots?: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
 };
 
-// export type HandHeldSpotsTemplate = {
-//     name: string;
-//     // Mesh related properties.
-//     length?: number; // From wrist to fingertip.
-//     width?: number; // From thumb to little finger.
-//     depth?: number; // From palm to back.
-//     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
-// };
 
 export type BodyDescription = {
     height?: number; //P
@@ -184,19 +135,12 @@ export type JugglerDescription<JugglingPhraseType> = {
     // defaultCatchOrder: ;
 };
 
-//TODO : WHEN TO TRANSFORM PATTERN STRING INTO PARSED STUFF ?
-//TODO : WHEN TO HAVE "immutable" data format ?
-//TODO : Separate what is needed to create the Timelines (T) from the physical layer (P) ??? We may not want to have to specify P when doing T...
 
 export type TableSpotDescription = SpotDescription & {
     name: string; //T
     acceptedBallName: string; //T
 };
 
-// export type HandTemplate = {
-//     name: string;
-//     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
-// };
 
 export type TableTemplate = {
     name: string; //T
@@ -252,8 +196,6 @@ export type JugglingPhraseGenerics<PatternTimeType, FractionType> = {
     pattern?: string; //T
 };
 
-// TODO : Performance instead of Pattern
-
 /** The exhaustive description of a juggling pattern. */
 export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterType> = {
     /** Each  */
@@ -263,18 +205,12 @@ export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterTyp
     tableTemplates?: TableTemplate[];
     scoreConverter?: ScoreConverterType;
 };
-// TODO ? (less clearer when we look for a ingle object to generate everything)
-// type PatternDescriptionGenerics<PatternTimeType, FractionType> = PatternEventsDescriptionGenerics<PatternTimeType, FractionType> & PatternViewDescription;
 
 export type FractionObject = { n: bigint; d: bigint };
 export type ScoreTime<FractionType> = { bar: number; beat: FractionType };
 export type FractionParam = number | string;
 export type JSONTime = number | string | ScoreTime<FractionParam>;
 
-export type JSONPerformanceDescription = PerformanceDescriptionGenerics<
-    JSONJugglingPhrase,
-    JSONScoreConverter
->;
 
 export type PerformanceDescription = PerformanceDescriptionGenerics<JugglingPhrase, ScoreConverter>;
 
@@ -282,33 +218,6 @@ export type BallDescription = {
     name: string;
     id?: string;
 };
-
-// export type JugglingScoreGenerics<JugglingPhraseType, ScoreConverterType> = {
-//     ballTemplates: { name: string }[];
-//     jugglers: {
-//         name: string;
-//         table?: {
-//             template: string;
-//             ballsOnTableAtStart?: BallOnTable[];
-//         };
-//         ballsHeldAtStart?: [BallDescription[], BallDescription[]];
-//         jugglingPhrases?: JugglingPhraseType[];
-//     }[];
-//     tableTemplates?: {
-//         name: string;
-//         spots: {
-//             name: string;
-//             acceptedBallName?: string;
-//         }[];
-//     }[];
-//     scoreConverter?: ScoreConverterType;
-// };
-
-// export type JSONJugglingPhrase = JugglingPhraseGenerics<JSONTime, number | string | FractionObject>;
-// export type JugglingPhrase = JugglingPhraseGenerics<Fraction, Fraction>;
-
-// export type JSONJugglingScore = JugglingScoreGenerics<JSONJugglingPhrase, JSONScoreConverter>;
-// export type JugglingScore = JugglingScoreGenerics<JugglingPhrase, ScoreConverter>;
 
 export type JugglingScore = {
     ballTemplates: {

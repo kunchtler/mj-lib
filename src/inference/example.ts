@@ -2,9 +2,9 @@ import { JSONPerformanceDescription } from "./PerformanceDescription";
 
 const example: JSONPerformanceDescription = {
     ballTemplates: [
-        { name: "Do", color: "red", soundOnCatch: "Do4" },
-        { name: "Re", color: "orange", soundOnCatch: "Re4" },
-        { name: "Mi", color: "yellow", soundOnCatch: "Mi4" }
+        { name: "Do", color: "red", soundOnCatch: {name: "Do4"} },
+        { name: "Re", color: "orange", soundOnCatch: {name: "Re4"} },
+        { name: "Mi", color: "yellow", soundOnCatch: {name: "Mi4"} }
     ],
     jugglers: [
         {
