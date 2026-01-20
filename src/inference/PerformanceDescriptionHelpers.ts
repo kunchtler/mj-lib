@@ -59,16 +59,16 @@ export function JugglingScoreToModel(
     }
 
     // 2. Create the global beat.
-    let globalBeat: GlobalBeat;
-    if (score.globalBeat)
-        // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
-        // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
-        const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
-            score,
-            ballTemplateNames,
-            ballUserIDs,
-            errorLogger
-        );
+    const globalBeat = new GlobalBeat(score.globalBeat);
+
+    // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
+    // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
+    const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
+        score,
+        ballTemplateNames,
+        ballUserIDs,
+        errorLogger
+    );
 
     // Make a big list of all ball IDs.
     const ballIDToTemplateName = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
@@ -184,119 +184,43 @@ export function JugglingScoreToModel(
 
 //////////////////////////// Functions //////////////////////////
 
-//TODO : Handle, but at what point ?
+// Formats the jugglers in the juggling score in the form of an initial state.
 function createInitialJugglerStates(
-    jugglingScore: JugglingScore,
-    ballTemplateNames: Set<string>,
-    ballUserIDs: Map<string, string>,
+    juggler: ElementOf<JugglingScore["jugglers"]>,
     errorLogger: TimedErrorLogger<Fraction>
-): { jugglerStates: Map<string, JugglerState>; ballGeneratedIDs: Map<string, string> } {
-    const ballGeneratedIDs = new Map<string, string>();
-    const jugglerStates = new Map<string, JugglerState>();
-    for (const juggler of jugglingScore.jugglers) {
-        // Generate an ID for each ball held in hand that doesn't have one.
-        const heldState: JugglerState["held"] = [[], []];
-        if (juggler.ballsHeldAtStart !== undefined) {
-            for (let handIdx = 0; handIdx < 2; handIdx++) {
-                for (const ball of juggler.ballsHeldAtStart[handIdx]) {
-                    if (ball.id !== undefined) {
-                        heldState[handIdx].push(ball.id);
-                    } else {
-                        const ballID = createBallID(
-                            ball,
-                            juggler.name,
-                            ballTemplateNames,
-                            ballUserIDs,
-                            ballGeneratedIDs
-                        );
-                        ballGeneratedIDs.set(ballID, ball.name);
-                        heldState[handIdx].push(ballID);
-                    }
-                }
+): JugglerState {
+    const heldState: JugglerState["held"] = [[], []];
+    for (let handIdx = 0; handIdx < 2; handIdx++) {
+        for (const ball of juggler.ballsHeldAtStart[handIdx]) {
+            //TODO In the future : support undefined ???
+            if (ball === undefined) {
+                errorLogger.logError({
+                    severity: "Error",
+                    message: `Juggler ${juggler.name} can't start with undefined spots in hands. This is not supported yet.`
+                });
+                continue;
             }
+            heldState[handIdx].push(ball.id);
         }
-
-        // Generate an ID for each ball on table that doesn't have one yet.
-        // Give a spot to each ball that doesn't have one yet.
-        // If we can't give a spot, it will go on the default table place.
-        let tableState: JugglerState["table"] = undefined;
-        if (juggler.table?.ballsOnTableAtStart !== undefined) {
-            tableState = { namedSpot: new Map(), unknown: new Set() };
-
-            // Make a Map of all free spots.
-            const freeSpotsByAcceptedTemplateName = new Map<string, Set<string>>();
-            for (const name of ballTemplateNames) {
-                freeSpotsByAcceptedTemplateName.set(name, new Set());
-            }
-            // First fill in all spot names.
-            const tableSpots = jugglingScore.tableTemplates?.find(
-                (elem) => elem.name === juggler.table?.template
-            )?.spots;
-            for (const spot of tableSpots ?? []) {
-                if (spot.acceptedBallName === undefined) {
-                    throw Error("Not yet supported");
-                }
-                freeSpotsByAcceptedTemplateName.get(spot.acceptedBallName)!.add(spot.name);
-            }
-            // Then remove the balls that are in designated spots.
-            for (const ball of juggler.table.ballsOnTableAtStart) {
-                if (ball.spot !== undefined) {
-                    freeSpotsByAcceptedTemplateName.get(ball.name)?.delete(ball.spot);
-                }
-            }
-
-            for (const ball of juggler.table.ballsOnTableAtStart) {
-                // Figure out the ball ID.
-                let ballID: string;
-                if (ball.id !== undefined) {
-                    ballID = ball.id;
-                } else {
-                    ballID = createBallID(
-                        ball,
-                        juggler.name,
-                        ballTemplateNames,
-                        ballUserIDs,
-                        ballGeneratedIDs
-                    );
-                    ballGeneratedIDs.set(ballID, ball.name);
-                }
-
-                // Figure out the ball spot.
-                let spotName: string | undefined;
-                if (ball.spot !== undefined) {
-                    spotName = ball.spot;
-                } else {
-                    // Find a free spot.
-                    const spots = freeSpotsByAcceptedTemplateName.get(ball.name)!;
-                    spotName = getFirstInsertedKey(spots);
-                    if (spotName === undefined) {
-                        errorLogger.logError({
-                            severity: "Warn",
-                            message: `Ball ${stringifyBall(ball)} of juggler ${juggler.name} has no available spot to be put on the table.\nContinue by putting it on a default position.`
-                        });
-                    } else {
-                        spots.delete(spotName);
-                    }
-                }
-
-                // Add the ball to the table state.
-                if (spotName === undefined) {
-                    tableState.unknown.add(ballID);
-                } else {
-                    tableState.namedSpot.set(spotName, ballID);
-                }
-            }
-        }
-
-        // Create the full juggler state.
-        jugglerStates.set(juggler.name, {
-            airborne: new Map(),
-            held: heldState,
-            table: tableState
-        });
     }
-    return { jugglerStates, ballGeneratedIDs };
+
+    let tableState: JugglerState["table"] = undefined;
+    if (juggler.table?.ballsOnTableAtStart !== undefined) {
+        tableState = { namedSpot: new Map(), unknown: new Set() };
+
+        for (const ball of juggler.table.ballsOnTableAtStart) {
+            if (ball.spot !== undefined) {
+                tableState.namedSpot.set(ball.spot, ball.id);
+            } else {
+                tableState.unknown.add(ball.id);
+            }
+        }
+    }
+
+    return { airborne: new Map(), held: heldState, table: tableState };
 }
+
+
 
 // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
 function createBallID(
@@ -323,7 +247,7 @@ function createBallID(
 // The generated ID is of the form : "table"?juggler, as for now, tables belong
 // to at most one juggler.
 function createTableID(jugglerName: string): string {
-    return `table?${jugglerName}`
+    return `table?${jugglerName}`;
 }
 
 // TODO : Elsewhere, as we may want to implement tempo changes IN siteswap later.
@@ -477,28 +401,35 @@ export function createJugglingScoreFromHelper(
                     namesList: tableTemplateNames
                 });
             } else {
+                // In the helper, a ball having no spot means we didn't to specify where it should go.
+                // In the true score, a ball having no spot means it goes on the "unknown" spot.
+                // So while converting from helper to true score, we need to compute each ball's spot.
+                const replacedBallsAtStart = assignUndefinedSpotsToFreeTableSpots(
+                    juggler.name,
+                    juggler.table.ballsOnTableAtStart ?? [],
+                    template.spots,
+                    ballTemplateNames,
+                    errorLogger
+                );
                 newJuggler.table = {
                     id: createTableID(juggler.name),
                     spots: template.spots,
-                    ballsOnTableAtStart:
-                        juggler.table.ballsOnTableAtStart === undefined
-                            ? []
-                            : juggler.table.ballsOnTableAtStart.map((ball) => {
-                                  let ballID: string;
-                                  if (ball.id !== undefined) {
-                                      ballID = ball.id;
-                                  } else {
-                                      ballID = createBallID(
-                                          ball,
-                                          juggler.name,
-                                          ballTemplateNames,
-                                          ballUserIDs,
-                                          ballGeneratedIDs
-                                      );
-                                      ballGeneratedIDs.set(ballID, ball.name);
-                                  }
-                                  return { ...ball, id: ballID };
-                              })
+                    ballsOnTableAtStart: replacedBallsAtStart.map((ball) => {
+                        let ballID: string;
+                        if (ball.id !== undefined) {
+                            ballID = ball.id;
+                        } else {
+                            ballID = createBallID(
+                                ball,
+                                juggler.name,
+                                ballTemplateNames,
+                                ballUserIDs,
+                                ballGeneratedIDs
+                            );
+                            ballGeneratedIDs.set(ballID, ball.name);
+                        }
+                        return { ...ball, id: ballID };
+                    })
                 };
             }
         }
@@ -507,6 +438,65 @@ export function createJugglingScoreFromHelper(
         newScore.jugglers.push(newJuggler);
     }
     return { score: newScore, ballUserIDs: ballUserIDs, ballGeneratedIDs: ballGeneratedIDs };
+}
+
+type HelperBallsOnTable = NonNullable<
+    NonNullable<ElementOf<JugglingScoreHelper["jugglers"]>["table"]>["ballsOnTableAtStart"]
+>;
+
+// In the helper, a ball having no spot means we didn't to specify where it should go.
+// In the true score, a ball having no spot means it goes on the "unknown" spot.
+// So while converting from helper to true score, we need to compute each ball's spot.
+function assignUndefinedSpotsToFreeTableSpots(
+    jugglerName: string,
+    ballsOnTableAtStart: HelperBallsOnTable,
+    tableSpots: {
+        name: string;
+        acceptedBallName: string;
+    }[],
+    ballTemplateNames: Set<string>,
+    errorLogger: TimedErrorLogger<Fraction>
+): HelperBallsOnTable {
+    const newBallsOnTable: HelperBallsOnTable = [];
+
+    // Make a Map of all free spots.
+    const freeSpotsByAcceptedTemplateName = new Map<string, Set<string>>();
+    for (const name of ballTemplateNames) {
+        freeSpotsByAcceptedTemplateName.set(name, new Set());
+    }
+    for (const spot of tableSpots) {
+        freeSpotsByAcceptedTemplateName.get(spot.acceptedBallName)!.add(spot.name);
+    }
+    // Then remove the balls that are in designated spots.
+    for (const ball of ballsOnTableAtStart) {
+        if (ball.spot !== undefined) {
+            freeSpotsByAcceptedTemplateName.get(ball.name)?.delete(ball.spot);
+        }
+    }
+
+    for (const ball of ballsOnTableAtStart) {
+        // Figure out the ball spot.
+        let spotName: string | undefined;
+        if (ball.spot !== undefined) {
+            spotName = ball.spot;
+        } else {
+            // Find a free spot.
+            const spots = freeSpotsByAcceptedTemplateName.get(ball.name)!;
+            spotName = getFirstInsertedKey(spots);
+            if (spotName === undefined) {
+                errorLogger.logError({
+                    severity: "Warn",
+                    message: `Ball ${stringifyBall(ball)} of juggler ${jugglerName} has no available spot to be put on the table.\nContinue by putting it on a default position.`
+                });
+            } else {
+                spots.delete(spotName);
+            }
+        }
+
+        // Add the ball to the table state.
+        newBallsOnTable.push({ name: ball.name, id: ball.id, spot: spotName });
+    }
+    return newBallsOnTable;
 }
 
 // TODO : Readd time for debugging ?
