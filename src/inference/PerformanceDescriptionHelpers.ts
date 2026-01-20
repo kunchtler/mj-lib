@@ -1,9 +1,11 @@
 // import { score11 as score } from "../examples/patternTest";
 import {
+    BallDescription,
     JugglingPhrase,
     JugglingScore,
     JugglingScoreHelper,
-    ScoreRhythmDescription
+    ScoreRhythmDescription,
+    TableTemplate
 } from "./PerformanceDescription";
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler, SymbolicEvent } from "./Scheduler";
@@ -12,6 +14,7 @@ import { ScoreConverter, MusicTempo, MusicBeat, TimeSignature } from "./ScoreCon
 import { PerformanceModel } from "../model/PerformanceModel";
 import {
     closestWordsTo,
+    ElementOf,
     FracTimedErrorLogger,
     setIntersection,
     stringifyBall,
@@ -184,6 +187,7 @@ export function JSONJugglingScoreToModel(
 
 //////////////////////////// Functions //////////////////////////
 
+//TODO : Handle, but at what point ?
 function createInitialJugglerStates(
     jugglingScore: JugglingScore,
     ballTemplateNames: Set<string>,
@@ -319,78 +323,33 @@ function createBallID(
     return ballID;
 }
 
-function convertBaseTempoToTossesPerBeat(
-    jugglingTempo: NonNullable<JugglingPhrase["baseTempo"]>,
-    signature: TimeSignature<Fraction>,
-    musicTempo: MusicTempo<Fraction>
-): Fraction {
-    if (jugglingTempo.type === "perBeat") {
-        return new Fraction(jugglingTempo.tossesPerBeat);
-    } else if (jugglingTempo.type === "perMinute") {
-        const beatsPerMinute = musicTempo.notesPerMinute
-            .mul(musicTempo.noteDuration)
-            .div(signature.beatDuration);
-        return new Fraction(jugglingTempo.tossesPerMinute).div(beatsPerMinute);
-    } else {
-        return new Fraction(jugglingTempo.tossesPerNote)
-            .mul(musicTempo.noteDuration)
-            .div(jugglingTempo.noteDuration);
-    }
+// The generated ID is of the form : "table"?juggler, as for now, tables belong
+// to at most one juggler.
+function createTableID(jugglerName: string): string {
+    return `table?${jugglerName}`
 }
 
-// TODO
-/**
- * Convert JSON time to a Fraction.
- * @param time the time to convert.
- * @param scoreRhythm an optional score converter (if time if provided as bar and beat)
- * @param errorLogger an error logger in case a score converter was missing but required.
- * @returns the time converted to a Fraction.
- */
-export function convertJugglingPhraseStartTime(
-    time: JugglingPhrase["startTime"],
-    errorLogger: TimedErrorLogger<Fraction>,
-    scoreRhythm?: ScoreConverter
-): { type: "followPreviousPhrase" } | { type: "byBeat"; beat: Fraction } {
-    if (time.type === "followPreviousPhrase") {
-        return time;
-    } else if (time.type === "byToss") {
-    }
-    if (scoreRhythm === undefined) {
-        errorLogger.logError({
-            severity: "CriticalError",
-            message: `Can't convert score time information because no JSON Score Converter was provided.`
-        });
-        return new Fraction(0);
-    }
-    return scoreRhythm.convertBarBeatToAbsoluteBeat([time.bar, new Fraction(time.beat)]);
-}
-
-export function convertJSONJugglingPhraseToJugglingPhrase(
-    phrase: JSONJugglingPhrase,
-    errorLogger: TimedErrorLogger<Fraction>,
-    scoreConverter?: ScoreConverter
-): JugglingPhrase {
-    // Change the start time and tempo to a Fraction.
-    return {
-        ...phrase,
-        startTime: convertJSONTimeToFractionTime(phrase.startTime, errorLogger, scoreConverter),
-        withTempo: phrase.withTempo === undefined ? undefined : new Fraction(phrase.withTempo)
-    };
-}
-
-export function convertScoreRhythm(scoreRhythm: ScoreRhythmDescription): ScoreConverter {
-    const signatureChanges: { bar: number; timeSignature: TimeSignature<string | number> }[] = [];
-    const tempoChanges: { bar: number; tempo: MusicTempo<string | number> }[] = [];
-    for (const { bar, timeSignature, tempo } of scoreRhythm) {
-        if (timeSignature !== undefined) {
-            signatureChanges.push({ bar, timeSignature });
-        }
-        if (tempo !== undefined) {
-            tempoChanges.push({ bar, tempo });
-        }
-    }
-    return new ScoreConverter(signatureChanges, tempoChanges);
-}
+// TODO : Elsewhere, as we may want to implement tempo changes IN siteswap later.
+// So we should only convert the tempo (and fuse it with the tempo multiplier)
+// When we've identified all tempo changes (including siteswap).
+// function convertBaseTempoToTossesPerBeat(
+//     jugglingTempo: NonNullable<JugglingPhrase["localBeatTempo"]>,
+//     signature: TimeSignature<Fraction>,
+//     musicTempo: MusicTempo<Fraction>
+// ): Fraction {
+//     if (jugglingTempo.type === "perBeat") {
+//         return new Fraction(jugglingTempo.tossesPerBeat);
+//     } else if (jugglingTempo.type === "perMinute") {
+//         const beatsPerMinute = musicTempo.notesPerMinute
+//             .mul(musicTempo.noteDuration)
+//             .div(signature.beatDuration);
+//         return new Fraction(jugglingTempo.tossesPerMinute).div(beatsPerMinute);
+//     } else {
+//         return new Fraction(jugglingTempo.tossesPerNote)
+//             .mul(musicTempo.noteDuration)
+//             .div(jugglingTempo.noteDuration);
+//     }
+// }
 
 // This is dirty and makes me wanna cry a bit.
 // Edit : it's a tidbit better now that it is finished.
@@ -398,45 +357,133 @@ export function convertScoreRhythm(scoreRhythm: ScoreRhythmDescription): ScoreCo
 export function createJugglingScoreFromHelper(
     score: JugglingScoreHelper,
     errorLogger: TimedErrorLogger<Fraction>
-): JugglingScore {
-    const newScore = { jugglers: [], scoreRhythm: score.scoreRhythm };
+): {
+    score: JugglingScore;
+    ballUserIDs: Map<string, string>;
+    ballGeneratedIDs: Map<string, string>;
+} {
+    // We need to do two things :
+    // - Remove table templates and add the info directly to the table.
+    // - Add an ID to each ball that doesn't have one. But make sure it is not
+    //   an existing ID given by the user.
+    const newScore: JugglingScore = {
+        ballTemplates: score.ballTemplates,
+        jugglers: [],
+        globalBeat: score.globalBeat
+    };
+    const ballUserIDs = new Map<string, string>();
+    const ballGeneratedIDs = new Map<string, string>();
+    const ballTemplateNames = new Set<string>();
+    const tableTemplateNames = new Set<string>();
 
-    ballUserIDs;
+    for (const { name } of score.ballTemplates) {
+        ballTemplateNames.add(name);
+    }
 
-    return newScore;
+    for (const { name } of score.tableTemplates ?? []) {
+        tableTemplateNames.add(name);
+    }
 
-    // The two things that need to be modified from JSON are :
-    // - the score converter
-    // - all fraction-like types appearing in juggling phrases.
-    const { scoreConverter: JSONScoreConverter } = JSONJugglingScore;
-    const scoreConverter =
-        JSONScoreConverter === undefined
-            ? undefined
-            : convertJSONScoreConverterToScoreConverter(JSONScoreConverter);
-
-    const jugglers: JugglingScore["jugglers"] = [];
-    for (const JSONjuggler of JSONJugglingScore.jugglers) {
-        let jugglingPhrases: JugglingPhrase[] | undefined;
-        if (JSONjuggler.jugglingPhrases === undefined) {
-            jugglingPhrases = undefined;
-        } else {
-            jugglingPhrases = [];
-            for (const JSONphrase of JSONjuggler.jugglingPhrases) {
-                const phrase = convertJSONJugglingPhraseToJugglingPhrase(
-                    JSONphrase,
-                    errorLogger,
-                    scoreConverter
-                );
-                jugglingPhrases.push(phrase);
+    // 1. Gather all UserBallIDs.
+    for (const juggler of score.jugglers) {
+        for (const hand of juggler.ballsHeldAtStart ?? []) {
+            for (const ball of hand) {
+                if (ball?.id !== undefined) {
+                    ballUserIDs.set(ball.id, ball.name);
+                }
+            }
+            for (const ball of juggler.table?.ballsOnTableAtStart ?? []) {
+                if (ball.id !== undefined) {
+                    ballUserIDs.set(ball.id, ball.name);
+                }
             }
         }
-        jugglers.push({ ...JSONjuggler, jugglingPhrases });
     }
-    return {
-        ...JSONJugglingScore,
-        scoreConverter,
-        jugglers
-    };
+
+    // 2. Iterate over jugglers to fuse table templates and generate missing IDs
+    // (if balls with no IDs and tables).
+    for (const juggler of score.jugglers) {
+        // Add object to new Score.
+        const newJuggler: ElementOf<JugglingScore["jugglers"]> = {
+            name: juggler.name,
+            ballsHeldAtStart: [[], []],
+            jugglingPhrases: juggler.jugglingPhrases ?? [],
+            table: undefined
+        };
+
+        // Add ball IDs if held in hand.
+        if (juggler.ballsHeldAtStart !== undefined) {
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const ball of juggler.ballsHeldAtStart[handIdx]) {
+                    let newBall: Required<BallDescription> | undefined;
+                    if (ball === undefined) {
+                        newBall = undefined;
+                    } else if (ball.id !== undefined) {
+                        newBall = { name: ball.name, id: ball.id };
+                    } else {
+                        const ballID = createBallID(
+                            ball,
+                            juggler.name,
+                            ballTemplateNames,
+                            ballUserIDs,
+                            ballGeneratedIDs
+                        );
+                        ballGeneratedIDs.set(ballID, ball.name);
+                        newBall = { name: ball.name, id: ballID };
+                    }
+                    newJuggler.ballsHeldAtStart[handIdx].push(newBall);
+                }
+                for (const ball of juggler.table?.ballsOnTableAtStart ?? []) {
+                    if (ball.id !== undefined) {
+                        ballUserIDs.set(ball.id, ball.name);
+                    }
+                }
+            }
+        }
+
+        // Add table if applicable.
+        if (juggler.table !== undefined) {
+            const template = score.tableTemplates?.find(
+                ({ name: name }) => name === juggler.table?.template
+            );
+            if (template === undefined) {
+                handleIfStringUnknown({
+                    errorLogger: errorLogger,
+                    errorMessage: `Unknown table template named "${juggler.table.template}" for juggler ${juggler.name}`,
+                    name: juggler.table.template,
+                    namesList: tableTemplateNames
+                });
+            } else {
+                newJuggler.table = {
+                    id: createTableID(juggler.name),
+                    spots: template.spots,
+                    ballsOnTableAtStart:
+                        juggler.table.ballsOnTableAtStart === undefined
+                            ? []
+                            : juggler.table.ballsOnTableAtStart.map((ball) => {
+                                  let ballID: string;
+                                  if (ball.id !== undefined) {
+                                      ballID = ball.id;
+                                  } else {
+                                      ballID = createBallID(
+                                          ball,
+                                          juggler.name,
+                                          ballTemplateNames,
+                                          ballUserIDs,
+                                          ballGeneratedIDs
+                                      );
+                                      ballGeneratedIDs.set(ballID, ball.name);
+                                  }
+                                  return { ...ball, id: ballID };
+                              })
+                };
+            }
+        }
+
+        // Add to jugglers list.
+        newScore.jugglers.push(newJuggler);
+    }
+    return { score: newScore, ballUserIDs: ballUserIDs, ballGeneratedIDs: ballGeneratedIDs };
 }
 
 // TODO : Readd time for debugging ?
@@ -493,6 +540,9 @@ export function checkScoreNamesAndIDs(
 
         for (const ballsInHand of ballsHeldAtStart) {
             for (const ball of ballsInHand) {
+                if (ball === undefined) {
+                    continue;
+                }
                 // Held balls refer to existing template names.
                 handleIfStringUnknown({
                     name: ball.name,
@@ -546,9 +596,9 @@ export function checkScoreNamesAndIDs(
             for (const ball of table.ballsOnTableAtStart) {
                 // Balls on table refer to existing template name.
                 handleIfStringUnknown({
-                    name: ball.templateName,
+                    name: ball.name,
                     namesList: ballTemplateNames,
-                    errorMessage: `Unknown ball template name "${ball.templateName}" on the table of juggler "${jugglerName}".`,
+                    errorMessage: `Unknown ball template name "${ball.name}" on the table of juggler "${jugglerName}".`,
                     errorLogger: errorLogger
                 });
 
@@ -559,7 +609,7 @@ export function checkScoreNamesAndIDs(
                     errorMessage: `Duplicate ball ID: "${ball.id}".`,
                     errorLogger: errorLogger
                 });
-                ballIDs.set(ball.id, ball.templateName);
+                ballIDs.set(ball.id, ball.name);
 
                 // Spot name refer to an existing spot of the table.
                 if (ball.spot !== undefined) {

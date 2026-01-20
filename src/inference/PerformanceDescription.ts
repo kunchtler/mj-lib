@@ -204,7 +204,7 @@ export type JugglingScore = {
             id: string;
             ballsOnTableAtStart: {
                 id: string;
-                templateName: string; // Todo : differentiate template name from sound category ?
+                name: string; // Todo : differentiate template name from sound category ?
                 spot?: string;
             }[];
             spots: {
@@ -212,7 +212,10 @@ export type JugglingScore = {
                 acceptedBallName: string;
             }[];
         };
-        ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
+        ballsHeldAtStart: [
+            (Required<BallDescription> | undefined)[],
+            (Required<BallDescription> | undefined)[]
+        ];
         jugglingPhrases: JugglingPhrase[];
     }[];
     globalBeat?: GlobalBeatDescription;
@@ -366,7 +369,7 @@ export type JugglingScoreHelper = {
                 spot?: string | undefined;
             }[];
         };
-        ballsHeldAtStart?: [BallDescription[], BallDescription[]];
+        ballsHeldAtStart?: [(BallDescription | undefined)[], (BallDescription | undefined)[]];
         jugglingPhrases?: JugglingPhrase[];
     }[];
     tableTemplates?: {
