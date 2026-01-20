@@ -4,7 +4,6 @@ import {
     JugglingPhrase,
     JugglingScore,
     JugglingScoreHelper,
-    ScoreRhythmDescription,
     TableTemplate
 } from "./PerformanceDescription";
 import Fraction from "fraction.js";
@@ -24,6 +23,7 @@ import {
     TimedErrorLogger
 } from "../utils";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
+import { GlobalBeat } from "./GlobalBeat";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -43,35 +43,32 @@ import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
 
-export function JSONJugglingScoreToModel(
-    JSONJugglingScore: JSONJugglingScore,
+export function JugglingScoreToModel(
+    score: JugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
-    // 1. Convert the JSON juggling score into a friendlier object.
-    const jugglingScore = convertJSONToJugglingScore(JSONJugglingScore, errorLogger);
-    // Return early if there was a critical error.
-    if (errorLogger.hasCriticalError()) {
-        errorLogger.printErrorsInConsole();
-        return undefined;
-    }
-
-    // 2. Check if all names / user defined IDs are unique and gather them.
-    const { ballTemplateNames, ballUserIDs, jugglerNames, tableTemplateNames } =
-        checkAndGatherJugglingScoreNamesAndIDs(jugglingScore, errorLogger);
-    // Return early if there was a critical error.
-    if (errorLogger.hasCriticalError()) {
-        errorLogger.printErrorsInConsole();
-        return undefined;
-    }
-
-    // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
-    // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
-    const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
-        jugglingScore,
-        ballTemplateNames,
-        ballUserIDs,
+    // 1. Check if all names / user defined IDs are unique and gather them.
+    const { ballTemplateNames, ballIDs, jugglerNames, tableIDs } = checkScoreNamesAndIDs(
+        score,
         errorLogger
     );
+    // Return early if there was a critical error.
+    if (errorLogger.hasCriticalError()) {
+        errorLogger.printErrorsInConsole();
+        return undefined;
+    }
+
+    // 2. Create the global beat.
+    let globalBeat: GlobalBeat;
+    if (score.globalBeat)
+        // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
+        // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
+        const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
+            score,
+            ballTemplateNames,
+            ballUserIDs,
+            errorLogger
+        );
 
     // Make a big list of all ball IDs.
     const ballIDToTemplateName = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
@@ -79,7 +76,7 @@ export function JSONJugglingScoreToModel(
     // 4. Parse each juggling phrase and format them.
     // Complete each information we can by looking at jugglers individually.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();
-    for (const juggler of jugglingScore.jugglers) {
+    for (const juggler of score.jugglers) {
         const events =
             formatJugglerPhrasesForScheduler(
                 juggler.jugglingPhrases ?? [],
@@ -88,10 +85,10 @@ export function JSONJugglingScoreToModel(
                 ballUserIDs,
                 jugglerNames,
                 errorLogger,
-                jugglingScore.scoreConverter
+                score.scoreConverter
             ) ?? [];
         const initialState = jugglerStates.get(juggler.name)!;
-        const tableSpotsFull = jugglingScore.tableTemplates?.find(
+        const tableSpotsFull = score.tableTemplates?.find(
             (elem) => elem.name === juggler.table?.template
         )?.spots;
         const tableSpots = new Map<string, string>();
@@ -362,14 +359,40 @@ export function createJugglingScoreFromHelper(
     ballUserIDs: Map<string, string>;
     ballGeneratedIDs: Map<string, string>;
 } {
-    // We need to do two things :
+    // We need to do a few things :
     // - Remove table templates and add the info directly to the table.
     // - Add an ID to each ball that doesn't have one. But make sure it is not
     //   an existing ID given by the user.
+    // - Properly create the global beat track.
+
+    let newGlobalBeat: JugglingScore["globalBeat"];
+    if (score.globalBeat === undefined) {
+        newGlobalBeat = {
+            firstBeatOffsetInSeconds: 0,
+            changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 180 }]
+        };
+    } else if (score.globalBeat.type === "constant") {
+        newGlobalBeat = {
+            firstBeatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            changes: [
+                {
+                    startTime: { type: "byBeat", beat: 0 },
+                    beatsInBar: score.globalBeat.beatsInBar,
+                    beatsPerMinute: score.globalBeat.beatsPerMinute
+                }
+            ]
+        };
+    } else {
+        newGlobalBeat = {
+            firstBeatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            changes: score.globalBeat.changes
+        };
+    }
+
     const newScore: JugglingScore = {
         ballTemplates: score.ballTemplates,
         jugglers: [],
-        globalBeat: score.globalBeat
+        globalBeat: newGlobalBeat
     };
     const ballUserIDs = new Map<string, string>();
     const ballGeneratedIDs = new Map<string, string>();

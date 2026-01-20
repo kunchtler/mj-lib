@@ -218,7 +218,7 @@ export type JugglingScore = {
         ];
         jugglingPhrases: JugglingPhrase[];
     }[];
-    globalBeat?: GlobalBeatDescription;
+    globalBeat: Required<GlobalBeatDescription>;
 };
 
 // export type JugglingScore2 = {
@@ -301,7 +301,7 @@ export type GlobalBeatDescription = {
         startTime: GlobalBeatTime;
         beatsInBar?: FractionType;
         beatsPerMinute?: FractionType;
-        tempoMultiplier?: FractionType;
+        // tempoMultiplier?: FractionType;
     }[];
 };
 
@@ -379,7 +379,14 @@ export type JugglingScoreHelper = {
             acceptedBallName: string; // TODO : Support undefined acceptedBallName ?
         }[];
     }[];
-    globalBeat?: GlobalBeatDescription;
+    globalBeat?:
+        | {
+              type: "constant";
+              firstBeatOffsetInSeconds?: FractionType;
+              beatsInBar?: FractionType;
+              beatsPerMinute?: FractionType;
+          }
+        | ({ type: "variable" } & GlobalBeatDescription);
 };
 
 export type MiseEnSceneHelper = {
