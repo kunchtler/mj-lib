@@ -61,22 +61,13 @@ export function JugglingScoreToModel(
     // 2. Create the global beat.
     const globalBeat = new GlobalBeat(score.globalBeat);
 
-    // 3. Create the initial juggler states by adding an ID to each ball that doesn't have one.
-    // The generated IDs are of the form : name?juggler?number. Ex : Do?Vincent?0
-    const { jugglerStates, ballGeneratedIDs } = createInitialJugglerStates(
-        score,
-        ballTemplateNames,
-        ballUserIDs,
-        errorLogger
-    );
-
-    // Make a big list of all ball IDs.
-    const ballIDToTemplateName = new Map<string, string>([...ballUserIDs, ...ballGeneratedIDs]);
-
-    // 4. Parse each juggling phrase and format them.
-    // Complete each information we can by looking at jugglers individually.
+    // 3. Create the scheduler's parameters.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();
     for (const juggler of score.jugglers) {
+        // 3.a. Create the intial juggler states.
+        const jugglerState = createInitialJugglerStates(juggler, errorLogger);
+
+        // 3.b. Parse each juggling phrase and format them.
         const events =
             formatJugglerPhrasesForScheduler(
                 juggler.jugglingPhrases ?? [],
@@ -103,7 +94,7 @@ export function JugglingScoreToModel(
 
     // 5. Use the scheduler to infer the complete timeline of events.
     const schedulerOutput = new Scheduler({
-        ballIDMap: ballIDToTemplateName,
+        ballIDMap: ballIDs,
         jugglers: schedulerJugglers
     }).validatePattern();
 

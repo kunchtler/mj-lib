@@ -1,6 +1,6 @@
 import Fraction from "fraction.js";
 import { parseMusicalSiteswap, ParserTossMode } from "../parser/MusicalSiteswap";
-import { ScoreConverter } from "./ScoreConverter";
+import { GlobalBeat } from "./GlobalBeat";
 import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
 import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";
@@ -9,8 +9,6 @@ import { XOR } from "../utils/Operations";
 import { produce, current } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
 
-//TODO : Expurge FracSortedList.
-//TODO : Handle error on creation of ScoreConverter (in case no tempo or other) by putting one by default. Either have no error or keep error but provide default value when calling the class ?
 
 type HybridToss = {
     from: { hand?: "L" | "R" };
@@ -28,7 +26,6 @@ type HybridEvent = {
     tosses?: HybridToss[];
 };
 
-//TODO: signature -> timesignature.
 // TODO : Handle Error flow.
 // TODO : Is in rhythm ?
 
@@ -39,10 +36,10 @@ export function formatJugglerPhrasesForScheduler(
     jugglingPhrase: JugglingPhrase[],
     jugglerName: string,
     ballTemplateNames: Set<string>,
-    ballUserIDs: Map<string, string>,
+    ballIDs: Map<string, string>,
     jugglerNames: Set<string>,
     errorLogger: TimedErrorLogger<Fraction>,
-    scoreConverter?: ScoreConverter
+    globalBeatConverter?: GlobalBeat
 ): SchedulerEvent[] | undefined {
     // 1. Sort the events array.
     const sortedPhrases = copyAndSort(jugglingPhrase, (a, b) => a.startTime.compare(b.startTime));
@@ -67,7 +64,7 @@ export function formatJugglerPhrasesForScheduler(
     events = addTossesToAllEvents(events);
 
     // 5. Transform the mode into a height / target beat.
-    events = formatMode(events, errorLogger, scoreConverter);
+    events = formatMode(events, errorLogger, globalBeatConverter);
 
     if (errorLogger.hasCriticalError()) {
         return undefined;
@@ -88,7 +85,7 @@ export function formatJugglerPhrasesForScheduler(
     // events = formatHeldBalls(events, ballNames, ballIDs, jugglerName, errorLogger);
 
     // 9. Identify if the held balls string refer to a ball name or a ball ID.
-    events = formatThrownBalls(events, ballTemplateNames, ballUserIDs, jugglerName, errorLogger);
+    events = formatThrownBalls(events, ballTemplateNames, ballIDs, jugglerName, errorLogger);
 
     // 10. Infer the default hand on all events.
     events = addTempoAndDefaultHandAndFromHand(
@@ -651,7 +648,7 @@ function filterUselessTossesAndEvents(events: HybridEvent[]): HybridEvent[] {
 function formatMode(
     events: HybridEvent[],
     errorLogger: FracTimedErrorLogger,
-    scoreConverter?: ScoreConverter
+    scoreConverter?: GlobalBeat
 ): HybridEvent[] {
     return produce(events, (draft) => {
         for (const ev of draft) {
