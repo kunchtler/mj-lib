@@ -19,7 +19,7 @@ That gets transformed into a convenient way to use them in code.
 import Fraction from "fraction.js";
 import { MusicTempo, ScoreConverter, TimeSignature } from "./ScoreConverter";
 import { BallSound } from "../model";
-import { DeepFuse, DeepRequired } from "../utils";
+import { DeepFuse, DeepRequired, ElementOf } from "../utils";
 
 // TODO for description : Add support for...
 // - custom meshes (imported / through Three / through Fiber)
@@ -216,9 +216,9 @@ export type JugglingScore = {
             (Required<BallDescription> | undefined)[],
             (Required<BallDescription> | undefined)[]
         ];
-        beatReference?: {
-            jugglerBeat?: FractionDescription;
-            globalTime?:
+        beatReference: {
+            jugglerBeat: FractionDescription;
+            globalTime:
                 | { type: "byTime"; seconds: FractionDescription }
                 | { type: "byGlobalBeat"; beat: FractionDescription }
                 | {
@@ -385,14 +385,7 @@ export type JugglingScoreHelper = {
             }[];
         };
         ballsHeldAtStart?: [(BallDescription | undefined)[], (BallDescription | undefined)[]];
-        firstBeatOffset?:
-            | { type: "byTime"; seconds: FractionDescription }
-            | { type: "byGlobalBeat"; beat: FractionDescription }
-            | {
-                  type: "byGlobalBarBeat";
-                  bar: number;
-                  beatInBar: FractionDescription;
-              };
+        beatReference?: Partial<ElementOf<JugglingScore["jugglers"]>["beatReference"]>;
         jugglingPhrases?: JugglingPhrase[];
     }[];
     tableTemplates?: {

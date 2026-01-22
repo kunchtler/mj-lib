@@ -347,6 +347,10 @@ export function createJugglingScoreFromHelper(
         const newJuggler: ElementOf<JugglingScore["jugglers"]> = {
             name: juggler.name,
             ballsHeldAtStart: [[], []],
+            beatReference: {
+                jugglerBeat: juggler.beatReference?.jugglerBeat ?? 0,
+                globalTime: juggler.beatReference?.globalTime ?? { type: "byGlobalBeat", beat: 0 }
+            },
             jugglingPhrases: juggler.jugglingPhrases ?? [],
             table: undefined
         };
