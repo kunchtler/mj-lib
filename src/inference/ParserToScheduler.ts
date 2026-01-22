@@ -171,8 +171,8 @@ function flattenJugglingPhrases(
         // Add the phrase information (tempo, hands setup, ...) to the first event.
         const phraseData = {
             startTime: phrase.startTime,
-            localBeatTempo: phrase.localBeatTempo,
-            localBeatTempoMultiplier: phrase.localBeatTempoMultiplier,
+            localBeatTempo: phrase.localBaseTempo,
+            localBeatTempoMultiplier: phrase.localTempoMultiplier,
             setupHands: phrase.setupHands
         };
         if (phraseEvents.length === 0) {

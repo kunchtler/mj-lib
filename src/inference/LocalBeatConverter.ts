@@ -4,7 +4,7 @@ import {
     JugglingPhrase,
     JugglingScore,
     LocalBeatStartTime,
-    LocalBeatTempo
+    LocalTempo
 } from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { ElementOf } from "../utils";
@@ -25,8 +25,6 @@ type LocalTempoChanges = {
 type SimpleTime = { type: "local" | "global"; beat: Fraction };
 type SimpleTempo = { type: "perGlobalBeat" | "perMinute"; value: Fraction };
 
-//TODO : in description, rename LocalBeatTempo to LocalBaseTempo
-// and LocalBeatTempoMultiplier to LocalTempoMultiplier.
 export class LocalBeatConverter {
     globalBeatConverter: GlobalBeatConverter;
     tempoChanges: LocalTempoChanges[];
@@ -67,12 +65,12 @@ export class LocalBeatConverter {
 
         // We look for the first tempo indication
         const firstBaseTempo: SimpleTempo =
-            description.changes[0].localBeatTempo === undefined
+            description.changes[0].localBaseTempo === undefined
                 ? { type: "perGlobalBeat", value: new Fraction(1) }
-                : makeTempoFraction(description.changes[0].localBeatTempo);
+                : makeTempoFraction(description.changes[0].localBaseTempo);
         const firstTrueTempo = makeTrueTempo(
             firstBaseTempo,
-            new Fraction(description.changes[0].localBeatTempoMultiplier ?? 1)
+            new Fraction(description.changes[0].localTempoMultiplier ?? 1)
         );
 
         // To make handling of description.change easier, we :
@@ -94,8 +92,11 @@ export class LocalBeatConverter {
         partialTempos.push({ time: previousInfo.time, tempo: previousInfo.trueTempo });
 
         for (let changeIdx = 1; changeIdx < description.changes.length; changeIdx++) {
-            const { startTime, localBeatTempo, localBeatTempoMultiplier } =
-                description.changes[changeIdx];
+            const {
+                startTime,
+                localBaseTempo: localBeatTempo,
+                localTempoMultiplier: localBeatTempoMultiplier
+            } = description.changes[changeIdx];
             let currentTime: SimpleTime;
             // Transforme the time into either local or global beats.
             if (startTime.type === "byLocalBeat") {
@@ -361,7 +362,7 @@ function makeGlobalBeat(
 }
 
 // Make a tempo description use fractions (where they used strings)
-function makeTempoFraction(tempo: LocalBeatTempo<FractionDescription>): SimpleTempo {
+function makeTempoFraction(tempo: LocalTempo<FractionDescription>): SimpleTempo {
     if (tempo.type === "perGlobalBeat") {
         return {
             type: "perGlobalBeat",

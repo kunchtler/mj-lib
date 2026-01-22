@@ -267,14 +267,14 @@ export type LocalBeatStartTime =
           beatInBar: FractionDescription;
       }; // Specify bar and beat in bar.
 
-export type LocalBeatTempo<FractionType> =
+export type LocalTempo<FractionType> =
     | { type: "perGlobalBeat"; beatsPerGlobalBeat: FractionType }
     | { type: "perMinute"; beatsPerMinute: FractionType };
 
 export type JugglingPhrase = {
     startTime: LocalBeatStartTime;
-    localBeatTempo?: LocalBeatTempo<FractionDescription>;
-    localBeatTempoMultiplier?: FractionDescription;
+    localBaseTempo?: LocalTempo<FractionDescription>;
+    localTempoMultiplier?: FractionDescription;
     setupHands?: HandsInstructions;
     pattern?: string;
 };
