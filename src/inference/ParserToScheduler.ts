@@ -1,6 +1,6 @@
 import Fraction from "fraction.js";
 import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
-import { GlobalBeat } from "./GlobalBeat";
+import { GlobalBeat } from "./GlobalBeatConverter";
 import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
 import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";

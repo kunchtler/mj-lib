@@ -1,3 +1,4 @@
 export * from "./SchedulerToTimelines";
 export * from "./PerformanceDescription";
-export * from "./GlobalBeat";
+export * from "./GlobalBeatConverter";
+export * from "./LocalBeatConverter";

@@ -23,7 +23,7 @@ import {
     TimedErrorLogger
 } from "../utils";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
-import { GlobalBeatConverter } from "./GlobalBeat";
+import { GlobalBeatConverter } from "./GlobalBeatConverter";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?

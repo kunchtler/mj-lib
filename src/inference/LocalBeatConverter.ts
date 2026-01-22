@@ -6,7 +6,7 @@ import {
     LocalBeatStartTime,
     LocalBeatTempo
 } from "./PerformanceDescription";
-import { GlobalBeatConverter } from "./GlobalBeat";
+import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { ElementOf } from "../utils";
 
 export type MusicBeat = { bar: number; beat: Fraction };
