@@ -23,7 +23,7 @@ import {
     TimedErrorLogger
 } from "../utils";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
-import { GlobalBeat } from "./GlobalBeat";
+import { GlobalBeatConverter } from "./GlobalBeat";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -59,7 +59,7 @@ export function JugglingScoreToModel(
     }
 
     // 2. Create the global beat.
-    const globalBeat = new GlobalBeat(score.globalBeat);
+    const globalBeat = new GlobalBeatConverter(score.globalBeat);
 
     // 3. Create the scheduler's parameters.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();
@@ -284,11 +284,13 @@ export function createJugglingScoreFromHelper(
     if (score.globalBeat === undefined) {
         newGlobalBeat = {
             firstBeatOffsetInSeconds: 0,
-            changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 180 }]
+            // Count the seconds.
+            changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 60 }]
         };
     } else if (score.globalBeat.type === "constant") {
         newGlobalBeat = {
             firstBeatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            // Count the beats.
             changes: [
                 {
                     startTime: { type: "byBeat", beat: 0 },

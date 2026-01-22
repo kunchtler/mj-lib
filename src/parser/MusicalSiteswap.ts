@@ -51,7 +51,6 @@ export type ParserToss = {
     ball?: { nameOrID: string };
     mode: ParserTossMode;
 };
-
 export type ParserTossMode =
     | { type: "Height"; height: number }
     | { type: "AbsBeat"; beat: Fraction }

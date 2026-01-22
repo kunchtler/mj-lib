@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { GlobalBeatDescription, GlobalBeatTime } from "./PerformanceDescription";
+import { GlobalBeatDescription, GlobalBeatStartTime } from "./PerformanceDescription";
 
 export type MusicBeat = { bar: number; beat: Fraction };
 
@@ -15,8 +15,7 @@ type SignatureChange = {
     bar: number;
 };
 
-
-export class GlobalBeat {
+export class GlobalBeatConverter {
     signatureChanges: SignatureChange[]; // Maps a beat to the signature change happening on that beat.
     tempoChanges: TempoChange[]; // Maps a beat to a tempo change happening on that beat.
 
@@ -36,7 +35,7 @@ export class GlobalBeat {
 
         // First, we need to gather the initial signature / tempo information we encounter.
         // But it may be complex as the first timeone is introduced may necessitate using iself !
-        let firstSignature: { startTime: GlobalBeatTime; signature: Fraction } | null = null;
+        let firstSignature: { startTime: GlobalBeatStartTime; signature: Fraction } | null = null;
         for (const info of description.changes) {
             if (info.beatsInBar !== undefined) {
                 firstSignature = {
@@ -46,7 +45,7 @@ export class GlobalBeat {
                 break;
             }
         }
-        let firstTempo: { startTime: GlobalBeatTime; tempo: Fraction } | null = null;
+        let firstTempo: { startTime: GlobalBeatStartTime; tempo: Fraction } | null = null;
         for (const info of description.changes) {
             if (info.beatsPerMinute !== undefined) {
                 firstTempo = {
@@ -118,7 +117,7 @@ export class GlobalBeat {
             } else if (info.startTime.type === "byBarBeat") {
                 // Compute absolute beat from bar (alias signature) using cached signature information.
                 if (this.signatureChanges.length === 0) {
-                    throw Error("TODO Probkem if used in first event where bar are defined.");
+                    throw Error("TODO Problem if used in first event where bar are defined.");
                 }
                 const {
                     absoluteBeat: lastSignatureBeat,
@@ -227,25 +226,25 @@ export class GlobalBeat {
         }
 
         // The promised erasure :
-        if (this.tempoChanges.length !== 0) {
-            this.tempoChanges = this.tempoChanges.splice(0, 1);
-        }
-        if (this.signatureChanges.length !== 0) {
-            this.signatureChanges = this.signatureChanges.splice(0, 1);
-        }
+        // if (this.tempoChanges.length !== 0) {
+        //     this.tempoChanges = this.tempoChanges.splice(0, 1);
+        // }
+        // if (this.signatureChanges.length !== 0) {
+        //     this.signatureChanges = this.signatureChanges.splice(0, 1);
+        // }
     }
 
-    throwBarBeatError(): never {
+    private _throwBarBeatError(): never {
         throw Error("Can't work with bars if no beatInBar info specified.");
     }
 
-    throwTempoError(): never {
+    private _throwTempoError(): never {
         throw Error("Can't work with real time if no tossesPerMinute specified.");
     }
 
     convertBarBeatToAbsoluteBeat({ bar, beat }: MusicBeat): Fraction {
         if (this.signatureChanges.length === 0) {
-            this.throwBarBeatError();
+            this._throwBarBeatError();
         }
 
         // Hypothesis : The signatures are sorted.
@@ -272,7 +271,7 @@ export class GlobalBeat {
 
     convertSecondsToAbsoluteBeat(timeInSeconds: Fraction): Fraction {
         if (this.tempoChanges.length === 0) {
-            this.throwTempoError();
+            this._throwTempoError();
         }
 
         let idx = this.tempoChanges.findIndex(
@@ -293,7 +292,7 @@ export class GlobalBeat {
 
     convertAbsoluteBeatToBarBeat(beat: Fraction): MusicBeat {
         if (this.signatureChanges.length === 0) {
-            this.throwBarBeatError();
+            this._throwBarBeatError();
         }
 
         let idx = this.signatureChanges.findIndex(({ absoluteBeat: lastBeat }) =>
@@ -315,7 +314,7 @@ export class GlobalBeat {
 
     convertAbsoluteBeatToSeconds(beat: Fraction): Fraction {
         if (this.tempoChanges.length === 0) {
-            this.throwTempoError();
+            this._throwTempoError();
         }
 
         let idx = this.tempoChanges.findIndex(({ absoluteBeat: lastBeat }) => lastBeat.gt(beat));

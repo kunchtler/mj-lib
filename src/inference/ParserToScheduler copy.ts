@@ -1,6 +1,6 @@
 import Fraction from "fraction.js";
-import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
-import { GlobalBeat } from "./GlobalBeat";
+import { parseMusicalSiteswap, ParserTossMode } from "../parser/MusicalSiteswap";
+import { GlobalBeatConverter } from "./GlobalBeat";
 import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
 import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";
@@ -9,21 +9,12 @@ import { XOR } from "../utils/Operations";
 import { produce, current } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
 
-
 type HybridToss = {
     from: { hand?: "L" | "R" };
     to: { juggler?: string; hand?: "L" | "R" | "x" };
     ball?: { nameOrID: string } | { name: string } | { id: string };
     mode: ParserTossMode | TossMode;
 };
-
-//TODO : Changer ParserTossMode to be :
-// - RelLocalBeat (or siteswap)
-// - AbsLocalBeat
-// - AbsGlobalBeat
-// - AbsGlobalBarBeat
-//TODO : Clarify type hybrid by fusing types.
-//TODO : Check when computing time of flatten that do not entertwine.
 
 //TODO : useHand ?
 type HybridEvent = {
@@ -34,12 +25,6 @@ type HybridEvent = {
     tosses?: HybridToss[];
 };
 
-//TODO : Change name.
-type FlatJugglingPhrase = Omit<JugglingPhrase, "pattern"> & {
-    defaultHand?: "L" | "R";
-    tosses?: ParserToss[];
-};
-
 // TODO : Handle Error flow.
 // TODO : Is in rhythm ?
 
@@ -47,37 +32,27 @@ type FlatJugglingPhrase = Omit<JugglingPhrase, "pattern"> & {
 //TODO : Check the comments.
 
 export function formatJugglerPhrasesForScheduler(
-    jugglingPhrases: JugglingPhrase[],
+    jugglingPhrase: JugglingPhrase[],
     jugglerName: string,
     ballTemplateNames: Set<string>,
     ballIDs: Map<string, string>,
     jugglerNames: Set<string>,
     errorLogger: TimedErrorLogger<Fraction>,
-    globalBeatConverter: GlobalBeat
+    globalBeatConverter?: GlobalBeatConverter
 ): SchedulerEvent[] | undefined {
-    // 1. Create singular events from the juggling phrase.
-    let events = flattenJugglingPhrases(jugglingPhrases, jugglerName, errorLogger);
-    if (errorLogger.hasCriticalError()) {
-        return undefined;
-    }
-
-    // 2. If the first event has a time of type "follow previous", format it correctly.
-    if (events.length !== 0 && events[0].startTime.type === "followPrevious") {
-        errorLogger.logError({
-            severity: "Warn",
-            message: `First event of juggler ${jugglerName} is not explicitely given.\nContinue by assuming they start on their first beat.`
-        });
-        events[0].startTime = { type: "byLocalBeat", beat: 0 };
-    }
-
-    // 3. Create the localBeatConverter.
-    const localBeatConverter = new LocalBeat();
-
     // 1. Sort the events array.
-    const sortedPhrases = copyAndSort(jugglingPhrases, (a, b) => a.startTime.compare(b.startTime));
+    const sortedPhrases = copyAndSort(jugglingPhrase, (a, b) => a.startTime.compare(b.startTime));
 
     // 2. Find the initial tempo.
     const startingTempo = findOrCreateStartingTempo(sortedPhrases, jugglerName, errorLogger);
+
+    // 3. Parse each pattern
+    // + order them chronologically, and group them if needed.
+    let events = parseJugglingPhrases(sortedPhrases, startingTempo, jugglerName, errorLogger);
+
+    if (errorLogger.hasCriticalError()) {
+        return undefined;
+    }
 
     const startingHand = findOrCreateStartingHand(events, jugglerName, errorLogger);
 
@@ -143,50 +118,61 @@ function copyAndSort<T>(array: T[], compare: (a: T, b: T) => number) {
  * @param jugglerName the name of the juggler parsed (for error logging).
  * @returns
  */
-function flattenJugglingPhrases(
+function parseJugglingPhrases(
     jugglingPhrases: JugglingPhrase[],
+    startingTempo: Fraction,
     jugglerName: string,
     errorLogger: FracTimedErrorLogger
-): FlatJugglingPhrase[] {
-    const jugglingEvents: FlatJugglingPhrase[] = [];
+): HybridEvent[] {
+    const jugglingEvents: HybridEvent[] = [];
+    // Keeps track of the beat to add events on the right time.
+    // Is also used to confirm that two phrases don't end up intertwined.
+    let currentTempo = startingTempo;
+    let currentBeat: Fraction | null = null;
     for (const phrase of jugglingPhrases) {
-        const phraseEvents: FlatJugglingPhrase[] = [];
+        const phraseEvents: HybridEvent[] = [];
 
-        // Process the pattern
-
-        try {
-            if (phrase.pattern !== undefined) {
-                const patternEvents = parseMusicalSiteswap(phrase.pattern);
-                for (const patternEv of patternEvents) {
-                    phraseEvents.push({ ...patternEv, startTime: { type: "followPrevious" } });
-                }
-            }
-        } catch (err) {
+        // Warn if a pattern is intertwined with another.
+        // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
+        if (currentBeat !== null && phrase.startTime.lt(currentBeat)) {
             errorLogger.logError({
                 severity: "CriticalError",
-                message: `Error while parsing "${phrase}" of juggler ${jugglerName}.\nParser Error : ${(err as Error).message}`
+                message: "Two juggling phrases are intertwined.",
+                time: phrase.startTime
             });
         }
 
-        // Add the phrase information (tempo, hands setup, ...) to the first event.
-        const phraseData = {
-            startTime: phrase.startTime,
-            localBeatTempo: phrase.localBeatTempo,
-            localBeatTempoMultiplier: phrase.localBeatTempoMultiplier,
-            setupHands: phrase.setupHands
-        };
+        if (phrase.withTempo !== undefined) {
+            currentTempo = phrase.withTempo;
+        }
+
+        // Process the pattern
+        if (phrase.pattern !== undefined) {
+            currentBeat = phrase.startTime;
+            const patternEvents = parseMusicalSiteswap(phrase.pattern);
+            for (const patternEv of patternEvents) {
+                phraseEvents.push({ ...patternEv, beat: currentBeat });
+                currentBeat = currentBeat.add(currentTempo);
+            }
+        }
+
+        // Add handsSetup to the first event of the phrase.
         if (phraseEvents.length === 0) {
             // We need to create an empty event first
-            phraseEvents.push(phraseData);
-        } else {
-            // We need to unpack phraseData last to overwrite the "follow previous phase".
-            phraseEvents[0] = { ...phraseEvents[0], ...phraseData };
+            phraseEvents.push({ beat: phrase.startTime });
         }
+        phraseEvents[0].setupHands = phrase.setupHands;
+        phraseEvents[0].tempo = currentTempo;
 
         // Finally add all of this phrase's events to the big list.
         jugglingEvents.push(...phraseEvents);
     }
 
+    // Add the startingTempo to the first event.
+    if (jugglingEvents.length === 0) {
+        return [{ beat: new Fraction(0), tempo: startingTempo }];
+    }
+    jugglingEvents[0].tempo ??= startingTempo;
     return jugglingEvents;
 }
 
@@ -661,7 +647,7 @@ function filterUselessTossesAndEvents(events: HybridEvent[]): HybridEvent[] {
 function formatMode(
     events: HybridEvent[],
     errorLogger: FracTimedErrorLogger,
-    scoreConverter?: GlobalBeat
+    scoreConverter?: GlobalBeatConverter
 ): HybridEvent[] {
     return produce(events, (draft) => {
         for (const ev of draft) {

@@ -187,7 +187,7 @@ export type PerformanceDescriptionGenerics<JugglingPhraseType, ScoreConverterTyp
 
 export type FractionObject = { n: bigint; d: bigint };
 export type ScoreTime<FractionType> = { bar: number; beat: FractionType };
-export type FractionType = number | string;
+export type FractionDescription = number | string;
 
 export type BallDescription = {
     name: string;
@@ -216,6 +216,14 @@ export type JugglingScore = {
             (Required<BallDescription> | undefined)[],
             (Required<BallDescription> | undefined)[]
         ];
+        firstLocalBeatOffset?:
+            | { type: "byTime"; seconds: FractionDescription }
+            | { type: "byGlobalBeat"; beat: FractionDescription }
+            | {
+                  type: "byGlobalBarBeat";
+                  bar: number;
+                  beatInBar: FractionDescription;
+              };
         jugglingPhrases: JugglingPhrase[];
     }[];
     globalBeat: Required<GlobalBeatDescription>;
@@ -245,28 +253,32 @@ export type JugglingScore = {
 //     scoreRhythm?: ScoreRhythmDescription;
 // };
 
+export type LocalBeatStartTime =
+    | { type: "followPrevious" } // directly follows previous phrase.
+    | { type: "byTime"; seconds: FractionDescription }
+    | { type: "byLocalBeat"; beat: FractionDescription } // Specify toss number.
+    | { type: "byGlobalBeat"; beat: FractionDescription } // Specify beat counts since start.
+    | {
+          type: "byGlobalBarBeat";
+          bar: number;
+          beatInBar: FractionDescription;
+      }; // Specify bar and beat in bar.
+
+export type LocalBeatTempo<FractionType> =
+    | { type: "perGlobalBeat"; beatsPerGlobalBeat: FractionType }
+    | { type: "perMinute"; beatsPerMinute: FractionType };
+
 export type JugglingPhrase = {
-    startTime:
-        | { type: "followPreviousPhrase" } // directly follows previous phrase.
-        | { type: "byTime"; seconds: FractionType }
-        | { type: "byLocalBeat"; beat: FractionType } // Specify toss number.
-        | { type: "byGlobalBeat"; beat: FractionType } // Specify beat counts since start.
-        | {
-              type: "byGlobalBarBeat";
-              bar: number;
-              beatInBar: FractionType;
-          }; // Specify bar and beat in bar.
-    localBeatTempo?:
-        | { type: "perGlobalBeat"; beatsPerGlobalBeat: FractionType }
-        | { type: "perMinute"; beatsPerMinute: FractionType };
-    localBeatTempoMultiplier?: FractionType;
+    startTime: LocalBeatStartTime;
+    localBeatTempo?: LocalBeatTempo<FractionDescription>;
+    localBeatTempoMultiplier?: FractionDescription;
     setupHands?: HandsInstructions;
     pattern?: string;
 };
 
 // export type JugglingPhrase = {
 //     startTime:
-//         | { type: "followPreviousPhrase" } // directly follows previous phrase.
+//         | { type: "followPrevious" } // directly follows previous phrase.
 //         | { type: "byToss"; toss: number } // Specify toss number.
 //         | { type: "byBeat"; beat: FractionType } // Specify beat counts since start.
 //         | {
@@ -287,20 +299,20 @@ export type JugglingPhrase = {
 //     pattern?: string;
 // };
 
-export type GlobalBeatTime =
+export type GlobalBeatStartTime =
     | {
           type: "byBeat";
-          beat: FractionType;
+          beat: FractionDescription;
       }
-    | { type: "byBarBeat"; bar: number; beat: FractionType }
-    | { type: "byTime"; seconds: FractionType };
+    | { type: "byBarBeat"; bar: number; beat: FractionDescription }
+    | { type: "byTime"; seconds: FractionDescription };
 
 export type GlobalBeatDescription = {
-    firstBeatOffsetInSeconds?: FractionType;
+    firstBeatOffsetInSeconds?: FractionDescription;
     changes: {
-        startTime: GlobalBeatTime;
-        beatsInBar?: FractionType;
-        beatsPerMinute?: FractionType;
+        startTime: GlobalBeatStartTime;
+        beatsInBar?: FractionDescription;
+        beatsPerMinute?: FractionDescription;
         // tempoMultiplier?: FractionType;
     }[];
 };
@@ -370,6 +382,14 @@ export type JugglingScoreHelper = {
             }[];
         };
         ballsHeldAtStart?: [(BallDescription | undefined)[], (BallDescription | undefined)[]];
+        firstBeatOffset?:
+            | { type: "byTime"; seconds: FractionDescription }
+            | { type: "byGlobalBeat"; beat: FractionDescription }
+            | {
+                  type: "byGlobalBarBeat";
+                  bar: number;
+                  beatInBar: FractionDescription;
+              };
         jugglingPhrases?: JugglingPhrase[];
     }[];
     tableTemplates?: {
@@ -382,9 +402,9 @@ export type JugglingScoreHelper = {
     globalBeat?:
         | {
               type: "constant";
-              firstBeatOffsetInSeconds?: FractionType;
-              beatsInBar?: FractionType;
-              beatsPerMinute?: FractionType;
+              firstBeatOffsetInSeconds?: FractionDescription;
+              beatsInBar?: FractionDescription;
+              beatsPerMinute?: FractionDescription;
           }
         | ({ type: "variable" } & GlobalBeatDescription);
 };
