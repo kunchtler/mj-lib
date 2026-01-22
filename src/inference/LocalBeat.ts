@@ -1,12 +1,18 @@
 import Fraction from "fraction.js";
-import { JugglingPhrase, JugglingScore, LocalBeatTempo } from "./PerformanceDescription";
+import {
+    FractionDescription,
+    JugglingPhrase,
+    JugglingScore,
+    LocalBeatStartTime,
+    LocalBeatTempo
+} from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeat";
 import { ElementOf } from "../utils";
 
 export type MusicBeat = { bar: number; beat: Fraction };
 
 type LocalBeatDescription = {
-    firstLocalBeatOffset?: ElementOf<JugglingScore["jugglers"]>["firstLocalBeatOffset"];
+    beatReference?: ElementOf<JugglingScore["jugglers"]>["beatReference"];
     changes: Pick<JugglingPhrase, "startTime" | "localBeatTempo" | "localBeatTempoMultiplier">[];
 };
 
@@ -16,6 +22,11 @@ type LocalTempoChanges = {
     globalBeat: Fraction;
 };
 
+type SimpleTime = { type: "local" | "global"; beat: Fraction };
+type SimpleTempo = { type: "perGlobalBeat" | "perMinute"; value: Fraction };
+
+//TODO : in description, rename LocalBeatTempo to LocalBaseTempo
+// and LocalBeatTempoMultiplier to LocalTempoMultiplier.
 export class LocalBeatConverter {
     globalBeatConverter: GlobalBeatConverter;
     tempoChanges: LocalTempoChanges[];
@@ -29,256 +40,183 @@ export class LocalBeatConverter {
             return;
         }
 
-        //TODO : Handle offset ! (at the end ???)
+        // Compute the references.
+        // If there is no reference, we assume it is 0.
+        const localReference = new Fraction(description.beatReference?.jugglerBeat ?? 0);
+        const globalReference =
+            description.beatReference?.global === undefined
+                ? new Fraction(0)
+                : makeGlobalBeat(description.beatReference.global, this.globalBeatConverter);
 
-        // Compute the first beat offset.
-        let firstBeatOffset: Fraction;
-        if (description.firstLocalBeatOffset === undefined) {
-            firstBeatOffset = new Fraction(0);
-        } else if (description.firstLocalBeatOffset.type === "byGlobalBeat") {
-            firstBeatOffset = new Fraction(description.firstLocalBeatOffset.beat);
-        } else if (description.firstLocalBeatOffset.type === "byGlobalBarBeat") {
-            firstBeatOffset = this.globalBeatConverter.convertBarBeatToAbsoluteBeat({
-                bar: description.firstLocalBeatOffset.bar,
-                beat: new Fraction(description.firstLocalBeatOffset.beatInBar)
-            });
-        } else {
-            firstBeatOffset = this.globalBeatConverter.convertSecondsToAbsoluteBeat(
-                new Fraction(description.firstLocalBeatOffset.seconds)
-            );
-        }
-
-        // Gather the first event time.
-
+        // Look for the first pieces of information.
+        let firstTime: SimpleTime;
         if (description.changes[0].startTime.type === "followPrevious") {
-            // If the first event is "followPrevious", make it be local beat 0 instead.
-            description.changes[0].startTime = { type: "byLocalBeat", beat: 0 };
-            //TOCONTINUE : calculer tous la variable "previous". Pas besoin d'appliquer la ligne au dessus car on commence ensuite à l'item 1.
-        }
-
-        // We define the starting tempo by looking at the first tempo indication.
-        // If not set, we use a generic 1 local beat per global beat.
-        let lastTempo: Fraction;
-        let lastTempoBeat: Fraction;
-        if (
-            description.changes.length !== 0 &&
-            description.changes[0].localBeatTempo !== undefined
-        ) {
-            description.changes[0].localBeatTempo = { type: "byLocalBeat", beat: 0 };
+            // If we start with previous follow, we chose to start at the reference beat.
+            firstTime = { type: "local", beat: localReference };
+        } else if (description.changes[0].startTime.type === "byLocalBeat") {
+            firstTime = {
+                type: "local",
+                beat: new Fraction(description.changes[0].startTime.beat)
+            };
+        } else {
+            firstTime = {
+                type: "global",
+                beat: makeGlobalBeat(description.changes[0].startTime, this.globalBeatConverter)
+            };
         }
 
         // We look for the first tempo indication
-        let firstTempo: NonNullable<ElementOf<LocalBeatDescription["changes"]>> | null = null;
-        for (const change of description.changes) {
-            if (change.localBeatTempo !== undefined) {
-                firstTempo = change;
-                break;
-            }
-            // If a tempo multiplier is used before a tempo value is set,
-            // we use the default tempo of 1 beat per global beat (which will be
-            // set by setting firstTempo to null);
-            if (change.localBeatTempoMultiplier !== undefined) {
-                break;
-            }
-        }
+        const firstBaseTempo: SimpleTempo =
+            description.changes[0].localBeatTempo === undefined
+                ? { type: "perGlobalBeat", value: new Fraction(1) }
+                : makeTempoFraction(description.changes[0].localBeatTempo);
+        const firstTrueTempo = makeTrueTempo(
+            firstBaseTempo,
+            new Fraction(description.changes[0].localBeatTempoMultiplier ?? 1)
+        );
 
-        let lastTempo: Fraction;
-        if (firstTempo === null) {
-            // If no tempo was provided, we take 1 local beat = 1 global beat.
-            lastTempo = new Fraction(1);
-        } else if (firstTempo.localBeatTempo!.type === "perGlobalBeat") {
-            lastTempo = new Fraction(firstTempo.localBeatTempo!.beatsPerGlobalBeat);
-        } else {
-            // The tempo is defined in localBeat per minute.
-            // The thing is, since we're working in localBeat per globalBeat,
-            // If the global beat tempo changes, the local beat tempo does too.
-            // So from the first global beat changes up to the moment this last
-            // tempo was defined.
-            let startBeat: Fraction;
-            if (firstTempo.startTime.type === "byLocalBeat") {
-                startBeat = new Fraction(firstTempo.startTime.beat);
-            } else if (firstTempo.startTime.type === "byGlobalBeat") {
-                // Local Beat 0 in on global beat firstBeatOffset.
-                // Need to find b
-                // startBeatNoOffset = new Fraction
-            } else if (firstTempo.startTime.type === "byGlobalBarBeat") {
-                this.globalBeatConverter.convertBarBeatToAbsoluteBeat({
-                    bar: firstTempo.startTime.bar,
-                    beat: new Fraction(firstTempo.startTime.beatInBar)
-                });
-                // Same as above
-            } else if (firstTempo.startTime.type === "byTime") {
-                this.globalBeatConverter.convertSecondsToAbsoluteBeat(
-                    new Fraction(firstTempo.startTime.seconds)
-                );
-                // Same as above
-            } else {
-                // Need to go backwards until we find something that is not "follow".
-                // We know from the way we chose
-            }
-        }
+        // To make handling of description.change easier, we :
+        // - transform all BarBeats en Seconds Times into GlobalBeats.
+        // - fuse all tempo multipliers with the base tempo.
+        // - compute all "followPrevious" times into Beats or GlobalBeats (depending on what precedes it.)
+        // - Remove all beats adding no additional information to the tempo.
 
-        // First we generate the list of tempos where tempos can be per minute
-        // or per global beat.
-        const tempos: {
-            localBeat: Fraction;
-            globalBeat: Fraction;
-            tempo: LocalBeatTempo<Fraction>;
+        const partialTempos: {
+            time: SimpleTime;
+            tempo: SimpleTempo;
         }[] = [];
+        let previousInfo: {
+            time: SimpleTime;
+            baseTempo: SimpleTempo;
+            trueTempo: SimpleTempo;
+        } = { time: firstTime, baseTempo: firstBaseTempo, trueTempo: firstTrueTempo };
 
-        // We need to record the base tempo to apply tempo multiplier changes.
-        let previous: {
-            localBeat: Fraction;
-            globalBeat: Fraction;
-            baseTempo: LocalBeatTempo<Fraction>;
-            trueTempo: LocalBeatTempo<Fraction>;
-        } = {}; //TOCONTINUE;
+        partialTempos.push({ time: previousInfo.time, tempo: previousInfo.trueTempo });
+
         for (let changeIdx = 1; changeIdx < description.changes.length; changeIdx++) {
             const { startTime, localBeatTempo, localBeatTempoMultiplier } =
                 description.changes[changeIdx];
-            // First, compute the exact time.
-            let currentLocalBeat: Fraction;
-            let currentGlobalBeat: Fraction;
-            if (startTime.type === "byLocalBeat" || startTime.type === "followPrevious") {
-                // Here, we can easily compute the current localBeat, and infer globalbeat from it.
-                if (startTime.type === "byLocalBeat") {
-                    currentLocalBeat = new Fraction(startTime.beat);
-                } else {
-                    currentLocalBeat = previous.localBeat.add(1);
-                }
-
-                // Compute global beat depending on the tempo.
-                if (previous.trueTempo.type === "perGlobalBeat") {
-                    currentGlobalBeat = previous.globalBeat.add(
-                        currentLocalBeat
-                            .sub(previous.localBeat)
-                            .div(previous.trueTempo.beatsPerGlobalBeat)
-                    );
-                } else {
-                    const lastTime = this.globalBeatConverter.convertAbsoluteBeatToSeconds(
-                        previous.globalBeat
-                    );
-                    const currentTime = lastTime.add(
-                        currentLocalBeat
-                            .sub(previous.localBeat)
-                            .div(previous.trueTempo.beatsPerMinute)
-                    );
-                    currentGlobalBeat =
-                        this.globalBeatConverter.convertSecondsToAbsoluteBeat(currentTime);
-                }
-            } else {
-                // Here, we can easily compute the current globalBeat, and infer localBeat form it.
-                if (startTime.type === "byGlobalBeat") {
-                    currentGlobalBeat = new Fraction(startTime.beat);
-                } else if (startTime.type === "byGlobalBarBeat") {
-                    currentGlobalBeat = this.globalBeatConverter.convertBarBeatToAbsoluteBeat({
-                        bar: startTime.bar,
-                        beat: new Fraction(startTime.beatInBar)
-                    });
-                } else {
-                    currentGlobalBeat = this.globalBeatConverter.convertSecondsToAbsoluteBeat(
-                        new Fraction(startTime.seconds)
-                    );
-                }
-
-                // Compute local beat depending on the trueTempo.
-                if (previous.trueTempo.type === "perGlobalBeat") {
-                    currentLocalBeat = previous.localBeat.add(
-                        currentGlobalBeat
-                            .sub(previous.globalBeat)
-                            .mul(previous.trueTempo.beatsPerGlobalBeat)
-                    );
-                } else {
-                    const lastTime = this.globalBeatConverter.convertAbsoluteBeatToSeconds(
-                        previous.globalBeat
-                    );
-                    const currentTime =
-                        this.globalBeatConverter.convertAbsoluteBeatToSeconds(currentGlobalBeat);
-                    currentLocalBeat = previous.localBeat.add(
-                        currentTime.sub(lastTime).mul(previous.trueTempo.beatsPerMinute.div(60))
-                    );
-                }
-            }
-
-            // Now, compute and update the tempo changes.
-
-            // Compute the base tempo.
-            let currentBaseTempo: LocalBeatTempo<Fraction>;
-            if (localBeatTempo !== undefined) {
-                if (localBeatTempo.type === "perGlobalBeat") {
-                    currentBaseTempo = {
-                        type: "perGlobalBeat",
-                        beatsPerGlobalBeat: new Fraction(localBeatTempo.beatsPerGlobalBeat)
+            let currentTime: SimpleTime;
+            // Transforme the time into either local or global beats.
+            if (startTime.type === "byLocalBeat") {
+                currentTime = { type: "local", beat: new Fraction(startTime.beat) };
+            } else if (startTime.type === "followPrevious") {
+                if (previousInfo.time.type === "local") {
+                    currentTime = { type: "local", beat: previousInfo.time.beat.add(1) };
+                } else if (previousInfo.trueTempo.type === "perGlobalBeat") {
+                    // The previous time is based on global beats.
+                    // The previous tempo in local beats per global beats.
+                    // We add to the last global beat as much global beats that are
+                    // in one local beat.
+                    currentTime = {
+                        type: "global",
+                        beat: previousInfo.time.beat.add(previousInfo.trueTempo.value.inverse())
                     };
                 } else {
-                    currentBaseTempo = {
-                        type: "perMinute",
-                        beatsPerMinute: new Fraction(localBeatTempo.beatsPerMinute)
+                    // The previous time is based on global beats.
+                    // The previous tempo in local beats per minute.
+                    // We add to the last time in sec as much sec that are
+                    // in one local beat, and then convert to global beats.
+                    const lastTimeSeconds = this.globalBeatConverter.convertAbsoluteBeatToSeconds(
+                        previousInfo.time.beat
+                    );
+                    const currentTimeSeconds = lastTimeSeconds.add(
+                        previousInfo.trueTempo.value.inverse()
+                    );
+                    currentTime = {
+                        type: "global",
+                        beat: this.globalBeatConverter.convertSecondsToAbsoluteBeat(
+                            currentTimeSeconds
+                        )
                     };
                 }
             } else {
-                currentBaseTempo = previous.baseTempo;
-            }
-            // Apply the multiplyer.
-            let currentTrueTempo: LocalBeatTempo<Fraction>;
-            if (currentBaseTempo.type === "perGlobalBeat") {
-                currentTrueTempo = {
-                    type: "perGlobalBeat",
-                    beatsPerGlobalBeat: currentBaseTempo.beatsPerGlobalBeat.mul(
-                        localBeatTempoMultiplier ?? 1
-                    )
-                };
-            } else {
-                currentTrueTempo = {
-                    type: "perMinute",
-                    beatsPerMinute: currentBaseTempo.beatsPerMinute.mul(
-                        localBeatTempoMultiplier ?? 1
-                    )
+                currentTime = {
+                    type: "global",
+                    beat: makeGlobalBeat(startTime, this.globalBeatConverter)
                 };
             }
+            const currentBaseTempo: SimpleTempo =
+                localBeatTempo === undefined
+                    ? { type: "perGlobalBeat", value: new Fraction(1) }
+                    : makeTempoFraction(localBeatTempo);
+            const currentTrueTempo = makeTrueTempo(
+                firstBaseTempo,
+                new Fraction(localBeatTempoMultiplier ?? 1)
+            );
+
+            // // Now, compute and update the tempo changes.
+
             // Record the changes only if the base or current tempo have changed.
             if (
                 !(
-                    areTempoEqual(previous.baseTempo, currentBaseTempo) &&
-                    areTempoEqual(previous.trueTempo, currentTrueTempo)
+                    areTempoEqual(previousInfo.baseTempo, currentBaseTempo) &&
+                    areTempoEqual(previousInfo.trueTempo, currentTrueTempo)
                 )
             ) {
-                tempos.push({
-                    localBeat: currentLocalBeat,
-                    globalBeat: currentGlobalBeat,
+                partialTempos.push({
+                    time: currentTime,
                     tempo: currentTrueTempo
                 });
             }
 
             // Change the contents of the previous iteration
-            previous = {
-                localBeat: currentLocalBeat,
-                globalBeat: currentGlobalBeat,
+            previousInfo = {
+                time: currentTime,
                 baseTempo: currentBaseTempo,
                 trueTempo: currentTrueTempo
             };
         }
 
-        //TODO : Rename beat offset to beat0 offset as it is clearer ?
-        //TODO : Handle localBeat0 Or First offset ???
+        // We can now look for which beat or global beat precedes the one that is the reference.
+        let idxRef = partialTempos.findIndex(
+            ({ time }) =>
+                (time.type === "local" && time.beat.gt(localReference)) ||
+                (time.type === "global" && time.beat.gt(globalReference))
+        );
+        idxRef = idxRef === 0 ? 0 : idxRef === -1 ? partialTempos.length - 1 : idxRef - 1;
 
-        // Generate a list where we replace all tempo per minute in tempo per global beats.
+        // We thus have the tempo at that point, and precise local and global beat.
+        // We start doing a search forward, and another backwards, to compute all local and global beats at tempo changes.
+
+        const coolTemposUpFromRef = partialTempos.slice(idxRef + 1, partialTempos.length);
+        const coolTemposDownFromRef = partialTempos.slice(0, idxRef).reverse();
+
+        const startingInfo: LocalGlobalTempo = {
+            localBeat: localReference,
+            globalBeat: globalReference,
+            tempo: partialTempos[idxRef].tempo
+        };
+        const temposUpFromRef = computeLocalGlobalTempo(
+            coolTemposUpFromRef,
+            startingInfo,
+            this.globalBeatConverter
+        ).splice(0, 1);
+        const temposDownFromRef = computeLocalGlobalTempo(
+            coolTemposDownFromRef,
+            startingInfo,
+            this.globalBeatConverter
+        ).splice(0, 1);
+
+        const tempos = [...temposDownFromRef.reverse(), ...temposUpFromRef];
+
+        // Finally, replace all tempo per minute in tempo per global beats.
         for (let changeIdx = 0; changeIdx < tempos.length; changeIdx++) {
-            const change = tempos[changeIdx];
-            if (change.tempo.type === "perGlobalBeat") {
+            const { localBeat, globalBeat, tempo } = tempos[changeIdx];
+            if (tempo.type === "perGlobalBeat") {
                 this.tempoChanges.push({
-                    localBeat: change.localBeat,
-                    globalBeat: change.globalBeat,
-                    localBeatsPerGlobalBeat: change.tempo.beatsPerGlobalBeat
+                    localBeat: localBeat,
+                    globalBeat: globalBeat,
+                    localBeatsPerGlobalBeat: tempo.value
                 });
             } else {
                 // We need to make sure all global tempo changes are accounted for.
                 // We look for the global beat tempo changes we'll need to account for
                 // by searching the smallest concerned idx (idx1) and the largest (idx2).
                 // Search for the global beat tempo change index that happens
-                // <= beat tempo change.
+                // <= beat tempo
                 let idx1 = this.globalBeatConverter.tempoChanges.findIndex(({ absoluteBeat }) =>
-                    absoluteBeat.gt(change.globalBeat)
+                    absoluteBeat.gt(globalBeat)
                 );
                 idx1 = idx1 === 0 ? 0 : idx1 === -1 ? this.tempoChanges.length - 1 : idx1 - 1;
                 // Search for the global beat tempo change index that happens
@@ -294,17 +232,17 @@ export class LocalBeatConverter {
                     idx2 = idx2 === 0 ? 0 : idx2 === -1 ? this.tempoChanges.length - 1 : idx2 - 1;
                 }
 
-                // Add a first local tempo change using idx1's info, and bump it by
-                // 1 to stay relevant.
-                const globalBpm = this.globalBeatConverter.tempoChanges[idx1].beatsPerMinute;
+                // Add a first local tempo change using idx1's info but at the current time.
+                // tempo in global beats per minute.
+                const tempoGBpM = this.globalBeatConverter.tempoChanges[idx1].beatsPerMinute;
                 this.tempoChanges.push({
-                    localBeat: change.localBeat,
-                    globalBeat: change.globalBeat,
-                    localBeatsPerGlobalBeat: change.tempo.beatsPerMinute.div(globalBpm)
+                    localBeat: localBeat,
+                    globalBeat: globalBeat,
+                    localBeatsPerGlobalBeat: tempo.value.div(tempoGBpM)
                 });
 
                 for (let _idx = idx1 + 1; _idx < idx2 + 1; _idx++) {
-                    const globalBpm = this.globalBeatConverter.tempoChanges[_idx].beatsPerMinute;
+                    const tempoGBpM = this.globalBeatConverter.tempoChanges[_idx].beatsPerMinute;
                     const globalBeat = this.globalBeatConverter.tempoChanges[_idx].absoluteBeat;
                     const {
                         globalBeat: lastGlobalBeat,
@@ -314,7 +252,7 @@ export class LocalBeatConverter {
                     this.tempoChanges.push({
                         localBeat: lastLocalBeat.add(globalBeat.sub(lastGlobalBeat).mul(lastLBpGB)),
                         globalBeat: globalBeat,
-                        localBeatsPerGlobalBeat: change.tempo.beatsPerMinute.div(globalBpm)
+                        localBeatsPerGlobalBeat: tempo.value.div(tempoGBpM)
                     });
                 }
             }
@@ -397,16 +335,119 @@ export class LocalBeatConverter {
     }
 }
 
-function areTempoEqual(
-    tempo1: LocalBeatTempo<Fraction>,
-    tempo2: LocalBeatTempo<Fraction>
-): boolean {
-    return (
-        (tempo1.type === "perGlobalBeat" &&
-            tempo2.type === "perGlobalBeat" &&
-            tempo1.beatsPerGlobalBeat.equals(tempo2.beatsPerGlobalBeat)) ||
-        (tempo1.type === "perMinute" &&
-            tempo2.type === "perMinute" &&
-            tempo1.beatsPerMinute.equals(tempo2.beatsPerMinute))
-    );
+// Returns true if tempos hold the same information.
+function areTempoEqual(tempo1: SimpleTempo, tempo2: SimpleTempo): boolean {
+    return tempo1.type === tempo2.type && tempo1.value.equals(tempo2.value);
+}
+
+// Transforms a beat in global time into global beat.
+function makeGlobalBeat(
+    globalBeat: Extract<
+        LocalBeatStartTime,
+        { type: "byGlobalBeat" | "byGlobalBarBeat" | "byTime" }
+    >,
+    globalBeatConverter: GlobalBeatConverter
+): Fraction {
+    if (globalBeat.type === "byGlobalBeat") {
+        return new Fraction(globalBeat.beat);
+    } else if (globalBeat.type === "byGlobalBarBeat") {
+        return globalBeatConverter.convertBarBeatToAbsoluteBeat({
+            bar: globalBeat.bar,
+            beat: new Fraction(globalBeat.beatInBar)
+        });
+    } else {
+        return globalBeatConverter.convertSecondsToAbsoluteBeat(new Fraction(globalBeat.seconds));
+    }
+}
+
+// Make a tempo description use fractions (where they used strings)
+function makeTempoFraction(tempo: LocalBeatTempo<FractionDescription>): SimpleTempo {
+    if (tempo.type === "perGlobalBeat") {
+        return {
+            type: "perGlobalBeat",
+            value: new Fraction(tempo.beatsPerGlobalBeat)
+        };
+    } else {
+        return {
+            type: "perMinute",
+            value: new Fraction(tempo.beatsPerMinute)
+        };
+    }
+}
+
+// Compute the tempo factoring in the multiplier.
+function makeTrueTempo(baseTempo: SimpleTempo, tempoMultiplier: Fraction): SimpleTempo {
+    return {
+        type: baseTempo.type,
+        value: baseTempo.value.mul(tempoMultiplier)
+    };
+}
+
+type LocalGlobalTempo = {
+    localBeat: Fraction;
+    globalBeat: Fraction;
+    tempo: SimpleTempo;
+};
+
+// Compute the tempo, local and global beats of an array having only one of the two.
+// We start by feeding the array som starting information.
+function computeLocalGlobalTempo(
+    partialLocalGlobalTempo: {
+        time: SimpleTime;
+        tempo: SimpleTempo;
+    }[],
+    startingInfo: LocalGlobalTempo,
+    globalBeatConverter: GlobalBeatConverter
+): LocalGlobalTempo[] {
+    const tempoChanges: LocalGlobalTempo[] = [startingInfo];
+    for (const { time: currentTime, tempo: currentTempo } of partialLocalGlobalTempo) {
+        const {
+            globalBeat: lastGlobalBeat,
+            localBeat: lastLocalBeat,
+            tempo: lastTempo
+        } = tempoChanges[tempoChanges.length - 1];
+
+        let currentLocalBeat: Fraction;
+        let currentGlobalBeat: Fraction;
+        if (currentTime.type === "local") {
+            // The current time is in local beats.
+            currentLocalBeat = currentTime.beat;
+            // Compute global beat depending on the tempo.
+            if (lastTempo.type === "perGlobalBeat") {
+                // The tempo is in local beats per global beats.
+                currentGlobalBeat = lastGlobalBeat.add(
+                    currentLocalBeat.sub(lastLocalBeat).div(lastTempo.value)
+                );
+            } else {
+                // The tempo is in local beats per minute.
+                const lastTime = globalBeatConverter.convertAbsoluteBeatToSeconds(lastGlobalBeat);
+                const currentTime = lastTime.add(
+                    currentLocalBeat.sub(lastLocalBeat).div(lastTempo.value)
+                );
+                currentGlobalBeat = globalBeatConverter.convertSecondsToAbsoluteBeat(currentTime);
+            }
+        } else {
+            // The current time is in global beats.
+            currentGlobalBeat = new Fraction(currentTime.beat);
+            if (lastTempo.type === "perGlobalBeat") {
+                currentLocalBeat = lastLocalBeat.add(
+                    currentGlobalBeat.sub(lastGlobalBeat).mul(lastTempo.value)
+                );
+            } else {
+                const lastTime = globalBeatConverter.convertAbsoluteBeatToSeconds(lastGlobalBeat);
+                const currentTime =
+                    globalBeatConverter.convertAbsoluteBeatToSeconds(currentGlobalBeat);
+                currentLocalBeat = lastLocalBeat.add(
+                    currentTime.sub(lastTime).mul(lastTempo.value.div(60))
+                );
+            }
+        }
+
+        tempoChanges.push({
+            localBeat: currentLocalBeat,
+            globalBeat: currentGlobalBeat,
+            tempo: currentTempo
+        });
+    }
+    return tempoChanges;
 }

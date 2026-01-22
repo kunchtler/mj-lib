@@ -216,14 +216,17 @@ export type JugglingScore = {
             (Required<BallDescription> | undefined)[],
             (Required<BallDescription> | undefined)[]
         ];
-        firstLocalBeatOffset?:
-            | { type: "byTime"; seconds: FractionDescription }
-            | { type: "byGlobalBeat"; beat: FractionDescription }
-            | {
-                  type: "byGlobalBarBeat";
-                  bar: number;
-                  beatInBar: FractionDescription;
-              };
+        beatReference?: {
+            jugglerBeat?: FractionDescription;
+            global?:
+                | { type: "byTime"; seconds: FractionDescription }
+                | { type: "byGlobalBeat"; beat: FractionDescription }
+                | {
+                      type: "byGlobalBarBeat";
+                      bar: number;
+                      beatInBar: FractionDescription;
+                  };
+        };
         jugglingPhrases: JugglingPhrase[];
     }[];
     globalBeat: Required<GlobalBeatDescription>;
