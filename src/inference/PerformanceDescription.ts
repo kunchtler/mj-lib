@@ -218,7 +218,7 @@ export type JugglingScore = {
         ];
         beatReference?: {
             jugglerBeat?: FractionDescription;
-            global?:
+            globalTime?:
                 | { type: "byTime"; seconds: FractionDescription }
                 | { type: "byGlobalBeat"; beat: FractionDescription }
                 | {
@@ -311,7 +311,7 @@ export type GlobalBeatStartTime =
     | { type: "byTime"; seconds: FractionDescription };
 
 export type GlobalBeatDescription = {
-    firstBeatOffsetInSeconds?: FractionDescription;
+    beatOffsetInSeconds?: FractionDescription;
     changes: {
         startTime: GlobalBeatStartTime;
         beatsInBar?: FractionDescription;

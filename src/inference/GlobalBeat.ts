@@ -31,7 +31,7 @@ export class GlobalBeatConverter {
         // TODO : Add possibility for offset.
         this.tempoChanges = [];
         this.signatureChanges = [];
-        const beatOffset = new Fraction(description.firstBeatOffsetInSeconds ?? 0);
+        const beatOffset = new Fraction(description.beatOffsetInSeconds ?? 0);
 
         // First, we need to gather the initial signature / tempo information we encounter.
         // But it may be complex as the first timeone is introduced may necessitate using iself !

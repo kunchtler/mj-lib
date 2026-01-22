@@ -44,9 +44,9 @@ export class LocalBeatConverter {
         // If there is no reference, we assume it is 0.
         const localReference = new Fraction(description.beatReference?.jugglerBeat ?? 0);
         const globalReference =
-            description.beatReference?.global === undefined
+            description.beatReference?.globalTime === undefined
                 ? new Fraction(0)
-                : makeGlobalBeat(description.beatReference.global, this.globalBeatConverter);
+                : makeGlobalBeat(description.beatReference.globalTime, this.globalBeatConverter);
 
         // Look for the first pieces of information.
         let firstTime: SimpleTime;

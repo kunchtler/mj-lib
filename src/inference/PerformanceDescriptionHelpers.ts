@@ -283,13 +283,13 @@ export function createJugglingScoreFromHelper(
     let newGlobalBeat: JugglingScore["globalBeat"];
     if (score.globalBeat === undefined) {
         newGlobalBeat = {
-            firstBeatOffsetInSeconds: 0,
+            beatOffsetInSeconds: 0,
             // Count the seconds.
             changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 60 }]
         };
     } else if (score.globalBeat.type === "constant") {
         newGlobalBeat = {
-            firstBeatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            beatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
             // Count the beats.
             changes: [
                 {
@@ -301,7 +301,7 @@ export function createJugglingScoreFromHelper(
         };
     } else {
         newGlobalBeat = {
-            firstBeatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            beatOffsetInSeconds: score.globalBeat.beatOffsetInSeconds ?? 0,
             changes: score.globalBeat.changes
         };
     }
