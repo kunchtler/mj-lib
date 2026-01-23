@@ -201,6 +201,31 @@ export class LocalBeatConverter {
 
         const tempos = [...temposDownFromRef.reverse(), ...temposUpFromRef];
 
+        // Check that tempo is in ascending order, or sort it (or else the rest wouldn't work).
+        let needsSorting = false;
+        for (let idx = 0; idx < tempos.length - 1; idx++) {
+            if (tempos[idx].globalBeat.gt(tempos[idx + 1].globalBeat)) {
+                needsSorting = true;
+                break;
+            }
+        }
+        if (needsSorting) {
+            console.warn("Tempos weren't provided in ascending order. May be issues.");
+            tempos.sort((info1, info2) => info1.globalBeat.compare(info2.globalBeat));
+        }
+
+        // If we have to events on the same beat, forget about the earlier ones and fuse them.
+        const idxToRemove: number[] = [];
+        for (let idx = 0; idx < tempos.length - 1; idx++) {
+            if (tempos[idx].globalBeat.equals(tempos[idx + 1].globalBeat)) {
+                // Two successive tempos are equal ! We'll delete the earliest ones.
+                idxToRemove.push(idx);
+            }
+        }
+        for (const idx of idxToRemove) {
+            tempos.splice(idx, 1);
+        }
+
         // Finally, replace all tempo per minute in tempo per global beats.
         for (let changeIdx = 0; changeIdx < tempos.length; changeIdx++) {
             const { localBeat, globalBeat, tempo } = tempos[changeIdx];
