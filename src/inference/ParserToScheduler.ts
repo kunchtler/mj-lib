@@ -1,13 +1,14 @@
 import Fraction from "fraction.js";
 import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
-import { GlobalBeat } from "./GlobalBeatConverter";
+import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
-import { HandsInstructions, JugglingPhrase } from "./PerformanceDescription";
+import { HandsInstructions, JugglerBeatReference, JugglingPhrase } from "./PerformanceDescription";
 import { TossMode, SchedulerEvent } from "./Scheduler";
 import { XOR } from "../utils/Operations";
 import { produce, current } from "immer";
 import { handleIfNameUnknown } from "./PatternToModel";
+import { LocalBeatConverter } from "./LocalBeatConverter";
 
 
 type HybridToss = {
@@ -46,15 +47,27 @@ type FlatJugglingPhrase = Omit<JugglingPhrase, "pattern"> & {
 //TODO : What about params ? Rather pass the same thing than the preivous step ?
 //TODO : Check the comments.
 
-export function formatJugglerPhrasesForScheduler(
-    jugglingPhrases: JugglingPhrase[],
-    jugglerName: string,
-    ballTemplateNames: Set<string>,
-    ballIDs: Map<string, string>,
-    jugglerNames: Set<string>,
-    errorLogger: TimedErrorLogger<Fraction>,
-    globalBeatConverter: GlobalBeat
-): SchedulerEvent[] | undefined {
+type FormatJugglerPhrasesForSchedulerParams = {
+    jugglingPhrases: JugglingPhrase[];
+    jugglerName: string;
+    jugglerBeatReference: JugglerBeatReference;
+    ballTemplateNames: Set<string>;
+    ballIDs: Map<string, string>;
+    jugglerNames: Set<string>;
+    errorLogger: TimedErrorLogger<Fraction>;
+    globalBeatConverter: GlobalBeatConverter;
+};
+
+export function formatJugglerPhrasesForScheduler({
+    jugglingPhrases,
+    jugglerName,
+    jugglerBeatReference,
+    ballTemplateNames,
+    ballIDs,
+    jugglerNames,
+    errorLogger,
+    globalBeatConverter
+}: FormatJugglerPhrasesForSchedulerParams): SchedulerEvent[] | undefined {
     // 1. Create singular events from the juggling phrase.
     let events = flattenJugglingPhrases(jugglingPhrases, jugglerName, errorLogger);
     if (errorLogger.hasCriticalError()) {
@@ -70,8 +83,16 @@ export function formatJugglerPhrasesForScheduler(
         events[0].startTime = { type: "byLocalBeat", beat: 0 };
     }
 
-    // 3. Create the localBeatConverter.
-    const localBeatConverter = new LocalBeat();
+    // 3. Construct the juggler's local beat converter.
+    const localBeatConverter = new LocalBeatConverter(
+        {
+            beatReference: jugglerBeatReference,
+            changes: events
+        },
+        globalBeatConverter
+    );
+
+    // 4.
 
     // 1. Sort the events array.
     const sortedPhrases = copyAndSort(jugglingPhrases, (a, b) => a.startTime.compare(b.startTime));
@@ -164,7 +185,7 @@ function flattenJugglingPhrases(
         } catch (err) {
             errorLogger.logError({
                 severity: "CriticalError",
-                message: `Error while parsing "${phrase}" of juggler ${jugglerName}.\nParser Error : ${(err as Error).message}`
+                message: `Error while parsing "${phrase.pattern}" of juggler ${jugglerName}.\nParser Error : ${(err as Error).message}`
             });
         }
 
@@ -661,7 +682,7 @@ function filterUselessTossesAndEvents(events: HybridEvent[]): HybridEvent[] {
 function formatMode(
     events: HybridEvent[],
     errorLogger: FracTimedErrorLogger,
-    scoreConverter?: GlobalBeat
+    scoreConverter?: GlobalBeatConverter
 ): HybridEvent[] {
     return produce(events, (draft) => {
         for (const ev of draft) {
