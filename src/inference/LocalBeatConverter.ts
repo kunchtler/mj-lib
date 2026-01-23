@@ -12,8 +12,8 @@ import { ElementOf } from "../utils";
 export type MusicBeat = { bar: number; beat: Fraction };
 
 type LocalBeatDescription = {
-    beatReference?: ElementOf<JugglingScore["jugglers"]>["beatReference"];
-    changes: Pick<JugglingPhrase, "startTime" | "localBeatTempo" | "localBeatTempoMultiplier">[];
+    beatReference: ElementOf<JugglingScore["jugglers"]>["beatReference"];
+    changes: Pick<JugglingPhrase, "startTime" | "localBaseTempo" | "localTempoMultiplier">[];
 };
 
 type LocalTempoChanges = {
@@ -40,11 +40,11 @@ export class LocalBeatConverter {
 
         // Compute the references.
         // If there is no reference, we assume it is 0.
-        const localReference = new Fraction(description.beatReference?.jugglerBeat ?? 0);
-        const globalReference =
-            description.beatReference?.globalTime === undefined
-                ? new Fraction(0)
-                : makeGlobalBeat(description.beatReference.globalTime, this.globalBeatConverter);
+        const localReference = new Fraction(description.beatReference.jugglerBeat);
+        const globalReference = makeGlobalBeat(
+            description.beatReference.globalTime,
+            this.globalBeatConverter
+        );
 
         // Look for the first pieces of information.
         let firstTime: SimpleTime;

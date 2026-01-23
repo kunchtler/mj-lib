@@ -31,7 +31,7 @@ export class GlobalBeatConverter {
         // TODO : Add possibility for offset.
         this.tempoChanges = [];
         this.signatureChanges = [];
-        const beatOffset = new Fraction(description.beatOffsetInSeconds ?? 0);
+        const beatOffset = new Fraction(description.beatOffsetInSeconds);
 
         // First, we need to gather the initial signature / tempo information we encounter.
         // But it may be complex as the first timeone is introduced may necessitate using iself !
@@ -45,23 +45,34 @@ export class GlobalBeatConverter {
                 break;
             }
         }
-        let firstTempo: { startTime: GlobalBeatStartTime; tempo: Fraction } | null = null;
+        let firstTempo: { startTime: GlobalBeatStartTime; beatsPerMinute: Fraction } | null = null;
         for (const info of description.changes) {
             if (info.beatsPerMinute !== undefined) {
                 firstTempo = {
                     startTime: info.startTime,
-                    tempo: new Fraction(info.beatsPerMinute)
+                    beatsPerMinute: new Fraction(info.beatsPerMinute)
                 };
                 break;
             }
         }
+        // We give a default tempo value if non has been given, of 1 per second.
+        if (firstTempo === null) {
+            firstTempo = {
+                startTime:
+                    description.changes.length === 0
+                        ? { type: "byBeat", beat: 0 }
+                        : description.changes[0].startTime,
+                beatsPerMinute: new Fraction(60)
+            };
+        }
+
         // Now we can try and identify the beats.
         if (firstSignature !== null) {
             let firstSignatureBeat: Fraction;
             if (firstSignature.startTime.type === "byBeat") {
                 firstSignatureBeat = new Fraction(firstSignature.startTime.beat);
             } else if (firstSignature.startTime.type === "byBarBeat") {
-                const { bar, beat } = firstSignature.startTime;
+                const { bar, beatInBar: beat } = firstSignature.startTime;
                 if (!new Fraction(beat).equals(0)) {
                     // This is to simplify the bar's computation.
                     throw Error(
@@ -82,28 +93,26 @@ export class GlobalBeatConverter {
                 signature: firstSignature.signature
             });
         }
-        if (firstTempo !== null) {
-            let firstTempoBeat: Fraction;
-            if (firstTempo.startTime.type === "byBeat") {
-                firstTempoBeat = new Fraction(firstTempo.startTime.beat);
-            } else if (firstTempo.startTime.type === "byBarBeat") {
-                // Quite complex as we can have multiple signature changes before the first Tempo Beat...
-                throw Error("Can't specify first beatsPerMinute while using bars and measures.");
-            } else {
-                // Remember beat 0 happens at time = offset.
-                firstTempoBeat = new Fraction(firstTempo.startTime.seconds)
-                    .sub(beatOffset)
-                    .div(60)
-                    .mul(firstTempo.tempo);
-            }
-            // With the offset, we can compute the timeInSeconds.
-            const time = firstTempoBeat.mul(firstTempo.tempo).div(60).add(beatOffset);
-            this.tempoChanges.push({
-                absoluteBeat: firstTempoBeat,
-                beatsPerMinute: firstTempo.tempo,
-                timeInSeconds: time
-            });
+        let firstTempoBeat: Fraction;
+        if (firstTempo.startTime.type === "byBeat") {
+            firstTempoBeat = new Fraction(firstTempo.startTime.beat);
+        } else if (firstTempo.startTime.type === "byBarBeat") {
+            // Quite complex as we can have multiple signature changes before the first Tempo Beat...
+            throw Error("Can't specify first beatsPerMinute while using bars and measures.");
+        } else {
+            // Remember beat 0 happens at time = offset.
+            firstTempoBeat = new Fraction(firstTempo.startTime.seconds)
+                .sub(beatOffset)
+                .div(60)
+                .mul(firstTempo.beatsPerMinute);
         }
+        // With the offset, we can compute the timeInSeconds.
+        const time = firstTempoBeat.mul(firstTempo.beatsPerMinute).div(60).add(beatOffset);
+        this.tempoChanges.push({
+            absoluteBeat: firstTempoBeat,
+            beatsPerMinute: firstTempo.beatsPerMinute,
+            timeInSeconds: time
+        });
 
         // Now gather info about all changes.
         // In doing so, we duplicate the first element of the changes array, but it's no biggies,
@@ -124,12 +133,12 @@ export class GlobalBeatConverter {
                     signature: lastSignature,
                     bar: lastSignatureBar
                 } = this.signatureChanges[this.signatureChanges.length - 1];
-                if (lastSignature.lte(info.startTime.beat)) {
+                if (lastSignature.lte(info.startTime.beatInBar)) {
                     console.warn("Beat surpasses the amount of beats in a bar.");
                 }
                 currentBeat = lastSignatureBeat
                     .add(lastSignature.mul(info.startTime.bar - lastSignatureBar))
-                    .add(info.startTime.beat);
+                    .add(info.startTime.beatInBar);
             } else {
                 // Compute the absolute beat from real time using cached tempo information.
                 if (this.tempoChanges.length === 0) {
