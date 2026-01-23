@@ -177,6 +177,7 @@ export type BallDescription = {
     id?: string;
 };
 
+//TODO : Rename startTime ???
 export type LocalBeatStartTime =
     | { type: "followPrevious" } // directly follows previous phrase.
     | { type: "byTime"; seconds: FractionDescription }
@@ -200,20 +201,24 @@ export type JugglingPhrase = {
     pattern?: string;
 };
 
-export type GlobalBeatStartTime =
+export type GlobalBeatStartTime<FractionType = FractionDescription> =
     | {
           type: "byBeat";
-          beat: FractionDescription;
+          beat: FractionType;
       }
-    | { type: "byBarBeat"; bar: number; beatInBar: FractionDescription }
-    | { type: "byTime"; seconds: FractionDescription };
+    | { type: "byBarBeat"; bar: number; beatInBar: FractionType }
+    | { type: "byTime"; seconds: FractionType };
 
-export type GlobalBeatDescription = {
-    beatOffsetInSeconds: FractionDescription;
+export type GlobalBeatDescription<FractionType = FractionDescription> = {
+    beatReference: {
+        beat: FractionType;
+        timeInSeconds: FractionType;
+        barBeat: { bar: number; beat: FractionType };
+    };
     changes: {
-        startTime: GlobalBeatStartTime;
-        beatsInBar?: FractionDescription;
-        beatsPerMinute?: FractionDescription;
+        startTime: GlobalBeatStartTime<FractionType>;
+        beatsInBar?: FractionType;
+        beatsPerMinute?: FractionType;
         // tempoMultiplier?: FractionType;
     }[];
 };

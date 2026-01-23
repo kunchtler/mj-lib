@@ -39,14 +39,19 @@ export class LocalBeatConverter {
         }
 
         // Compute the references.
-        // If there is no reference, we assume it is 0.
         const localReference = new Fraction(description.beatReference.jugglerBeat);
         const globalReference = makeGlobalBeat(
             description.beatReference.globalTime,
             this.globalBeatConverter
         );
 
-        // Look for the first pieces of information.
+        // To make handling of description.change easier, we :
+        // - transform all BarBeats en Seconds Times into GlobalBeats.
+        // - fuse all tempo multipliers with the base tempo.
+        // - compute all "followPrevious" times into Beats or GlobalBeats (depending on what precedes it.)
+        // - Remove all beats adding no additional information to the tempo.
+
+        // In order to do that, we look for the initial value of the tempo and the beat it occurs on.
         let firstTime: SimpleTime;
         if (description.changes[0].startTime.type === "followPrevious") {
             // If we start with previous follow, we chose to start at the reference beat.
@@ -63,7 +68,6 @@ export class LocalBeatConverter {
             };
         }
 
-        // We look for the first tempo indication
         const firstBaseTempo: SimpleTempo =
             description.changes[0].localBaseTempo === undefined
                 ? { type: "perGlobalBeat", value: new Fraction(1) }
@@ -72,12 +76,6 @@ export class LocalBeatConverter {
             firstBaseTempo,
             new Fraction(description.changes[0].localTempoMultiplier ?? 1)
         );
-
-        // To make handling of description.change easier, we :
-        // - transform all BarBeats en Seconds Times into GlobalBeats.
-        // - fuse all tempo multipliers with the base tempo.
-        // - compute all "followPrevious" times into Beats or GlobalBeats (depending on what precedes it.)
-        // - Remove all beats adding no additional information to the tempo.
 
         const partialTempos: {
             time: SimpleTime;
@@ -139,14 +137,12 @@ export class LocalBeatConverter {
             }
             const currentBaseTempo: SimpleTempo =
                 localBeatTempo === undefined
-                    ? { type: "perGlobalBeat", value: new Fraction(1) }
+                    ? previousInfo.baseTempo
                     : makeTempoFraction(localBeatTempo);
             const currentTrueTempo = makeTrueTempo(
-                firstBaseTempo,
+                currentBaseTempo,
                 new Fraction(localBeatTempoMultiplier ?? 1)
             );
-
-            // // Now, compute and update the tempo changes.
 
             // Record the changes only if the base or current tempo have changed.
             if (
@@ -218,7 +214,7 @@ export class LocalBeatConverter {
         const idxToRemove: number[] = [];
         for (let idx = 0; idx < tempos.length - 1; idx++) {
             if (tempos[idx].globalBeat.equals(tempos[idx + 1].globalBeat)) {
-                // Two successive tempos are equal ! We'll delete the earliest ones.
+                // Two successive beats are equal. We'll delete the earliest ones.
                 idxToRemove.push(idx);
             }
         }

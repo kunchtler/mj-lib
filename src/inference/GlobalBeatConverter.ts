@@ -1,12 +1,17 @@
 import Fraction from "fraction.js";
-import { GlobalBeatDescription, GlobalBeatStartTime } from "./PerformanceDescription";
+import {
+    FractionDescription,
+    GlobalBeatDescription,
+    GlobalBeatStartTime
+} from "./PerformanceDescription";
+import { reference } from "three/tsl";
 
 export type MusicBeat = { bar: number; beat: Fraction };
 
-type TempoChange = {
-    absoluteBeat: Fraction;
-    beatsPerMinute: Fraction;
-    timeInSeconds: Fraction;
+type TempoChange<FractionType = Fraction> = {
+    absoluteBeat: FractionType;
+    beatsPerMinute: FractionType;
+    timeInSeconds: FractionType;
 };
 
 type SignatureChange = {
@@ -15,232 +20,229 @@ type SignatureChange = {
     bar: number;
 };
 
+type AllInfo = {
+    beat: Fraction;
+    timeInSeconds: Fraction | null;
+    barBeat: {
+        bar: number;
+        beat: Fraction;
+    } | null;
+    beatsInBar: Fraction | null;
+    beatsPerMinute: Fraction | null;
+};
+
+// TODO : Change the global and local descriptions in helpers to allow for completion.
+// TODO : Implement the use of the math parser :)
+
+type GlobalBeatDescription2 = {
+    beatReference?: {
+        beat: FractionDescription;
+        timeInSeconds?: FractionDescription;
+        barBeat?: { bar: FractionDescription; beat: FractionDescription };
+    };
+    changes?: {
+        startTime: GlobalBeatStartTime;
+        beatsInBar?: FractionDescription;
+        beatsPerMinute?: FractionDescription;
+        // tempoMultiplier?: FractionType;
+    }[];
+};
+
 export class GlobalBeatConverter {
     signatureChanges: SignatureChange[]; // Maps a beat to the signature change happening on that beat.
     tempoChanges: TempoChange[]; // Maps a beat to a tempo change happening on that beat.
 
     constructor(description: GlobalBeatDescription) {
-        // In description.changes, the times at which the changes occur can be described by time,
+        // In changes, the times at which the changes occur can be described by time,
         // beat, or bar&beat. Since at those point in times, we're defining signature changes and
         // tempo changes, we don't have a reliable way of properly computing time -> beat or
         // bar&beat -> beat at initialization.
-        // Thus we require and enforce that description.changes is ordered.
-
-        // Note: Beat 0 is the first one of measure 0.
-
-        // TODO : Add possibility for offset.
+        // Thus we require and enforce that changes is ordered.
         this.tempoChanges = [];
         this.signatureChanges = [];
-        const beatOffset = new Fraction(description.beatOffsetInSeconds);
 
-        // First, we need to gather the initial signature / tempo information we encounter.
-        // But it may be complex as the first timeone is introduced may necessitate using iself !
-        let firstSignature: { startTime: GlobalBeatStartTime; signature: Fraction } | null = null;
-        for (const info of description.changes) {
-            if (info.beatsInBar !== undefined) {
-                firstSignature = {
-                    startTime: info.startTime,
-                    signature: new Fraction(info.beatsInBar)
-                };
+        // Compute the point of reference.
+        const beatReference = {
+            beat: new Fraction(description.beatReference.beat),
+            timeInSeconds: new Fraction(description.beatReference.timeInSeconds),
+            barBeat: {
+                bar: description.beatReference.barBeat.bar,
+                beat: new Fraction(description.beatReference.barBeat.beat)
+            }
+        };
+
+        // Compute the first tempo and barBeat info.
+        let firstSignature: Fraction | undefined = undefined;
+        for (const { beatsInBar } of description.changes) {
+            if (beatsInBar !== undefined) {
+                firstSignature = new Fraction(beatsInBar);
                 break;
             }
         }
-        let firstTempo: { startTime: GlobalBeatStartTime; beatsPerMinute: Fraction } | null = null;
-        for (const info of description.changes) {
-            if (info.beatsPerMinute !== undefined) {
-                firstTempo = {
-                    startTime: info.startTime,
-                    beatsPerMinute: new Fraction(info.beatsPerMinute)
-                };
+
+        let firstBpM: Fraction | undefined = undefined;
+        for (const { beatsPerMinute } of description.changes) {
+            if (beatsPerMinute !== undefined) {
+                firstBpM = new Fraction(beatsPerMinute);
                 break;
             }
         }
-        // We give a default tempo value if non has been given, of 1 per second.
-        if (firstTempo === null) {
-            firstTempo = {
-                startTime:
-                    description.changes.length === 0
-                        ? { type: "byBeat", beat: 0 }
-                        : description.changes[0].startTime,
-                beatsPerMinute: new Fraction(60)
-            };
-        }
 
-        // Now we can try and identify the beats.
-        if (firstSignature !== null) {
-            let firstSignatureBeat: Fraction;
-            if (firstSignature.startTime.type === "byBeat") {
-                firstSignatureBeat = new Fraction(firstSignature.startTime.beat);
-            } else if (firstSignature.startTime.type === "byBarBeat") {
-                const { bar, beatInBar: beat } = firstSignature.startTime;
-                if (!new Fraction(beat).equals(0)) {
-                    // This is to simplify the bar's computation.
-                    throw Error(
-                        "Please do not provide first barInBeats in the middle of a measure."
-                    );
+        // Create a list of the changes where :
+        // - Everything is turned into a fraction.
+        // - we make sure bar beats in start time are not overflowing.
+        // - Everything has signature and bpm information filled in if possible.
+        // Thus, if a signature or tempo is undefined, it means we can't use it.
+        let prevSignature = firstSignature;
+        let prevBpM = firstBpM;
+        const changes: GlobalBeatDescription<Fraction>["changes"] = [];
+        for (const { startTime, beatsInBar, beatsPerMinute } of description.changes) {
+            let currentTime: GlobalBeatStartTime<Fraction>;
+            if (startTime.type === "byTime") {
+                currentTime = { type: "byTime", seconds: new Fraction(startTime.seconds) };
+            } else if (startTime.type === "byBarBeat") {
+                if (prevSignature === undefined) {
+                    this._throwBarBeatError();
                 }
-                firstSignatureBeat = firstSignature.signature.mul(bar).add(beat);
-            } else {
-                // Quite complex as we can have multiple tempo changes before the first Signature Beat...
-                throw Error("Can't specify first beatsInBar while using real time.");
-            }
-            // Remember : the beat 0 if also beat 0 of measure 0.
-            // So having the beat, to get the bar, we just need to multiply.
-            const bar = firstSignatureBeat.div(firstSignature.signature).valueOf();
-            this.signatureChanges.push({
-                absoluteBeat: firstSignatureBeat,
-                bar: bar,
-                signature: firstSignature.signature
-            });
-        }
-        let firstTempoBeat: Fraction;
-        if (firstTempo.startTime.type === "byBeat") {
-            firstTempoBeat = new Fraction(firstTempo.startTime.beat);
-        } else if (firstTempo.startTime.type === "byBarBeat") {
-            // Quite complex as we can have multiple signature changes before the first Tempo Beat...
-            throw Error("Can't specify first beatsPerMinute while using bars and measures.");
-        } else {
-            // Remember beat 0 happens at time = offset.
-            firstTempoBeat = new Fraction(firstTempo.startTime.seconds)
-                .sub(beatOffset)
-                .div(60)
-                .mul(firstTempo.beatsPerMinute);
-        }
-        // With the offset, we can compute the timeInSeconds.
-        const time = firstTempoBeat.mul(firstTempo.beatsPerMinute).div(60).add(beatOffset);
-        this.tempoChanges.push({
-            absoluteBeat: firstTempoBeat,
-            beatsPerMinute: firstTempo.beatsPerMinute,
-            timeInSeconds: time
-        });
-
-        // Now gather info about all changes.
-        // In doing so, we duplicate the first element of the changes array, but it's no biggies,
-        // as we'll erase it at the very end.
-        for (const info of description.changes) {
-            // Compte the beat of the change.
-            let currentBeat: Fraction;
-            if (info.startTime.type === "byBeat") {
-                // We already have the absolute beat.
-                currentBeat = new Fraction(info.startTime.beat);
-            } else if (info.startTime.type === "byBarBeat") {
-                // Compute absolute beat from bar (alias signature) using cached signature information.
-                if (this.signatureChanges.length === 0) {
-                    throw Error("TODO Problem if used in first event where bar are defined.");
-                }
-                const {
-                    absoluteBeat: lastSignatureBeat,
-                    signature: lastSignature,
-                    bar: lastSignatureBar
-                } = this.signatureChanges[this.signatureChanges.length - 1];
-                if (lastSignature.lte(info.startTime.beatInBar)) {
-                    console.warn("Beat surpasses the amount of beats in a bar.");
-                }
-                currentBeat = lastSignatureBeat
-                    .add(lastSignature.mul(info.startTime.bar - lastSignatureBar))
-                    .add(info.startTime.beatInBar);
-            } else {
-                // Compute the absolute beat from real time using cached tempo information.
-                if (this.tempoChanges.length === 0) {
-                    throw Error("TODO");
-                }
-                const {
-                    absoluteBeat: lastTempoBeat,
-                    beatsPerMinute: lastBpm,
-                    timeInSeconds: lastTempoTime
-                } = this.tempoChanges[this.tempoChanges.length - 1];
-                currentBeat = lastTempoBeat.add(
-                    new Fraction(info.startTime.seconds).sub(lastTempoTime).div(60).mul(lastBpm)
+                const res = barBeatNoOverflow(
+                    startTime.bar,
+                    new Fraction(startTime.beatInBar),
+                    prevSignature
                 );
+                if (res.overflow) {
+                    console.warn("Bar beat overflows or underflows the number of beats in bar.");
+                }
+                currentTime = {
+                    type: "byBarBeat",
+                    bar: res.bar,
+                    beatInBar: res.beatInBar
+                };
+            } else {
+                currentTime = { type: "byBeat", beat: new Fraction(startTime.beat) };
             }
 
-            // Record new signature if needed.
-            if (info.beatsInBar !== undefined) {
-                // Check the beat is indeed greater than the previous.
-                if (new Fraction(info.beatsInBar).lte(0)) {
-                    throw Error("Can't have a number of beats in a bar <= 0.");
-                }
-                let newBar: number = 0; //TODO
-                if (this.signatureChanges.length !== 0) {
-                    const {
-                        absoluteBeat: signatureBeat,
-                        signature: lastSignature,
-                        bar: lastBar
-                    } = this.signatureChanges[this.signatureChanges.length - 1];
-                    // Check we treat events in ascending order.
-                    if (currentBeat.lt(signatureBeat)) {
-                        throw Error("Can't initialize global beats with non-increasing times.");
-                    } else if (currentBeat.equals(signatureBeat)) {
-                        // We just need to pop the last element so as not to have duplicate times.
-                        this.signatureChanges.pop();
-                    }
-                    // Compute new bar.
-                    newBar =
-                        lastBar +
-                        currentBeat.sub(signatureBeat).div(lastSignature).ceil().valueOf();
-                    if (!currentBeat.sub(signatureBeat).divisible(lastSignature)) {
-                        // Changing signature, even if in the middle of a measure, will create a new measure on that beat.
-                        console.warn("New measure created midway !");
-                        // To achieve mind peace, we modify the last bar to have the computed number of beats.
-                        const beatsInLastBar = currentBeat
-                            .sub(signatureBeat)
-                            .sub(lastSignature.mul(newBar - 1 - lastBar));
-                        // But we need to check if it already exists so as to not duplicate it.
-                        if (newBar - 1 === lastBar) {
-                            this.signatureChanges[this.signatureChanges.length].signature =
-                                beatsInLastBar;
-                        } else {
-                            this.signatureChanges.push({
-                                absoluteBeat: currentBeat.sub(beatsInLastBar),
-                                bar: newBar - 1,
-                                signature: beatsInLastBar
-                            });
-                        }
-                    }
-                }
-                this.signatureChanges.push({
-                    absoluteBeat: currentBeat,
-                    signature: new Fraction(info.beatsInBar),
-                    bar: newBar
-                });
+            const currentBeatsInBar =
+                beatsInBar !== undefined
+                    ? new Fraction(beatsInBar)
+                    : prevSignature !== undefined
+                      ? prevSignature
+                      : undefined;
+            const currentBeatsPerMinute =
+                beatsPerMinute !== undefined
+                    ? new Fraction(beatsPerMinute)
+                    : prevBpM !== undefined
+                      ? prevBpM
+                      : undefined;
+
+            // Validate the values of tempo and signature.
+            if (currentBeatsInBar?.lte(0)) {
+                throw Error("Can't have a number of beats in a bar <= 0.");
+            }
+            if (currentBeatsPerMinute?.lte(0)) {
+                throw Error("Can't have a number of beats per minute <= 0.");
             }
 
-            // Record new tempo if needed.
-            if (info.beatsPerMinute !== undefined) {
-                if (new Fraction(info.beatsPerMinute).lt(0)) {
-                    throw Error("Can't have a number of beats per minute < 0.");
-                }
-                let newTime = new Fraction(0); // TODO
-                if (this.tempoChanges.length !== 0) {
-                    const {
-                        absoluteBeat: tempoBeat,
-                        beatsPerMinute: lastBpm,
-                        timeInSeconds: lastTempoTime
-                    } = this.tempoChanges[this.tempoChanges.length - 1];
-                    // Check we treat events in ascending order.
-                    if (currentBeat.lt(tempoBeat)) {
-                        throw Error("Can't initialize global beats with non-increasing times.");
-                    } else if (currentBeat.equals(tempoBeat)) {
-                        // We just need to pop the last element so as not to have duplicate times.
-                        this.tempoChanges.pop();
-                    }
-                    newTime = lastTempoTime.add(currentBeat.sub(tempoBeat).div(60).mul(lastBpm));
-                }
-                this.tempoChanges.push({
-                    absoluteBeat: currentBeat,
-                    beatsPerMinute: new Fraction(info.beatsPerMinute),
-                    timeInSeconds: newTime
-                });
-            }
+            changes.push({
+                startTime: currentTime,
+                beatsInBar: currentBeatsInBar,
+                beatsPerMinute: currentBeatsPerMinute
+            });
+
+            prevSignature = currentBeatsInBar;
+            prevBpM = currentBeatsPerMinute;
         }
 
-        // The promised erasure :
-        // if (this.tempoChanges.length !== 0) {
-        //     this.tempoChanges = this.tempoChanges.splice(0, 1);
-        // }
-        // if (this.signatureChanges.length !== 0) {
-        //     this.signatureChanges = this.signatureChanges.splice(0, 1);
-        // }
+        // We look for which beat or time or barBeat precedes the reference.
+        let idxRef = changes.findIndex(({ startTime: time, beatsInBar }) => {
+            if (time.type === "byBeat" && time.beat.gt(beatReference.beat)) {
+                return true;
+            } else if (time.type === "byTime" && time.seconds.gt(beatReference.timeInSeconds)) {
+                return true;
+            } else if (time.type === "byBarBeat") {
+                // Make sure we can use bars.
+                if (beatsInBar === undefined) {
+                    this._throwBarBeatError();
+                }
+                // We need to overflow the reference just to be sure.
+                const res = barBeatNoOverflow(
+                    beatReference.barBeat.bar,
+                    beatReference.barBeat.beat,
+                    beatsInBar
+                );
+                if (
+                    time.bar > res.bar ||
+                    (time.bar === res.bar && time.beatInBar.gt(res.beatInBar))
+                )
+                    if (res.overflow) {
+                        // Warn for an overflow.
+                        console.warn(
+                            `The bar beat reference dit overflow the number of beats per bar.`
+                        );
+                    }
+                return true;
+            }
+            return false;
+        });
+        idxRef = idxRef === 0 ? 0 : idxRef === -1 ? changes.length - 1 : idxRef - 1;
+
+        // We thus have the signature and bpm at the reference, which happen to be the
+        // ones of idxRef.
+        // We start doing a search forward, and another backwards, to compute all local and global beats at tempo changes.
+        const changesUpFromRef = changes.slice(idxRef + 1, changes.length);
+        const changesDownFromRef = changes.slice(0, idxRef).reverse();
+
+        const startingInfo: AllInfo = {
+            ...beatReference,
+            beatsInBar: changes[idxRef].beatsInBar ?? null,
+            beatsPerMinute: changes[idxRef].beatsPerMinute ?? null
+        };
+        const infosUpFromRef = this.computeMissingInfo(changesUpFromRef, startingInfo).splice(0, 1);
+        const infosDownFromRef = this.computeMissingInfo(changesDownFromRef, startingInfo).splice(
+            0,
+            1
+        );
+
+        const infos = [...infosDownFromRef.reverse(), ...infosUpFromRef];
+
+        // Check that everything is in ascending order.
+        let needsSorting = false;
+        for (let idx = 0; idx < infos.length - 1; idx++) {
+            if (infos[idx].beat.gt(infos[idx + 1].beat)) {
+                needsSorting = true;
+                break;
+            }
+        }
+        if (needsSorting) {
+            console.warn("Global beat infos weren't provided in ascending order. May be issues.");
+            infos.sort((info1, info2) => info1.beat.compare(info2.beat));
+        }
+
+        // Remove redundant information.
+        let idxToRemove: number[] = [];
+        for (let idx = 0; idx < infos.length - 1; idx++) {
+            if (
+                infos[idx].beatsPerMinute === infos[idx + 1].beatsPerMinute &&
+                infos[idx].beatsInBar === infos[idx + 1].beatsInBar
+            ) {
+                // Two successive infos are equal, or two successive times are the same.We'll delete the latest one.
+                idxToRemove.push(idx + 1);
+            }
+        }
+        for (const idx of idxToRemove) {
+            infos.splice(idx, 1);
+        }
+
+        // Remove duplicate information on the same beat.
+        idxToRemove = [];
+        for (let idx = 0; idx < infos.length - 1; idx++) {
+            if (infos[idx].beat.equals(infos[idx + 1].beat)) {
+                // Two successive beats are the same. Delete the earlier one.
+                idxToRemove.push(idx);
+            }
+        }
+        for (const idx of idxToRemove) {
+            infos.splice(idx, 1);
+        }
     }
 
     private _throwBarBeatError(): never {
@@ -337,4 +339,120 @@ export class GlobalBeatConverter {
 
         return lastTempoTime.add(lastBpm.div(60).mul(beat.sub(lastTempoBeat)));
     }
+
+    private computeMissingInfo(
+        partialInfo: GlobalBeatDescription<Fraction>["changes"],
+        startingInfo: AllInfo
+    ): AllInfo[] {
+        const changes: AllInfo[] = [startingInfo];
+        for (const current of partialInfo) {
+            const previous = changes[changes.length - 1];
+
+            let currentBeat: Fraction;
+            let currentBarBeat: { bar: number; beat: Fraction } | null | "uncomputed" =
+                "uncomputed";
+            let currentTime: Fraction | null | "uncomputed" = "uncomputed";
+            // We know calling this function that if current info is null, it means it
+            // can't be computed.
+            const currentBeatsPerMinute: Fraction | null = current.beatsPerMinute ?? null;
+            const currentBeatsInBar: Fraction | null = current.beatsInBar ?? null;
+
+            // Compute currentBeat, and other easy computable things.
+            if (current.startTime.type === "byBeat") {
+                currentBeat = current.startTime.beat;
+            } else if (current.startTime.type === "byTime") {
+                currentTime = current.startTime.seconds;
+                if (previous.timeInSeconds === null || previous.beatsPerMinute === null) {
+                    this._throwTempoError();
+                }
+                currentBeat = previous.beat.add(
+                    currentTime.sub(previous.timeInSeconds).div(60).mul(previous.beatsPerMinute)
+                );
+            } else {
+                currentBarBeat = {
+                    bar: current.startTime.bar,
+                    beat: current.startTime.beatInBar
+                };
+                if (previous.beatsInBar === null || previous.barBeat === null) {
+                    this._throwBarBeatError();
+                }
+                const barToBarCount = previous.beatsInBar.mul(
+                    currentBarBeat.bar - previous.barBeat.bar
+                );
+                const toSub = previous.beatsInBar.sub(previous.barBeat.beat);
+                const toAdd = currentBarBeat.beat;
+                currentBeat = barToBarCount.add(toAdd).sub(toSub);
+            }
+
+            // Compute what is missing.
+            if (currentTime === "uncomputed") {
+                if (previous.beatsPerMinute === null || previous.timeInSeconds === null) {
+                    this._throwTempoError();
+                }
+                currentTime = previous.timeInSeconds.add(
+                    currentBeat.sub(previous.beat).div(previous.beatsPerMinute).mul(60)
+                );
+            }
+            if (currentBarBeat === "uncomputed") {
+                if (previous.beatsInBar === null || previous.barBeat === null) {
+                    this._throwTempoError();
+                }
+                const beatsDiff = currentBeat.sub(previous.beat);
+                const { bar: barsToAdd, beatInBar } = barBeatNoOverflow(
+                    previous.barBeat.bar,
+                    previous.barBeat.beat.add(beatsDiff),
+                    previous.beatsInBar
+                );
+                currentBarBeat = { bar: previous.barBeat.bar + barsToAdd, beat: beatInBar };
+            }
+
+            // Add it to the array and keep going !
+            changes.push({
+                beat: currentBeat,
+                barBeat: currentBarBeat,
+                timeInSeconds: currentTime,
+                beatsInBar: currentBeatsInBar,
+                beatsPerMinute: currentBeatsPerMinute
+            });
+        }
+        return changes;
+    }
 }
+
+// TODO : Test with negative beats to see if underflow also works.
+function barBeatNoOverflow(
+    bar: number,
+    beatInBar: Fraction,
+    nbBeatsInBar: Fraction
+): { bar: number; beatInBar: Fraction; overflow: boolean } {
+    const bonusBars = beatInBar.div(nbBeatsInBar).floor().valueOf();
+    return {
+        bar: bar + bonusBars,
+        beatInBar: beatInBar.mod(nbBeatsInBar),
+        overflow: bonusBars !== 0
+    };
+}
+
+
+
+// Tests (TODO : move into designated test file later)
+// TODO : Also support beats per second ?
+
+// const converter1 = new GlobalBeatConverter({ beatOffsetInSeconds: 0, changes: [] });
+// const converter2 = new GlobalBeatConverter({ beatOffsetInSeconds: 3, changes: [] });
+// const converter3 = new GlobalBeatConverter({
+//     beatOffsetInSeconds: 0,
+//     changes: [
+//         { startTime: { type: "byTime", seconds: -10 }, beatsPerMinute: 24 },
+//         { startTime: { type: "byTime", seconds: 0 }, beatsPerMinute: 10 },
+//         { startTime: { type: "byTime", seconds: 12 }, beatsPerMinute: 60 }
+//     ]
+// });
+
+// const tempoChanges3: TempoChange<FractionDescription>[] = [
+//     { absoluteBeat: -4, beatsPerMinute: 24, timeInSeconds: -10 },
+//     { absoluteBeat: 0, beatsPerMinute: 10, timeInSeconds: 0 },
+//     { absoluteBeat: 2, beatsPerMinute: 60, timeInSeconds: 12 }
+// ];
+
+// console.log("Over");
