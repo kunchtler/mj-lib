@@ -1,10 +1,5 @@
 import Fraction from "fraction.js";
-import {
-    FractionDescription,
-    GlobalBeatDescription,
-    GlobalBeatStartTime
-} from "./PerformanceDescription";
-import { reference } from "three/tsl";
+import { GlobalBeatDescription, GlobalBeatStartTime } from "./PerformanceDescription";
 
 export type MusicBeat = { bar: number; beat: Fraction };
 
@@ -664,6 +659,7 @@ export function keepOneOn<T>(arr: T[], keepFirst: boolean, compare: (a: T, b: T)
 
 // console.log("Over");
 
+// TODO : Test that if two changes hav same time, only the second one is considered.
 // TODO : Make warning for barbeat change if not at measure beginning of measure ? Same for seconds ??
 // TODO : Decide on behaviour when tempo change half way through a second and measure change half way through a measure. DOes it cut, or smoothly transition. For now it transitions smoothly. Document it.
 // TODO : More helpful "out of order message".
