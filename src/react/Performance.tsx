@@ -1,23 +1,55 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PerformanceAudio } from "../audio";
+import { PerformanceModel } from "../model";
+import { Clock } from "../utils";
+import { useFrame } from "@react-three/fiber";
 
-function Performance({
+
+export function Performance({
     listener,
-    position = DEFAULT_POSITION
+    model,
+    clock,
+    buffersMap
 }: {
     listener: THREE.AudioListener;
-    position?: THREE.Vector3Tuple;
+    model: PerformanceModel;
+    clock: Clock;
+    buffersMap: Map<string, AudioBuffer>;
 }) {
     // Previous time
     const previousTime = useRef<number>(-Infinity);
+
+    // Mesh / Object3D References.
     const ballsRef = useRef(new Map<string, { mesh?: THREE.Mesh }>());
     const jugglersRef = useRef(
         new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
-    const [performanceAudio] = useState(() => new PerformanceAudio(listener));
     const performanceRef = useRef<THREE.Object3D>(null!);
-    // const audioRef = useRef(new PerformanceAudio());
+
+    // Audio
+    const [performanceAudio] = useState(() => new PerformanceAudio(listener));
+
+    // Bind some of the audio to the clock.
+    useEffect(() => {
+        // Adds event listeners, and store their removal method in an array.
+        const removePlayListener = clock.addEventListener("play", () => {
+            setStatus("playing");
+        });
+        const removePauseListener = clock.addEventListener("pause", () => {
+            setStatus("paused");
+        });
+        const removeEndListener = clock.addEventListener("reachedEnd", () => {
+            setStatus("reachedEnd");
+        });
+
+        // Return a function to remove all event listeners.
+        return () => {
+            removePlayListener();
+            removePauseListener();
+            removeEndListener();
+        };
+    }, [clock]);
 
     useEffect(() => {
         performanceAudio.setPlaybackRate(1);
@@ -27,34 +59,39 @@ function Performance({
         const time = clock.getTime();
 
         for (const [id, { mesh }] of ballsRef.current) {
-            const ballObject = ballsRef.current.get(id);
-
             // Update the balls' positions.
-            if (ballObject !== undefined && mesh !== undefined) {
+            if (mesh !== undefined) {
                 mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
             }
 
-            // Audio
+            // Change the ball juggler's channel if need be.
             const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
 
             // Check if a ball has changed jugglers to change its gain.
-            if (
-                prevEvTime !== null &&
-                prevEv instanceof TossEvent &&
-                previousTime.current < prevEvTime &&
-                prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
-            ) {
-                console.log("changed");
-                performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
-            }
+            if (prevEv !== null && previousTime.current < prevEvTime)
+                if (
+                    prevEvTime !== null &&
+                    prevEv instanceof TossEvent &&
+                    previousTime.current < prevEvTime &&
+                    prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
+                ) {
+                    console.log("changed");
+                    performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
+                }
+
+            // TODO : Stop all ball sounds if we jumped too far.
 
             // Make the ball sound if needed.
             if (
-                prevEvTime !== null &&
-                prevEv instanceof CatchEvent &&
+                prevEv !== null &&
+                prevEv.sound !== undefined &&
                 previousTime.current < prevEvTime &&
                 !clock.isPaused()
             ) {
+                const audioBuffer = buffersMap.get(id);
+                if (audioBuffer === undefined) {
+                    console.warn(`Can't play sound `);
+                }
                 performanceAudio.playBallSound(id, buffersMap.get(id)!);
             }
         }

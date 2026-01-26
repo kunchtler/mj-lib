@@ -18,6 +18,7 @@ export type BallMeshProps = {
 } & ThreeElements["mesh"];
 
 // TODO : Add customization options (striped, with middle band, ...)
+// TODO : Properly dispose of geometries and materials.
 
 export function BallMesh({
     radius = DEFAULT_BALL_RADIUS,

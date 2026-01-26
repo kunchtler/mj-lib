@@ -146,7 +146,7 @@ export class PerformanceAudio {
     unpause(): void {
         this._isPaused = false;
         for (const [, { audio }] of this.balls) {
-            audio.pause();
+            audio.play();
         }
     }
 

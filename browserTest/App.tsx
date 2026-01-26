@@ -25,148 +25,18 @@ extend(LineMaterial);
 //TODO : styles ?
 //TODO : clock optional for performance ?
 
-// TODO : Rename "model" to events ???
-// TODO : demand + invalidate.
-// TODO : Store position in JugglerModel
-// TODO : Store position in TableModel
-// TODO : In model we have timeline. We need to have "physicality" in attribute.
-// The addition of both allows to compute into real positions.
-
-type HandDescription = {
-    tossSpot: THREE.Vector3Tuple; // Relative to juggler origin.
-    catchSpot: THREE.Vector3Tuple; // Relative to juggler origin.
-    restSpot: THREE.Vector3Tuple; // Relative to juggler origin.
-};
-
-type BallData = { id: string; color: THREE.ColorRepresentation };
-type JugglerData = {
-    name: string;
-    position: THREE.Vector3Tuple; // Relative to performance origin.
-    rotation?: THREE.Vector3Tuple; // Relative to performance origin.
-    rightHand: HandDescription;
-    leftHand: HandDescription;
-};
-type TableData = {
-    name: string;
-    position: THREE.Vector3Tuple; // Relative to performance origin.
-    rotation?: THREE.Vector3Tuple; // Relative to performance origin.
-    spots: Map<string, THREE.Vector3Tuple>; // Relative to table origin.
-    unknownSpot: THREE.Vector3Tuple; // Relative to table origin.
-};
-
-type performanceDescription = {
-    ballsData: BallData[];
-    model: PerformanceModel;
-    jugglersData: JugglerData[];
-    tablesData: TableData[];
-};
-
-function createHandData(
-    isRight: boolean,
-    juggler?: {
-        height?: number;
-        width?: number;
-        depth?: number;
-        color?: THREE.ColorRepresentation;
-    }
-): HandDescription {
-    // Default values
-    juggler ??= {};
-    juggler.height ??= DEFAULT_JUGGLER_CUBE_HEIGHT;
-    juggler.width ??= DEFAULT_JUGGLER_CUBE_WIDTH;
-    juggler.depth ??= DEFAULT_JUGGLER_CUBE_DEPTH;
-    juggler.color ??= DEFAULT_JUGGLER_CUBE_COLOR;
-
-    const sideSign = isRight ? +1 : -1;
-
-    const restSpot: THREE.Vector3Tuple = [
-        juggler.depth,
-        (juggler.height * 6) / 10,
-        (sideSign * juggler.width * 3) / 4
-    ];
-    const tossSpot: THREE.Vector3Tuple = [
-        restSpot[0],
-        restSpot[1],
-        restSpot[2] - (sideSign * juggler.width) / 2
-    ];
-    const catchSpot: THREE.Vector3Tuple = [
-        restSpot[0],
-        restSpot[1],
-        restSpot[2] + (sideSign * juggler.width) / 2
-    ];
-    return { restSpot, catchSpot, tossSpot };
-}
-
-// function createTableData(tableHeight: number) {
-//     const spots = new Map<string, THREE.Vector3Tuple>();
-
-//     return { spots, unknownSpot: [0, tableHeight, 0] };
-// }
-
 const model = JSONJugglingScoreToModel(pattern);
-
-const description: performanceDescription = {
-    model: JSONJugglingScoreToModel(pattern),
-    ballsData: [
-        { id: "Do?K", color: "red" },
-        { id: "Re?K", color: "orange" },
-        { id: "Mi?K", color: "yellow" }
-    ],
-    jugglersData: [
-        {
-            name: "Kylian",
-            position: [-1, 0, 0],
-            leftHand: createHandData(false),
-            rightHand: createHandData(true)
-        }
-    ],
-    tablesData: [
-        {
-            name: "KylianT",
-            position: [0, 0, 0],
-            rotation: [0, Math.PI, 0],
-            spots: new Map<string, THREE.Vector3Tuple>([
-                ["Do", [0, DEFAULT_TABLE_HEIGHT, 0]],
-                ["Re", [0, DEFAULT_TABLE_HEIGHT, 0]],
-                ["Mi", [0, DEFAULT_TABLE_HEIGHT, 0]]
-            ]),
-            unknownSpot: [0, DEFAULT_TABLE_HEIGHT, 0]
-        }
-    ]
-};
 
 //TODO : Juggler model have position of the juggler, and position of its hand relative to that ?
 
 // Fill in the model's positional info
 // TODO : Have that info better propagated when reworking of info propagates from the inference.
-for (const { name, position, leftHand, rightHand } of description.jugglersData) {
-    const jugglerModel = model.jugglers.get(name)!;
-    const jugglerPosition = new THREE.Vector3(...position);
-    jugglerModel.leftHand.catchSpot = new THREE.Vector3(...leftHand.catchSpot).add(jugglerPosition);
-    jugglerModel.rightHand.catchSpot = new THREE.Vector3(...rightHand.catchSpot).add(
-        jugglerPosition
-    );
-    jugglerModel.leftHand.tossSpot = new THREE.Vector3(...leftHand.tossSpot).add(jugglerPosition);
-    jugglerModel.rightHand.tossSpot = new THREE.Vector3(...rightHand.tossSpot).add(jugglerPosition);
-    jugglerModel.leftHand.restSpot = new THREE.Vector3(...leftHand.restSpot).add(jugglerPosition);
-    jugglerModel.rightHand.restSpot = new THREE.Vector3(...rightHand.restSpot).add(jugglerPosition);
-}
-for (const { name, position, unknownSpot, spots } of description.tablesData) {
-    const tableModel = model.tables.get(name)!;
-    const tablePosition = new THREE.Vector3(...position);
-    for (const [ballSound, ballPosition] of spots) {
-        tableModel.spots.set(ballSound, new THREE.Vector3(...ballPosition).add(tablePosition));
-    }
-    tableModel.unkownSpot = new THREE.Vector3(...unknownSpot).add(tablePosition);
-}
-
-console.log(model.balls.get("Mi?K")!.timeline.stringify());
-
 const clock = new Clock();
 
 export function App() {
     return (
         <>
+            {/* TODO : At some point, use invalidate. */}
             <Canvas frameloop="always" camera={{ position: [3, 2, 0] }}>
                 <CanvasContents />
             </Canvas>
@@ -210,16 +80,13 @@ loader.load("src/assets/notes/E4.mp3", (buffer) => {
     buffersMap.set("Mi?K", buffer);
 });
 
-function changeCoordinateSystem(
-    point: THREE.Vector3,
-    originalObject: THREE.Object3D,
-    targetObject: THREE.Object3D
-): THREE.Vector3 {
-    return targetObject.worldToLocal(originalObject.localToWorld(point.clone()));
-}
-
-const DEFAULT_POSITION: THREE.Vector3Tuple = [0, 0, 0];
-
+// function changeCoordinateSystem(
+//     point: THREE.Vector3,
+//     originalObject: THREE.Object3D,
+//     targetObject: THREE.Object3D
+// ): THREE.Vector3 {
+//     return targetObject.worldToLocal(originalObject.localToWorld(point.clone()));
+// }
 // TODO : Test what is happening when the listener changes.
 // TODO : Have juggler origin in addition to their body mesh.
 function Performance({

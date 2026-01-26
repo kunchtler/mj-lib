@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks-extra/no-direct-set-state-in-use-effect */
 /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 /* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
 import { ReactNode, useEffect, useState } from "react";
@@ -20,7 +19,7 @@ const DEFAULT_BOUNDS = [0, 20];
 type TimeState = "playing" | "paused" | "reachedEnd";
 
 export function TimeControls({ clock }: { clock: Clock }) {
-    // The timeConductor is the single truth source here, so UI callbacks should
+    // The clock is the single truth source here, so UI callbacks should
     // interact with timeConductor instead of setting their own state.
 
     const [status, setStatus] = useState<TimeState>(clock.isPaused() ? "paused" : "playing");
