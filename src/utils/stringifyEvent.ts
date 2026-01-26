@@ -1,7 +1,7 @@
 // Printing functions for events.
 import Fraction from "fraction.js";
 import { ParserTossMode } from "../parser/MusicalSiteswap";
-import { Hands, LocType, SymbolicEvent, TossMode } from "../inference/Scheduler";
+import { Hands, LocType, SymbolicTimeline, TossMode } from "../inference/Scheduler";
 import { ScoreConverter } from "../inference/ScoreConverter";
 import { BallID, JugglerState } from "../inference/Scheduler";
 import { TossEvent } from "../model";
@@ -99,7 +99,7 @@ type TossType = {
 //     return text;
 // }
 
-export function stringifyEvent(ev: SymbolicEvent<Fraction>, writeTitle = true): string {
+export function stringifyEvent(ev: SymbolicTimeline<Fraction>, writeTitle = true): string {
     let text = writeTitle ? `Event Beat ${ev.beat}:\n` : "";
     text += `  Tempo: ${stringifyFraction(ev.tempo)}\n`;
     if (ev.setupHands !== undefined) {
@@ -357,7 +357,7 @@ export function stringifyState(
 export function stringifyStateEvent(
     beat: Fraction,
     state?: JugglerState,
-    ev?: SymbolicEvent<Fraction>
+    ev?: SymbolicTimeline<Fraction>
 ): string {
     let text = `On beat ${beat.toString()}:\n`;
     if (state === undefined && ev === undefined) {

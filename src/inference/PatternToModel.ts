@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { JugglerState, Scheduler, SchedulerJuggler, SymbolicEvent } from "./Scheduler";
+import { JugglerState, Scheduler, SchedulerJuggler, SymbolicTimeline } from "./Scheduler";
 import { getFirstInsertedKey } from "../utils/Operations";
 import { ScoreConverter, MusicTempo, MusicBeat } from "./ScoreConverter";
 import { PerformanceModel } from "../model/PerformanceModel";

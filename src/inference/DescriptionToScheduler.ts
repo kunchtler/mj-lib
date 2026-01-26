@@ -2,7 +2,7 @@
 import { BallDescription, JugglingPhrase, JugglingScore } from "./PerformanceDescription";
 import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
 import Fraction from "fraction.js";
-import { JugglerState, Scheduler, SchedulerJuggler, SymbolicEvent } from "./Scheduler";
+import { JugglerState, Scheduler, SchedulerJuggler, SymbolicTimeline } from "./Scheduler";
 import { getFirstInsertedKey } from "../utils/Operations";
 import { ScoreConverter, MusicTempo, MusicBeat, TimeSignature } from "./ScoreConverter";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -55,6 +55,8 @@ export function JugglingScoreToModel(
 
     // 2. Create the global beat.
     const globalBeat = new GlobalBeatConverter(score.globalBeat);
+
+    // 3.
 
     // 3. Create the scheduler's parameters.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();

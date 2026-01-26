@@ -8,6 +8,8 @@ import {
 import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
 import { HandsInstructions, TakeBall } from "./PerformanceDescription";
 import { XOR, getLastInsertedKey, getFirstInsertedKey } from "../utils/Operations";
+import { LocalBeatConverter } from "./LocalBeatConverter";
+import { ActiveHandComputer } from "./ActiveHandComputer";
 
 /*
 The time between two tosses / catches of the juggler is called its unit
@@ -70,34 +72,42 @@ export type SchedulerJuggler = {
     // name: string;
     initialState: JugglerState;
     tableSpots?: Map<SpotName, BallTemplateName>;
+    errorLogger: FracTimedErrorLogger;
     events: SchedulerEvent[];
 };
 
-export type BallID = string;
-export type BallName = string;
-
 export type SchedulerEvent = {
-    beat: Fraction;
-    tosses: PartialToss[];
-    tempo: Fraction;
-    defaultHand: "R" | "L";
+    globalBeat: Fraction;
+    tosses: SchedulerToss[];
     setupHands?: HandsInstructions;
 };
 
-export type PartialToss = {
-    from: { hand: "R" | "L" };
+export type SchedulerToss = {
+    from: { handIdx: number };
     to: {
         juggler: string;
-        hand?: "R" | "L" | "x";
+        handIdx: number;
+        globalBeat: Fraction;
     };
     ball?: { id: BallID } | { name: BallName };
     mode: TossMode;
 };
 
+export type BallID = string;
+export type BallName = string;
+
 /**
  * Siteswap height information about the toss if it exists, or the beat it should be caught at.
  */
-export type TossMode = { type: "Beat"; beat: Fraction } | { type: "Height"; height: number };
+export type TossMode =
+    | {
+          type: "Beat";
+          beat: Fraction; // This is ABSOLUTE GLOBAL BEAT
+      }
+    | {
+          type: "Height";
+          height: number; // This it RELATIVE LOCAL BEAT (with added bonus of hand alternation on toss).
+      };
 
 /**
  * A 2-element array  [leftHand, rightHand].
@@ -148,6 +158,7 @@ type JugglerCache = {
 ///////////////////// Symbolic Events Layer types //////////////////////
 
 //TODO : Uniformiser avec LocType ?
+//TODO : Make it so what the scheduler takes in and spits out is the same object but fully completed ??
 export type SymbolicToss<BeatT> = {
     from: { juggler: string; handIdx: number; ballIdx: number; beat: BeatT };
     to: { juggler: string; handIdx: number; ballIdx: number; beat: BeatT };
@@ -158,7 +169,7 @@ export type SymbolicToss<BeatT> = {
 export type PartialHeldState = [(string | undefined)[], (string | undefined)[]];
 
 export type SymbolicEvent<BeatType> = {
-    beat: BeatType;
+    globalBeat: BeatType;
     state: JugglerState;
     unitTime: BeatType;
     // defaultHand: "R" | "L";
@@ -217,12 +228,16 @@ export class Scheduler {
         this.jugglers = new Map();
 
         // Setup one JugglerManager per juggler.
-        for (const [jugglerName, { events, initialState, tableSpots }] of jugglers) {
+        for (const [
+            jugglerName,
+            { events, initialState, tableSpots, localBeatConverter }
+        ] of jugglers) {
             // Create a manager for each juggler.
             const manager = new JugglerManager(
                 jugglerName,
                 events,
                 ballIDMap,
+                localBeatConverter,
                 new FracTimedErrorLogger(),
                 tableSpots
             );
@@ -290,7 +305,7 @@ export class Scheduler {
                     throw Error("Shouldn't happen");
                 }
                 const tempo = manager.events[0].tempo;
-                const firstEventBeat = manager.events[0].beat;
+                const firstEventBeat = manager.events[0].globalBeat;
                 const nbSteps = firstEventBeat.sub(firstGlobalBeat).div(tempo).floor().add(1);
                 const firstJugglerBeat = firstEventBeat.sub(tempo.mul(nbSteps));
                 schedulerResults.get(jugglerName)?.timeline.push({
@@ -579,6 +594,7 @@ class JugglerManager {
     errorLogger: TimedErrorLogger<Fraction>;
     ballIDMap: Map<BallID, BallTemplateName>;
     tableSpots: Map<SpotName, BallTemplateName>;
+    localBeatConverter: LocalBeatConverter;
 
     //TODO : Document that currentbeat : state does not exist yet. But info on tempo and usehand might ! Misleading name ?
     //TODO : When only siteswap height 3 was given, should we deafult to:
@@ -591,9 +607,11 @@ class JugglerManager {
         name: string,
         events: SchedulerEvent[],
         ballIDMap: Map<string, string>,
+        localBeatConverter: LocalBeatConverter,
         errorLogger: TimedErrorLogger<Fraction>,
         tableSpots?: Map<SpotName, BallTemplateName>
     ) {
+        this.localBeatConverter = localBeatConverter;
         this.errorLogger = errorLogger;
         this.jugglerName = name;
         if (events.length === 0) {
@@ -602,7 +620,12 @@ class JugglerManager {
                 message: `Empty event list for juggler ${this.jugglerName}. Creates a default one.`
             });
             this.events = [
-                { beat: new Fraction(0), tempo: new Fraction(1), defaultHand: "R", tosses: [] }
+                {
+                    globalBeat: new Fraction(0),
+                    tempo: new Fraction(1),
+                    defaultHand: "R",
+                    tosses: []
+                }
             ];
         } else {
             this.events = events;
@@ -642,7 +665,7 @@ class JugglerManager {
     }
 
     private nextEventBeat(eventIdx: number): Fraction | null {
-        return eventIdx < this.events.length ? this.events[eventIdx].beat : null;
+        return eventIdx < this.events.length ? this.events[eventIdx].globalBeat : null;
     }
 
     private nextCatchBeat(state: JugglerState): Fraction | null {
@@ -666,8 +689,9 @@ class JugglerManager {
     }
 
     getTempo(prevEventIdx: number): Fraction {
+        let beat: Fraction;
         if (prevEventIdx >= this.events.length) {
-            return this.events[this.events.length - 1].tempo;
+            beat = this.events[this.events.length - 1].globalBeat;
         } else if (prevEventIdx < 0) {
             return this.events[0].tempo;
         } else {
@@ -715,12 +739,12 @@ class JugglerManager {
      * @returns The catch time of the toss.
      */
     getCatchBeatFromSiteswapHeight(height: number, tossEventIdx: number): Fraction {
-        let catchBeat = this.events[tossEventIdx].beat;
+        let catchBeat = this.events[tossEventIdx].globalBeat;
         let eventIdx = tossEventIdx;
         for (let i = 0; i < height; i++) {
             // First, figure out if we encounter a new event (for which there may be a new tempo).
             if (eventIdx + 1 < this.events.length) {
-                const nextEvBeat = this.events[eventIdx + 1].beat;
+                const nextEvBeat = this.events[eventIdx + 1].globalBeat;
                 if (catchBeat.gte(nextEvBeat)) {
                     // Note : catchBeat is strictly greater than nextEvBeat when
                     // events do not follow each other nicely in rhythm.
@@ -936,7 +960,7 @@ class JugglerManager {
         state: JugglerState,
         eventIdx: number
     ): { state: JugglerState; tosses?: HalfCompletedTosses } {
-        const { beat, tosses } = this.events[eventIdx];
+        const { globalBeat: beat, tosses } = this.events[eventIdx];
 
         // We remove the tossed balls from state.held as they are treated.
         state = cloneState(state);
@@ -946,7 +970,7 @@ class JugglerManager {
         const handleBall = (
             ballID: string,
             ballIdx: number,
-            toss: PartialToss,
+            toss: SchedulerToss,
             state: JugglerState
         ): { state: JugglerState; halfCompletedToss: HalfCompletedTossInfo } => {
             state = cloneState(state);
@@ -957,13 +981,6 @@ class JugglerManager {
             let toHand: "L" | "R" | "x" | undefined = toss.to.hand;
 
             if (toss.mode.type === "Height") {
-                // In case the toss is defined via siteswap (and not via catching beat time), we need to compute :
-                // - the exact catching beat.
-                // - the exact catching hand IF the ball is tossed to self (as it is determined in that case at toss rather than at catch time).
-                // Indeed, say we toss to self a 3, but change in siteswap the hands midway.
-                // We expect the 3 to land in the other hand FROM the toss.
-                // But if we toss a 3 to another juggler, then it should fall in the hand
-                // that will be ready at that time (unless we specified L, R or x)
                 toBeat = this.getCatchBeatFromSiteswapHeight(toss.mode.height, eventIdx);
                 //TODO : Remove from here, we can compute that when receiving ?
                 if (toss.to.juggler === this.jugglerName) {
@@ -999,7 +1016,7 @@ class JugglerManager {
             return { state, halfCompletedToss };
         };
 
-        const unhandledTosses = new Set<PartialToss>(tosses);
+        const unhandledTosses = new Set<SchedulerToss>(tosses);
 
         // First, we handle each tossed ball that has a designated ID.
         // (we wouldn't want to toss it by mistake when considering a previous ball)
@@ -1640,7 +1657,7 @@ class JugglerManager {
         };
         tempo: Fraction;
     } {
-        const { setupHands, tempo, beat } = this.events[eventIdx];
+        const { setupHands, tempo, globalBeat: beat } = this.events[eventIdx];
 
         // 1. prepare the hands by placing the necessary balls on the table, and
         // setting up the hands with the contents they must have.
@@ -1696,19 +1713,20 @@ class JugglerManager {
             // We need to determine the catching hand if it is "x" or undefined.
             // To do so, we need the information of the event just before the catch happens.
             let prevEventIdx: number;
-            if (toss.to.beat.lte(this.events[0].beat)) {
+            if (toss.to.beat.lte(this.events[0].globalBeat)) {
                 // The toss if caught before the first event.
                 // Use the first event information about tempo / defautHand.
                 prevEventIdx = 0;
-            } else if (toss.to.beat.gte(this.events[this.events.length - 1].beat)) {
+            } else if (toss.to.beat.gte(this.events[this.events.length - 1].globalBeat)) {
                 // The toss is caught after the last event.
                 prevEventIdx = this.events.length - 1;
             } else {
                 // Thanks to previous checks, findIndex won't return -1.
-                prevEventIdx = this.events.findIndex(({ beat }) => beat.gt(toss.to.beat)) - 1;
+                prevEventIdx =
+                    this.events.findIndex(({ globalBeat: beat }) => beat.gt(toss.to.beat)) - 1;
             }
 
-            const { beat: evBeat, tempo, defaultHand } = this.events[prevEventIdx];
+            const { globalBeat: evBeat, tempo, defaultHand } = this.events[prevEventIdx];
             const nbSteps = evBeat.sub(toss.to.beat).div(tempo);
 
             // Compute catching hand.

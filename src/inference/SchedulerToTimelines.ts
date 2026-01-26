@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { Hands, JugglerState, PartialHeldState, SymbolicEvent } from "./Scheduler";
+import { Hands, JugglerState, PartialHeldState, SymbolicTimeline } from "./Scheduler";
 import { ScoreConverter, MusicTempo } from "./ScoreConverter";
 import { OrderedSet } from "js-sdsl";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -24,7 +24,7 @@ export type PostSchedulerParams = {
         {
             table?: string;
             initialHeldState: [string[], string[]];
-            events: SymbolicEvent<Fraction>[];
+            events: SymbolicTimeline<Fraction>[];
         }
     >;
     musicConverter: ScoreConverter;
@@ -135,7 +135,7 @@ export function createModelTimelines({
     scoreConverter
 }: {
     ballIDs: Map<string, BallSound | undefined>;
-    jugglers: Map<string, { timeline: SymbolicEvent<Fraction>[]; tableID?: string }>;
+    jugglers: Map<string, { timeline: SymbolicTimeline<Fraction>[]; tableID?: string }>;
     scoreConverter: ScoreConverter;
 }): PerformanceTimelines {
     // TODO WHEN COMING BACK :
