@@ -2,9 +2,9 @@ import { VECTOR3_STRUCTURE } from "../utils/constants";
 import { CubicHermiteSpline } from "../utils/spline/Spline";
 import { HandEvent, HandTimeline } from "./timelines/HandTimeline";
 import { PerformanceModelRef } from "./PerformanceChild";
-import { averageVector3 } from "../utils/three/Vector";
+import { averageEulerAngle, averageVector3 } from "../utils/three/Vector";
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
-import { SpotModel } from "./SpotModel";
+import { SpotModel, SpotModelParams } from "./SpotModel";
 import {
     ObjectPropertiesOptional as ObjectLocalTransform,
     ThreeDummyObject,
@@ -37,24 +37,24 @@ export type HandModelParams = {
     /**
      * The place where the hand catches balls.
      */
-    catchSpot: SpotDescription;
+    catchSpot: SpotModelParams;
     /**
      * The place where the hand tosses balls.
      */
-    tossSpot: SpotDescription;
+    tossSpot: SpotModelParams;
     /**
      * The place where the hand rests when it has nothing to do
      * for its foreseable future.
      */
-    restSpot?: SpotDescription;
-    swapSpot?: SpotDescription;
-    holdSpots?: Map<number, SpotDescription>;
+    restSpot?: SpotModelParams;
+    swapSpot?: SpotModelParams;
+    holdSpots?: Map<number, SpotModelParams>;
     defaultHoldSpotNumber?: number;
     /**
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline?: HandTimeline;
-    scale?: [number, number, number];
+    scale?: Vector3;
     jugglerName: string;
 };
 
@@ -115,16 +115,21 @@ export class HandModel {
         jugglerName
     }: HandModelParams) {
         this.timeline = timeline ?? new HandTimeline();
-        this.catchSpot = new SpotModel({ position: catchSpot });
-        this.tossSpot = new SpotModel({ position: tossSpot });
-        restSpot ??= {position: }
-        this.restSpot = new SpotModel({
-            position: restSpot
-        });
-        swapSpot ??= restSpot.clone();
-        this.swapSpot = new SpotModel({
-            position: swapSpot
-        });
+        this.catchSpot = new SpotModel(catchSpot);
+        this.tossSpot = new SpotModel(tossSpot);
+        restSpot ??= {
+            position: averageVector3([
+                this.catchSpot.position.getLocal(),
+                this.tossSpot.position.getLocal()
+            ]),
+            rotation: averageEulerAngle([
+                this.catchSpot.rotation.getLocal(),
+                this.catchSpot.rotation.getLocal()
+            ])
+        };
+        this.restSpot = new SpotModel(restSpot);
+        swapSpot ??= { position: restSpot.position?.clone(), rotation: restSpot.rotation?.clone() };
+        this.swapSpot = new SpotModel(swapSpot);
         this.jugglerName = jugglerName;
         // this.swapSpot = new SpotModel({
         //     position:
@@ -141,8 +146,8 @@ export class HandModel {
             // We ignore the eventual value given to defaultHoldSpot.
             this.defaultHoldSpotNumber = 0;
         } else {
-            for (const [spotNumber, spotPos] of holdSpots) {
-                holdSpotsEntries.push([spotNumber, new SpotModel({ position: spotPos })]);
+            for (const [spotNumber, spotParams] of holdSpots) {
+                holdSpotsEntries.push([spotNumber, new SpotModel(spotParams)]);
             }
             // If no default spot number is given, take the last one.
             this.defaultHoldSpotNumber = defaultHoldSpotNumber ?? getLastInsertedKey(holdSpots)!;

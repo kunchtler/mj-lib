@@ -1,14 +1,7 @@
 // import { score11 as score } from "../examples/patternTest";
-import {
-    BallDescription,
-    JugglingPhrase,
-    JugglingScore,
-    MiseEnScene
-} from "./PerformanceDescription";
-import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
+import { JugglingScore, MiseEnScene } from "./PerformanceDescription";
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
-import { getFirstInsertedKey } from "../utils/Operations";
 import { PerformanceModel } from "../model/PerformanceModel";
 import {
     closestWordsTo,
@@ -20,8 +13,10 @@ import {
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
-import { BallSound, HandModel, JugglerModel } from "../model";
+import { BallModel, BallSound, HandModel, JugglerModel } from "../model";
 import { Euler, Vector3 } from "three";
+import { toVector } from "../utils/three/Vector";
+import { SpotModelParams, toSpotParam } from "../model/SpotModel";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -139,12 +134,15 @@ export function JugglingScoreToModel(
     // console.log("Fini\n\n");
 
     // 6. Create the timelines.
-    const ballIDToSound = new Map<
-        string,
-        { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined
-    >();
+    //TODO : More conviniently create this from a fusion of score and mise en scene.
+    //TODO : Also check for errors.
+    const ballIDsMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
+    const ballMapMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
+    for (const ball of miseEnScene.ballTemplates) {
+        ballMapMiseEnScene.set(ball.name, ball);
+    }
     for (const [ballID, ballName] of ballIDs) {
-        ballIDToSound.set(ballID, ballTemplates.get(ballName)!);
+        ballIDsMiseEnScene.set(ballID, ballMapMiseEnScene.get(ballName)!);
     }
     const timelineJugglersParam: CreateModelTimelinesParams["jugglers"] = new Map();
     for (const [jugglerName, { events }] of schedulerOutput) {
@@ -154,7 +152,7 @@ export function JugglingScoreToModel(
     }
     const timelines = createModelTimelines({
         jugglers: timelineJugglersParam,
-        ballIDToSound,
+        ballIDToSound: ballIDsMiseEnScene,
         globalBeatConverter
     });
 
@@ -164,27 +162,63 @@ export function JugglingScoreToModel(
     for (const ball of miseEnScene.ballTemplates) {
         ballTemplatesMiseEnScene.set(ball.name, ball);
     }
-    for (const juggler of miseEnScene.jugglers) {
-        const leftHand = new HandModel({
-            jugglerName: juggler.name,
-            catchSpot: new Vector3(...juggler.leftHand.catchSpot.position),
-            tossSpot: new Vector3(...juggler.leftHand.tossSpot.position),
-            defaultHoldSpotNumber,
-            holdSpots: holdSpotsPos,
-            restSpot: restPos,
-            scale,
-            swapSpot: swapPos,
-            timeline
-        });
 
+    for (const [ballID, timeline] of timelines.balls) {
+        const ballModel = new BallModel({
+            id: ballID,
+            radius: ballIDsMiseEnScene.get(ballID)!.radius,
+            timeline: timeline
+        });
+        performanceModel.balls.set(ballID, ballModel);
+    }
+    //TODO : HANDLE SCALE LATER (need to adjust spot position correctly ?)
+    //TODO : + need to have in ThreeSyncedProp scale as a Vector3 and not a single number.
+    for (const juggler of miseEnScene.jugglers) {
+        const handModels: HandModel[] = [];
+        const handsDescription = [juggler.leftHand, juggler.rightHand];
+        for (let handIdx = 0; handIdx < handsDescription.length; handIdx++) {
+            const handDescription = handsDescription[handIdx];
+            const spotsMap = new Map<number, SpotModelParams>();
+            for (let spotIdx = 0; spotIdx < handDescription.heldSpots.length; spotIdx++) {
+                const { position, rotation } = handDescription.heldSpots[spotIdx];
+                spotsMap.set(spotIdx, toSpotParam(position, rotation));
+            }
+            const handModel = new HandModel({
+                jugglerName: juggler.name,
+                catchSpot: toSpotParam(
+                    handDescription.catchSpot.position,
+                    handDescription.catchSpot.rotation
+                ),
+                tossSpot: toSpotParam(
+                    handDescription.tossSpot.position,
+                    handDescription.tossSpot.rotation
+                ),
+                restSpot: toSpotParam(
+                    handDescription.restSpot.position,
+                    handDescription.restSpot.rotation
+                ),
+                swapSpot: toSpotParam(
+                    handDescription.swapSpot.position,
+                    handDescription.swapSpot.rotation
+                ),
+                defaultHoldSpotNumber: spotsMap.size - 1,
+                holdSpots: spotsMap,
+                scale: toVector(juggler.scale),
+                timeline: timelines.jugglers.get(juggler.name)![handIdx]
+            });
+            handModels.push(handModel);
+        }
         const jugglerModel = new JugglerModel({
             name: juggler.name,
             position: new Vector3(...juggler.position),
             rotation: new Euler(...juggler.rotation),
             scale: new Vector3(...juggler.scale),
-            hands: []
+            hands: handModels as [HandModel, HandModel]
         });
+        performanceModel.jugglers.set(juggler.name, jugglerModel);
     }
+
+    return performanceModel;
     // 8. All done.
 
     //TODO : Rename to parser only ? Name of method a bit convoluted.

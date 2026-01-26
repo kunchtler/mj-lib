@@ -1,6 +1,6 @@
 import { Euler, Object3D, Vector3 } from "three";
 import { MapCallbacks } from "./MapCallbacks";
-import { SpotModel } from "./SpotModel";
+import { SpotModel, SpotModelParams } from "./SpotModel";
 import { ThreeSyncedPosition, ThreeSyncedRotation, ThreeSyncedScale } from "./ThreeSyncedProperty";
 
 // TODO : Which properties are readonly ?
@@ -30,12 +30,12 @@ export type TableModelParams = {
     /**
      * Spots on the table, relative to the table's position.
      */
-    spotsPos?: Map<string, Vector3>;
+    spotsParams?: Map<string, SpotModelParams>;
     /**
      * Where a ball goes if it has no designated spot ?
      * It is both used as a failback and as a default way to layout balls.
      */
-    unkownSpotPos?: Vector3;
+    unkownSpot?: SpotModelParams;
 };
 
 // TODO : SpotsPos is relative, have pos but also table rotation (to correctly orient the balls) this or up vector for table or up vector per spot (is table has weird shape ???)
@@ -78,7 +78,7 @@ export class TableModel {
 
     readonly _object = new Object3D();
 
-    constructor({ id, position, rotation, scale, spotsPos, unkownSpotPos }: TableModelParams) {
+    constructor({ id, position, rotation, scale, spotsParams, unkownSpot }: TableModelParams) {
         this.id = id;
 
         // Sync the table's postional properties with the object.
@@ -97,12 +97,12 @@ export class TableModel {
             },
             errorMessageGet: (spotName: string) => `Unknown spot name ${spotName}`
         });
-        if (spotsPos !== undefined) {
-            for (const [spotName, spotPos] of spotsPos) {
-                this.spots.set(spotName, new SpotModel({ position: spotPos }));
+        if (spotsParams !== undefined) {
+            for (const [spotName, spotPos] of spotsParams) {
+                this.spots.set(spotName, new SpotModel(spotPos));
             }
         }
-        this.unkownSpot = new SpotModel({ position: unkownSpotPos });
+        this.unkownSpot = new SpotModel(unkownSpot ?? { position: new Vector3(0, 0, 0) });
     }
 
     get object(): Object3D {
