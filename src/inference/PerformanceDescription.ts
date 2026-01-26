@@ -19,9 +19,13 @@ import { DeepFuse, DeepRequired } from "../utils";
 // - Separate pattern from JugglerDescription ? Instead have name of the juggler in the pattern and lex/parse it ?
 // - Map sound name -> AudioBuffer ?
 
+// TODO : Have the sounds in the ball IDs instead of in the template.
+// TODO : Same for ball template names ? No, I don't think so. We may have template names not present.
 export type JugglingScore = {
     ballTemplates: {
         name: string;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;
@@ -53,8 +57,6 @@ export type MiseEnScene = {
         name: string;
         color: ColorDescription;
         radius: number;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;
@@ -210,17 +212,19 @@ export type GlobalBeatStartTime<FractionType = FractionDescription> =
     | { type: "byTime"; seconds: FractionType };
 
 export type GlobalBeatDescription<FractionType = FractionDescription> = {
-    beatReference: {
-        beat: FractionType;
-        timeInSeconds: FractionType;
-        barBeat: { bar: number; beat: FractionType };
-    };
+    beatReference: GlobalBeatReference<FractionType>;
     changes: {
         startTime: GlobalBeatStartTime<FractionType>;
         beatsInBar?: FractionType;
         beatsPerMinute?: FractionType;
         // tempoMultiplier?: FractionType;
     }[];
+};
+
+export type GlobalBeatReference<FractionType = FractionDescription> = {
+    beat: FractionType;
+    timeInSeconds: FractionType;
+    barBeat: { bar: number; beat: FractionType };
 };
 
 // export type JugglingScore2 = {

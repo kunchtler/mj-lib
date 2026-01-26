@@ -1,10 +1,5 @@
 import { DeepRequired, ElementOf } from "../utils";
-import {
-    HandDescription,
-    MiseEnSceneHelper,
-    MiseEnScene,
-    SpotDescription
-} from "./PerformanceDescription";
+import { HandDescription, MiseEnScene, SpotDescription } from "./PerformanceDescription";
 import {
     DEFAULT_BALL_COLOR,
     DEFAULT_BALL_RADIUS,
@@ -21,8 +16,10 @@ import {
     DEFAULT_JUGGLER_HAND_WIDTH,
     DEFAULT_JUGGLER_HAND_DEPTH,
     DEFAULT_JUGGLER_HAND_VISIBILITY,
-    DEFAULT_TABLE_VISIBILITY
+    DEFAULT_TABLE_VISIBILITY,
+    DEFAULT_HAND_COLOR
 } from "../constants/miseEnSceneDefaultValues";
+import { MiseEnSceneHelper } from "./PerformanceDescriptionHelpers";
 
 export function createHandSpots(params: {
     catchTossDistance: number;
@@ -38,7 +35,7 @@ export function createHandSpots(params: {
 } {
     // the toss spot is always closer to the juggler than the catch spot.
     // isRightHand allows to order them correctly.
-    const sideSign = params.isRightHand ? +1 : -1;
+    const sideSign = params.isRightHand ? 1 : -1;
     const tossSpotPos: [number, number, number] = [
         params.jugglingPlaneDistanceFromJuggler,
         params.spotsHeight,
@@ -140,6 +137,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
             width: newWidth,
             depth: newDepth,
             visible: newVisibility,
+            color: DEFAULT_HAND_COLOR,
             heldSpots: newHeldSpots
         };
         const newLeftHand: DeepRequired<HandDescription> = {
@@ -148,6 +146,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
             width: newWidth,
             depth: newDepth,
             visible: newVisibility,
+            color: DEFAULT_HAND_COLOR,
             heldSpots: newHeldSpots
         };
 

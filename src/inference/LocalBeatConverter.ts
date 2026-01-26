@@ -6,10 +6,8 @@ import {
     LocalBeatStartTime,
     LocalTempo
 } from "./PerformanceDescription";
-import { GlobalBeatConverter, keepOneOn } from "./GlobalBeatConverter";
+import { GlobalBeatConverter, keepOneOn, MusicBeat } from "./GlobalBeatConverter";
 import { ElementOf } from "../utils";
-
-export type MusicBeat = { bar: number; beat: Fraction };
 
 type LocalBeatDescription = {
     beatReference: ElementOf<JugglingScore["jugglers"]>["beatReference"];
@@ -372,18 +370,18 @@ export class LocalBeatConverter {
         return this.globalBeatConverter.convertAbsoluteBeatToSeconds(globalBeat);
     }
 
-    getTempoAtLocalBeat(localBeat: Fraction): Fraction {
-        if (this.tempoChanges.length === 0) {
-            this._throwTempoError();
-        }
+    // getTempoAtLocalBeat(localBeat: Fraction): Fraction {
+    //     if (this.tempoChanges.length === 0) {
+    //         this._throwTempoError();
+    //     }
 
-        let idx = this.tempoChanges.findIndex(({ localBeat: lastLocalBeat }) =>
-            lastLocalBeat.gt(localBeat)
-        );
-        idx = idx === 0 ? 0 : idx === -1 ? this.tempoChanges.length - 1 : idx - 1;
+    //     let idx = this.tempoChanges.findIndex(({ localBeat: lastLocalBeat }) =>
+    //         lastLocalBeat.gt(localBeat)
+    //     );
+    //     idx = idx === 0 ? 0 : idx === -1 ? this.tempoChanges.length - 1 : idx - 1;
 
-        return this.tempoChanges[idx].localBeatsPerGlobalBeat;
-    }
+    //     return this.tempoChanges[idx].localBeatsPerGlobalBeat;
+    // }
 
     // Compute the tempo, local and global beats of an array having only one of the two.
     // We start by feeding the array som starting information.

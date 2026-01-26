@@ -1,20 +1,12 @@
 import Fraction from "fraction.js";
-import { parseMusicalSiteswap, ParserToss, ParserTossMode } from "../parser/MusicalSiteswap";
+import { parseMusicalSiteswap, ParserToss } from "../parser/MusicalSiteswap";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
-import { FracTimedErrorLogger, TimedErrorLogger } from "../utils/TimedErrorLogger";
+import { FracTimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
-import {
-    HandsInstructions,
-    JugglerBeatReference,
-    JugglingPhrase,
-    JugglingScore
-} from "./PerformanceDescription";
+import { HandsInstructions, JugglerBeatReference, JugglingPhrase } from "./PerformanceDescription";
 import { TossMode, SchedulerEvent, SchedulerToss } from "./Scheduler";
-import { XOR } from "../utils/Operations";
-import { produce, current } from "immer";
-import { handleIfNameUnknown } from "./PatternToModel";
+import { handleIfStringUnknown } from "./DescriptionToModel";
 import { LocalBeatConverter } from "./LocalBeatConverter";
-import { ElementOf } from "../utils";
 import { ActiveHandComputer } from "./ActiveHandComputer";
 
 //TODO : Changer ParserTossMode to be :
@@ -44,7 +36,7 @@ type FlatJugglingPhrase = Omit<JugglingPhrase, "pattern"> & {
 //TODO : Check the comments.
 
 //TODO : Reorganize flow ???
-export function rename(
+export function formatJugglerPhrasesForScheduler(
     jugglers: Map<
         string,
         {
@@ -202,7 +194,7 @@ export function rename(
 
                 // 12. Format to.juggler and check they exist.
                 const newToJuggler = toss.to.juggler ?? jugglerName;
-                handleIfNameUnknown({
+                handleIfStringUnknown({
                     name: newToJuggler,
                     namesList: jugglers,
                     errorMessage: `Unkown juggler name "${toss.to.juggler}"`,
@@ -271,7 +263,7 @@ export function rename(
                 } else if (ballIDs.has(toss.ball.nameOrID)) {
                     newBall = { id: toss.ball.nameOrID };
                 } else {
-                    handleIfNameUnknown({
+                    handleIfStringUnknown({
                         name: toss.ball.nameOrID,
                         namesList: new Set(...ballTemplateNames, ...ballIDs),
                         errorMessage: `Juggler ${jugglerName} : Unknown ball "${toss.ball.nameOrID}" is neither a valid ball name nor ID.`,

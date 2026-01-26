@@ -2,23 +2,20 @@
 import { BallDescription, JugglingPhrase, JugglingScore } from "./PerformanceDescription";
 import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
 import Fraction from "fraction.js";
-import { JugglerState, Scheduler, SchedulerJuggler, SymbolicTimeline } from "./Scheduler";
+import { JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
 import { getFirstInsertedKey } from "../utils/Operations";
-import { ScoreConverter, MusicTempo, MusicBeat, TimeSignature } from "./ScoreConverter";
 import { PerformanceModel } from "../model/PerformanceModel";
 import {
     closestWordsTo,
     ElementOf,
     FracTimedErrorLogger,
     setIntersection,
-    stringifyBall,
-    stringifyEvent,
-    stringifyState,
-    stringifyStateEvent,
     TimedErrorLogger
 } from "../utils";
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
+import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
+import { BallSound } from "../model";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -42,8 +39,16 @@ export function JugglingScoreToModel(
     score: JugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
+    const jugglersMap = new Map<
+        string,
+        ElementOf<JugglingScore["jugglers"]> & { errorLogger: FracTimedErrorLogger }
+    >();
+    for (const juggler of score.jugglers) {
+        jugglersMap.set(juggler.name, { ...juggler, errorLogger });
+    }
+
     // 1. Check if all names / user defined IDs are unique and gather them.
-    const { ballTemplateNames, ballIDs, jugglerNames, tableIDs } = checkScoreNamesAndIDs(
+    const { ballTemplates, ballIDs, jugglerNames, tableIDs } = checkScoreNamesAndIDs(
         score,
         errorLogger
     );
@@ -54,42 +59,38 @@ export function JugglingScoreToModel(
     }
 
     // 2. Create the global beat.
-    const globalBeat = new GlobalBeatConverter(score.globalBeat);
-
-    // 3.
+    const globalBeatConverter = new GlobalBeatConverter(score.globalBeat);
 
     // 3. Create the scheduler's parameters.
+    // TODO : Change name.
     const schedulerJugglers = new Map<string, SchedulerJuggler>();
-    for (const juggler of score.jugglers) {
-        // 3.a. Create the intial juggler states.
-        const jugglerState = createInitialJugglerStates(juggler, errorLogger);
+    const formattedRes = formatJugglerPhrasesForScheduler(
+        jugglersMap,
+        new Set(ballTemplates.keys()),
+        ballIDs,
+        globalBeatConverter
+    );
+    for (const juggler of jugglersMap.values()) {
+        const { events, localBeatConverter } = formattedRes.get(juggler.name)!;
+        const initialState = createInitialJugglerStates(juggler, errorLogger);
 
-        // 3.b. Parse each juggling phrase and format them.
-        const events =
-            formatJugglerPhrasesForScheduler(
-                juggler.jugglingPhrases ?? [],
-                juggler.name,
-                ballTemplateNames,
-                ballUserIDs,
-                jugglerNames,
-                errorLogger,
-                score.scoreConverter
-            ) ?? [];
-        const initialState = jugglerStates.get(juggler.name)!;
-        const tableSpotsFull = score.tableTemplates?.find(
-            (elem) => elem.name === juggler.table?.template
-        )?.spots;
-        const tableSpots = new Map<string, string>();
-        for (const spot of tableSpotsFull ?? []) {
-            if (spot.acceptedBallName === undefined) {
-                throw Error("Not yet supported");
+        let tableSpots: Map<string, string> | undefined = undefined;
+        if (juggler.table !== undefined) {
+            tableSpots = new Map<string, string>();
+            for (const spot of juggler.table.spots) {
+                tableSpots.set(spot.name, spot.acceptedBallName);
             }
-            tableSpots.set(spot.name, spot.acceptedBallName);
         }
-        schedulerJugglers.set(juggler.name, { events, initialState, tableSpots });
+        schedulerJugglers.set(juggler.name, {
+            events,
+            initialState,
+            tableSpots,
+            errorLogger: juggler.errorLogger,
+            localBeatConverter
+        });
     }
 
-    // 5. Use the scheduler to infer the complete timeline of events.
+    // 4. Use the scheduler to infer the complete timeline of events.
     const schedulerOutput = new Scheduler({
         ballIDMap: ballIDs,
         jugglers: schedulerJugglers
@@ -99,7 +100,7 @@ export function JugglingScoreToModel(
     console.log("Global Errors :\n");
     errorLogger.printErrorsInConsole();
     console.log("\n");
-    for (const [jugglerName, { errorLogger, events, states }] of schedulerOutput) {
+    for (const [jugglerName, { errorLogger, events: timeline }] of schedulerOutput) {
         console.log(`Juggler ${jugglerName} :\n`);
         // const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
         // for (const { beat, ...state } of states) {
@@ -117,20 +118,38 @@ export function JugglingScoreToModel(
         //     console.log(stringifyStateEvent(beat, state, event));
         //     console.log("\n");
         // }
-        console.log("States:\n");
-        states.forEach((elem) => {
-            console.log(stringifyState(elem, elem.beat) + "\n");
-        });
-        console.log("Events:\n");
-        events.forEach((elem) => {
-            console.log(stringifyEvent(elem) + "\n");
-        });
-        console.log("Errors:\n");
-        errorLogger.printErrorsInConsole();
+        // console.log("States:\n");
+        // states.forEach((elem) => {
+        //     console.log(stringifyState(elem, elem.beat) + "\n");
+        // });
+        // console.log("Events:\n");
+        // events.forEach((elem) => {
+        //     console.log(stringifyEvent(elem) + "\n");
+        // });
+        // console.log("Errors:\n");
+        // errorLogger.printErrorsInConsole();
     }
-    console.log("Fini\n\n");
+    // console.log("Fini\n\n");
 
     // 6. Create the timelines.
+    const ballIDToSound = new Map<
+        string,
+        { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined
+    >();
+    for (const [ballID, ballName] of ballIDs) {
+        ballIDToSound.set(ballID, ballTemplates.get(ballName)!);
+    }
+    const timelineJugglersParam: CreateModelTimelinesParams["jugglers"] = new Map();
+    for (const [jugglerName, { events }] of schedulerOutput) {
+        const { localBeatConverter } = schedulerJugglers.get(jugglerName)!;
+        const { table } = jugglersMap.get(jugglerName)!;
+        timelineJugglersParam.set(jugglerName, { events, localBeatConverter, tableID: table?.id });
+    }
+    const timelines = createModelTimelines({
+        jugglers: timelineJugglersParam,
+        ballIDToSound,
+        globalBeatConverter
+    });
 
     // 7. Combine timelines with positions to create models.
 
@@ -220,7 +239,7 @@ export function checkScoreNamesAndIDs(
     score: JugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): {
-    ballTemplateNames: Set<string>;
+    ballTemplates: Map<string, { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined>;
     ballIDs: Map<string, string>;
     tableIDs: Map<string, string>; // Maps table to juggler.
     jugglerNames: Set<string>;
@@ -235,15 +254,18 @@ export function checkScoreNamesAndIDs(
     // - check that no ball name is also an ID and conversely.
 
     // Check if ball template names are unique.
-    const ballTemplateNames = new Set<string>();
-    for (const { name: templateName } of score.ballTemplates) {
+    const ballTemplates = new Map<
+        string,
+        { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined
+    >();
+    for (const { name: templateName, soundOnCatch, soundOnToss } of score.ballTemplates) {
         handleIfStringDuplicate({
             name: templateName,
-            namesList: ballTemplateNames,
+            namesList: ballTemplates,
             errorMessage: `Duplicate ball template name: "${templateName}".`,
             errorLogger: errorLogger
         });
-        ballTemplateNames.add(templateName);
+        ballTemplates.set(templateName, { soundOnCatch, soundOnToss });
     }
 
     // Juggler checks.
@@ -268,7 +290,7 @@ export function checkScoreNamesAndIDs(
                 // Held balls refer to existing template names.
                 handleIfStringUnknown({
                     name: ball.name,
-                    namesList: ballTemplateNames,
+                    namesList: ballTemplates,
                     errorMessage: `Unknown ball template name "${ball.name}" held by juggler "${jugglerName}".`,
                     errorLogger: errorLogger
                 });
@@ -309,7 +331,7 @@ export function checkScoreNamesAndIDs(
                 // Spot accepted balls refer to existing ball template.
                 handleIfStringUnknown({
                     name: acceptedBallName,
-                    namesList: ballTemplateNames,
+                    namesList: ballTemplates,
                     errorMessage: `Unknown ball template name "${acceptedBallName}" for spot "${spotName}" on table of juggler ${jugglerName} (id: ${table.id}).`,
                     errorLogger: errorLogger
                 });
@@ -319,7 +341,7 @@ export function checkScoreNamesAndIDs(
                 // Balls on table refer to existing template name.
                 handleIfStringUnknown({
                     name: ball.name,
-                    namesList: ballTemplateNames,
+                    namesList: ballTemplates,
                     errorMessage: `Unknown ball template name "${ball.name}" on the table of juggler "${jugglerName}".`,
                     errorLogger: errorLogger
                 });
@@ -352,7 +374,7 @@ export function checkScoreNamesAndIDs(
                         // All ball templates refer to existing template names.
                         handleIfStringUnknown({
                             name: ball.name,
-                            namesList: ballTemplateNames,
+                            namesList: ballTemplates,
                             errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
                             errorLogger: errorLogger
                         });
@@ -389,7 +411,7 @@ export function checkScoreNamesAndIDs(
                     // All ball templates refer to existing template names.
                     handleIfStringUnknown({
                         name: ball.name,
-                        namesList: ballTemplateNames,
+                        namesList: ballTemplates,
                         errorMessage: `TODO`,
                         errorLogger: errorLogger
                     });
@@ -423,7 +445,7 @@ export function checkScoreNamesAndIDs(
     }
 
     // Check that no ball name is also an ID and conversely.
-    const intersection = setIntersection(ballTemplateNames, new Set(ballIDs.keys()));
+    const intersection = setIntersection(new Set(ballTemplates.keys()), new Set(ballIDs.keys()));
     if (intersection.size > 0) {
         for (const name of intersection) {
             errorLogger.logError({
@@ -433,7 +455,7 @@ export function checkScoreNamesAndIDs(
         }
     }
 
-    return { ballTemplateNames, ballIDs, jugglerNames, tableIDs };
+    return { ballTemplates: ballTemplates, ballIDs, jugglerNames, tableIDs };
 }
 
 export function handleIfStringUnknown({

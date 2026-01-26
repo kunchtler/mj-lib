@@ -5,7 +5,7 @@ import { TimedErrorLogger, ElementOf, stringifyBall } from "../utils";
 import { getFirstInsertedKey } from "../utils/Operations";
 import { JugglingScore, BallDescription } from "./PerformanceDescription";
 import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
-import { handleIfStringUnknown } from "./DescriptionToScheduler";
+import { handleIfStringUnknown } from "./DescriptionToModel";
 
 // This is dirty and makes me wanna cry a bit.
 // Edit : it's a tidbit better now that it is finished.
@@ -27,13 +27,17 @@ export function createJugglingScoreFromHelper(
     let newGlobalBeat: JugglingScore["globalBeat"];
     if (score.globalBeat === undefined) {
         newGlobalBeat = {
-            beatOffsetInSeconds: 0,
+            beatReference: { beat: 0, barBeat: { bar: 0, beat: 0 }, timeInSeconds: 0 },
             // Count the seconds.
             changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 60 }]
         };
     } else if (score.globalBeat.type === "constant") {
         newGlobalBeat = {
-            beatOffsetInSeconds: score.globalBeat.firstBeatOffsetInSeconds ?? 0,
+            beatReference: {
+                beat: score.globalBeat.beatReference?.beat ?? 0,
+                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beat: 0 },
+                timeInSeconds: score.globalBeat.beatReference?.timeInSeconds ?? 0
+            },
             // Count the beats.
             changes: [
                 {
@@ -45,7 +49,11 @@ export function createJugglingScoreFromHelper(
         };
     } else {
         newGlobalBeat = {
-            beatOffsetInSeconds: score.globalBeat.beatOffsetInSeconds ?? 0,
+            beatReference: {
+                beat: score.globalBeat.beatReference?.beat ?? 0,
+                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beat: 0 },
+                timeInSeconds: score.globalBeat.beatReference?.timeInSeconds ?? 0
+            },
             changes: score.globalBeat.changes ?? []
         };
     }

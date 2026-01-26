@@ -5,6 +5,7 @@ import {
     ColorDescription,
     FractionDescription,
     GlobalBeatDescription,
+    GlobalBeatReference,
     JugglerBeatReference,
     JugglingPhrase,
     SpotDescription
@@ -14,6 +15,8 @@ export type JugglingScoreHelper = {
     version: "0.1";
     ballTemplates: {
         name: string;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;
@@ -39,7 +42,7 @@ export type JugglingScoreHelper = {
     globalBeat?:
         | {
               type: "constant";
-              firstBeatOffsetInSeconds?: FractionDescription;
+              beatReference?: GlobalBeatReference;
               beatsInBar?: FractionDescription;
               beatsPerMinute?: FractionDescription;
           }
@@ -52,8 +55,6 @@ export type MiseEnSceneHelper = {
         name: string;
         color?: ColorDescription;
         radius?: number;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;

@@ -28,7 +28,7 @@ import {
     TossVanillaContext
 } from "./output/MJSiteswapParser";
 import Fraction from "fraction.js";
-import { MusicBeat } from "../inference/ScoreConverter";
+import { MusicBeat } from "../inference";
 
 //TODO : useRightHand ambiguity : is it in the throws or not ?
 // When L/R is specified -> gets fed in the event.
@@ -187,9 +187,9 @@ export class MJSVisitor extends MJSiteswapParserVisitor<any> {
     };
 
     visitAbsMeasureAndBeat = (ctx: AbsMeasureAndBeatContext): MusicBeat => {
-        const measure = this.visit(ctx.measure()) as number;
+        const bar = this.visit(ctx.measure()) as number;
         const beat = this.visit(ctx.beat()) as Fraction;
-        return [measure, beat];
+        return { bar, beat };
     };
 
     visitAbsBeatOnly = (ctx: AbsBeatOnlyContext): Fraction => {
@@ -218,7 +218,7 @@ export class MJSVisitor extends MJSiteswapParserVisitor<any> {
             tossMode = { type: "Height", height: this.visit(ctx.height()) as number };
         } else if (ctx.abs_catch() !== null) {
             const absTime = this.visit(ctx.abs_catch()) as Fraction | MusicBeat;
-            if (Array.isArray(absTime)) {
+            if ("bar" in absTime) {
                 tossMode = { type: "AbsMeasureBeat", measureBeat: absTime };
             } else {
                 tossMode = { type: "AbsBeat", beat: absTime };

@@ -117,7 +117,7 @@ export type Hands<ContentType> = [ContentType[], ContentType[]];
 export type SchedulerRes = Map<
     string,
     {
-        timeline: SymbolicEvent<Fraction>[];
+        events: SymbolicEvent<Fraction>[];
         errorLogger: FracTimedErrorLogger;
     }
 >;
@@ -263,7 +263,7 @@ export class Scheduler {
         const schedulerResults: SchedulerRes = new Map();
         for (const [jugglerName, { manager }] of this.jugglers) {
             schedulerResults.set(jugglerName, {
-                timeline: [],
+                events: [],
                 errorLogger: manager.errorLogger
             });
         }
@@ -304,16 +304,14 @@ export class Scheduler {
             if (manager.events.length === 0) {
                 throw Error("Shouldn't happen");
             }
-            const tempoAtStart = localBeatConverter.getTempoAtLocalBeat(startingGlobalBeat.sub(1));
-            const firstJugglerEventBeat = manager.events[0].globalBeat;
-            const nbSteps = firstJugglerEventBeat
-                .sub(startingGlobalBeat)
-                .div(tempoAtStart)
-                .floor()
-                .add(1);
-            const firstJugglerBeat = firstJugglerEventBeat.sub(tempoAtStart.mul(nbSteps));
-            schedulerResults.get(jugglerName)?.timeline.push({
-                globalBeat: firstJugglerBeat,
+            const jugglerStartingLocalBeat = localBeatConverter
+                .convertGlobalBeatToLocalBeat(manager.events[0].globalBeat)
+                .sub(1)
+                .floor();
+            const jugglerStartingGlobalBeat =
+                localBeatConverter.convertLocalBeatToGlobalBeat(jugglerStartingLocalBeat);
+            schedulerResults.get(jugglerName)?.events.push({
+                globalBeat: jugglerStartingGlobalBeat,
                 state: cache.state
             });
         }
@@ -382,7 +380,7 @@ export class Scheduler {
                     );
 
                     // Complete toss and catch info.
-                    const timeline = schedulerResults.get(jugglerName)!.timeline;
+                    const timeline = schedulerResults.get(jugglerName)!.events;
                     const catchingJugglerEvent = timeline[timeline.length - 1];
                     for (const { ballID, spotIdx: ballIdx, handIdx } of res.catches.info) {
                         const { toss, resultsIdx } = airborneBalls.get(ballID)!;
@@ -402,8 +400,9 @@ export class Scheduler {
                         };
 
                         // Add the toss to the tossing juggler.
-                        const tossingJugglerEvent = schedulerResults.get(toss.from.juggler)!
-                            .timeline[resultsIdx];
+                        const tossingJugglerEvent = schedulerResults.get(toss.from.juggler)!.events[
+                            resultsIdx
+                        ];
                         if (tossingJugglerEvent.tosses === undefined) {
                             throw Error("Shouldn't happen.");
                         }
@@ -470,7 +469,7 @@ export class Scheduler {
                                 );
 
                                 // Remember the ball's info to complete it when it will be caught.
-                                const resultsIdx = schedulerResults.get(toss.from.juggler)!.timeline
+                                const resultsIdx = schedulerResults.get(toss.from.juggler)!.events
                                     .length;
                                 airborneBalls.set(toss.ballID, { toss, resultsIdx });
                             }
@@ -495,7 +494,7 @@ export class Scheduler {
             prevEventIdx: number,
             info?: Partial<Omit<SymbolicEvent<Fraction>, "state" | "beat" | "unitTime">>
         ) {
-            const jugglerTimeline = schedulerResults.get(jugglerName)!.timeline;
+            const jugglerTimeline = schedulerResults.get(jugglerName)!.events;
             if (
                 jugglerTimeline.length === 0 ||
                 jugglerTimeline[jugglerTimeline.length - 1].globalBeat !== beat

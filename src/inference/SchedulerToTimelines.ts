@@ -1,14 +1,9 @@
 import Fraction from "fraction.js";
-import { Hands, JugglerState, PartialHeldState, SymbolicTimeline } from "./Scheduler";
-import { ScoreConverter, MusicTempo } from "./ScoreConverter";
-import { OrderedSet } from "js-sdsl";
-import { PerformanceModel } from "../model/PerformanceModel";
-import { JugglerModel } from "../model/JugglerModel";
-import { HandModel } from "../model/HandModel";
-import { BallModel } from "../model/BallModel";
-import { TableModel } from "../model/TableModel";
+import { SymbolicEvent } from "./Scheduler";
 import { HandTimeline } from "../model/timelines/HandTimeline";
 import { BallEvent, BallSound, BallTimeline } from "../model/timelines/BallTimeline";
+import { GlobalBeatConverter } from "./GlobalBeatConverter";
+import { LocalBeatConverter } from "./LocalBeatConverter";
 
 //TODO : Rename this file to SchedulerToTimeline.
 //TODO : Rework MusicScoreConverter...
@@ -17,27 +12,6 @@ import { BallEvent, BallSound, BallTimeline } from "../model/timelines/BallTimel
 export const MAX_FLY_TIME_SS_HEIGHT_1 = 0.1;
 export const MAX_UFO_TIME = 0.5;
 export const MAX_BALL_SLIDE_IN_HAND_TIME = 0.3;
-
-export type PostSchedulerParams = {
-    jugglers: Map<
-        string,
-        {
-            table?: string;
-            initialHeldState: [string[], string[]];
-            events: SymbolicTimeline<Fraction>[];
-        }
-    >;
-    musicConverter: ScoreConverter;
-    ballIDSounds: Map<
-        string,
-        {
-            sound?: string;
-            name: string;
-            id: string;
-            juggler: string;
-        }
-    >;
-};
 
 export type PerformanceTimelines = {
     jugglers: Map<string, [HandTimeline, HandTimeline]>;
@@ -129,15 +103,24 @@ function addEventsToCreateHeldState(
     }
 }
 
+export type CreateModelTimelinesParams = {
+    ballIDToSound: Map<string, { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined>;
+    jugglers: Map<
+        string,
+        {
+            events: SymbolicEvent<Fraction>[];
+            tableID?: string;
+            localBeatConverter: LocalBeatConverter;
+        }
+    >;
+    globalBeatConverter: GlobalBeatConverter;
+};
+
 export function createModelTimelines({
     jugglers,
-    ballIDs,
-    scoreConverter
-}: {
-    ballIDs: Map<string, BallSound | undefined>;
-    jugglers: Map<string, { timeline: SymbolicTimeline<Fraction>[]; tableID?: string }>;
-    scoreConverter: ScoreConverter;
-}): PerformanceTimelines {
+    ballIDToSound,
+    globalBeatConverter
+}: CreateModelTimelinesParams): PerformanceTimelines {
     // TODO WHEN COMING BACK :
     // 1. Setup hands. Look what ball are swapped, remain in hand, go on table, are taken from table.
     // Compute the number of moves, and make them happen between the last time there ws an action.
@@ -156,19 +139,19 @@ export function createModelTimelines({
     for (const jugglerName of jugglers.keys()) {
         jugglerTimelines.set(jugglerName, [new HandTimeline(), new HandTimeline()]);
     }
-    for (const ballID of ballIDs.keys()) {
+    for (const ballID of ballIDToSound.keys()) {
         ballTimelines.set(ballID, new BallTimeline());
     }
 
     // Handle the initial state ball's location.
     // The initial state is the state of the first event.
-    for (const [jugglerName, { timeline: schedulerTimeline, tableID }] of jugglers) {
-        if (schedulerTimeline.length === 0) {
+    for (const [jugglerName, { events, tableID }] of jugglers) {
+        if (events.length === 0) {
             continue;
         }
-        const initialState = schedulerTimeline[0].state;
-        const initialTime = scoreConverter
-            .convertBeatToRealTime(schedulerTimeline[0].beat)
+        const initialState = events[0].state;
+        const initialTime = globalBeatConverter
+            .convertAbsoluteBeatToSeconds(events[0].globalBeat)
             .valueOf();
         for (let handIdx = 0; handIdx < 2; handIdx++) {
             for (let ballIdx = 0; ballIdx < initialState.held[handIdx].length; ballIdx++) {
@@ -201,11 +184,13 @@ export function createModelTimelines({
     }
 
     // Populate each timeline.
-    for (const [jugglerName, { timeline: schedulerTimeline, tableID }] of jugglers) {
-        for (let evIdx = 0; evIdx < schedulerTimeline.length; evIdx++) {
-            const ev = schedulerTimeline[evIdx];
+    for (const [jugglerName, { events, tableID, localBeatConverter }] of jugglers) {
+        for (let evIdx = 0; evIdx < events.length; evIdx++) {
+            const ev = events[evIdx];
             console.log(evIdx);
-            const evTime = scoreConverter.convertBeatToRealTime(ev.beat).valueOf();
+            const evTime = globalBeatConverter
+                .convertAbsoluteBeatToSeconds(ev.globalBeat)
+                .valueOf();
             const jugglerTimeline = jugglerTimelines.get(jugglerName)!;
 
             const prevTimelineTime = Math.max(
@@ -461,10 +446,10 @@ export function createModelTimelines({
                             type: "held",
                             jugglerName: cat.to.juggler,
                             rightHand: cat.to.handIdx === 1,
-                            spotIdx: convertSpot(cat.to.ballIdx, ev.catches.preHandState.length)
+                            spotIdx: convertSpot(cat.to.spotIdx, ev.catches.preHandState.length)
                         },
                         transition: { type: "keep" },
-                        sound: ballIDs.get(cat.ballID)
+                        sound: ballIDToSound.get(cat.ballID)?.soundOnCatch
                     });
                     jugglerTimelines.get(cat.to.juggler)![cat.to.handIdx].addEvent(evTime, {
                         type: "catch",
@@ -478,12 +463,18 @@ export function createModelTimelines({
                 // Take the first toss to determine by how much.
                 let dwellTimeBeforeToss!: number;
                 for (const toss of ev.tosses.info) {
-                    const unitTime = ev.unitTime.valueOf();
+                    const localBeat = localBeatConverter.convertGlobalBeatToLocalBeat(
+                        ev.globalBeat
+                    );
+                    const unitTimeSeconds = localBeatConverter
+                        .convertLocalBeatToSeconds(localBeat.add(1))
+                        .sub(localBeatConverter.convertLocalBeatToSeconds(localBeat))
+                        .valueOf();
                     if (toss.mode.type === "Height" && toss.mode.height === 1) {
-                        const flyTime = Math.min(unitTime * 0.3, MAX_FLY_TIME_SS_HEIGHT_1);
-                        dwellTimeBeforeToss = unitTime - flyTime;
+                        const flyTime = Math.min(unitTimeSeconds * 0.3, MAX_FLY_TIME_SS_HEIGHT_1);
+                        dwellTimeBeforeToss = unitTimeSeconds - flyTime;
                     } else {
-                        dwellTimeBeforeToss = ev.unitTime.valueOf() * 0.7;
+                        dwellTimeBeforeToss = unitTimeSeconds * 0.7;
                     }
                     break;
                 }
@@ -513,13 +504,14 @@ export function createModelTimelines({
                             type: "held",
                             jugglerName: toss.from.juggler,
                             rightHand: toss.from.handIdx === 1,
-                            spotIdx: convertSpot(toss.to.ballIdx, ev.tosses.preHandState.length)
+                            spotIdx: convertSpot(toss.to.spotIdx, ev.tosses.preHandState.length)
                         },
                         transition: {
                             type: "airborne",
                             siteswapHeight:
                                 toss.mode.type === "Height" ? toss.mode.height : undefined
-                        }
+                        },
+                        sound: ballIDToSound.get(toss.ballID)?.soundOnCatch
                     });
                     jugglerTimelines.get(toss.from.juggler)![toss.from.handIdx].addEvent(evTime, {
                         type: "toss",
