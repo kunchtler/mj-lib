@@ -188,6 +188,7 @@ export function rename(
                 let newFromHandIdx: number;
                 if (toss.from.hand === undefined) {
                     const res = activeHandComputer.defaultHandAtLocalBeat(ev.localBeat);
+                    // Check if ball is tossed in rhythm.
                     if (res.offbeat) {
                         errorLogger.logError({
                             severity: "Error",
@@ -198,6 +199,16 @@ export function rename(
                 } else {
                     newFromHandIdx = toss.from.hand === "L" ? 0 : 1;
                 }
+
+                // 12. Format to.juggler and check they exist.
+                const newToJuggler = toss.to.juggler ?? jugglerName;
+                handleIfNameUnknown({
+                    name: newToJuggler,
+                    namesList: jugglers,
+                    errorMessage: `Unkown juggler name "${toss.to.juggler}"`,
+                    errorLogger: errorLogger,
+                    time: ev.globalBeat
+                });
 
                 // 9. Format to.globalBeat.
                 let newToGlobalBeat: Fraction;
@@ -270,16 +281,6 @@ export function rename(
                     continue;
                 }
 
-                // 12. Format to.juggler and check they exist.
-                const newToJuggler = toss.to.juggler ?? jugglerName;
-                handleIfNameUnknown({
-                    name: newToJuggler,
-                    namesList: jugglers,
-                    errorMessage: `Unkown juggler name "${toss.to.juggler}"`,
-                    errorLogger: errorLogger,
-                    time: ev.globalBeat
-                });
-
                 // 13. Format to.handIdx.
                 let newToHandIdx: number;
                 if (toss.to.hand === "L") {
@@ -301,6 +302,7 @@ export function rename(
                     // toss.to.hand is either "x" or undefined.
                     // We need to compute in which hand the ball should fall.
                     const res = activeHandComputer.defaultHandAtLocalBeat(ev.localBeat);
+                    // Check if the ball falls out of rhythm.
                     if (res.offbeat) {
                         errorLogger.logError({
                             severity: "Error",
