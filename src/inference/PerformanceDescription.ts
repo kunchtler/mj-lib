@@ -52,11 +52,14 @@ export type JugglingScore = {
 };
 
 // TODO : Check if scale is working correctly.
+// TODO : Move sounds back to mise en scene (they shouldn't be in score).
 export type MiseEnScene = {
     ballTemplates: {
         name: string;
         color: ColorDescription;
         radius: number;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;

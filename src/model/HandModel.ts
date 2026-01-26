@@ -16,6 +16,7 @@ import { changePositionCoordinateSystem, localToWorldVector, worldToLocalPositio
 import { JugglerModel } from "./JugglerModel";
 import { ballVelocityAtToss } from "./BallPhysics";
 import { BallEvent } from "./timelines/BallTimeline";
+import { SpotDescription } from "../inference";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -36,24 +37,24 @@ export type HandModelParams = {
     /**
      * The place where the hand catches balls.
      */
-    catchPos: Vector3;
+    catchSpot: SpotDescription;
     /**
      * The place where the hand tosses balls.
      */
-    tossPos: Vector3;
+    tossSpot: SpotDescription;
     /**
      * The place where the hand rests when it has nothing to do
      * for its foreseable future.
      */
-    restPos?: Vector3;
-    swapPos?: Vector3;
-    holdSpotsPos?: Map<number, Vector3>;
+    restSpot?: SpotDescription;
+    swapSpot?: SpotDescription;
+    holdSpots?: Map<number, SpotDescription>;
     defaultHoldSpotNumber?: number;
     /**
      * The timeline of events (throws, catches, ...) of the hand.
      */
     timeline?: HandTimeline;
-    scale?: Vector3;
+    scale?: [number, number, number];
     jugglerName: string;
 };
 
@@ -103,29 +104,26 @@ export class HandModel {
     readonly _dummyObject = new ThreeDummyObject(new Object3D());
 
     constructor({
-        catchPos,
-        restPos,
-        tossPos,
-        swapPos,
-        holdSpotsPos,
+        catchSpot,
+        restSpot ,
+        tossSpot ,
+        swapSpot ,
+        holdSpots ,
         defaultHoldSpotNumber,
         timeline,
         scale,
         jugglerName
     }: HandModelParams) {
         this.timeline = timeline ?? new HandTimeline();
-        this.catchSpot = new SpotModel({ position: catchPos });
-        this.tossSpot = new SpotModel({ position: tossPos });
-        restPos ??= averageVector3([
-            this.catchSpot.position.getLocal(),
-            this.tossSpot.position.getLocal()
-        ]);
+        this.catchSpot = new SpotModel({ position: catchSpot });
+        this.tossSpot = new SpotModel({ position: tossSpot });
+        restSpot ??= {position: }
         this.restSpot = new SpotModel({
-            position: restPos
+            position: restSpot
         });
-        swapPos ??= restPos.clone();
+        swapSpot ??= restSpot.clone();
         this.swapSpot = new SpotModel({
-            position: swapPos
+            position: swapSpot
         });
         this.jugglerName = jugglerName;
         // this.swapSpot = new SpotModel({
@@ -137,17 +135,17 @@ export class HandModel {
         // });
 
         const holdSpotsEntries: [number, SpotModel][] = [];
-        if (holdSpotsPos === undefined || holdSpotsPos.size === 0) {
+        if (holdSpots === undefined || holdSpots.size === 0) {
             // We create a single spot in hand, right at the hand's position.
             holdSpotsEntries.push([0, new SpotModel({ position: new Vector3(0, 0, 0) })]);
             // We ignore the eventual value given to defaultHoldSpot.
             this.defaultHoldSpotNumber = 0;
         } else {
-            for (const [spotNumber, spotPos] of holdSpotsPos) {
+            for (const [spotNumber, spotPos] of holdSpots) {
                 holdSpotsEntries.push([spotNumber, new SpotModel({ position: spotPos })]);
             }
             // If no default spot number is given, take the last one.
-            this.defaultHoldSpotNumber = defaultHoldSpotNumber ?? getLastInsertedKey(holdSpotsPos)!;
+            this.defaultHoldSpotNumber = defaultHoldSpotNumber ?? getLastInsertedKey(holdSpots)!;
         }
         const obj = this._dummyObject.get();
         this.holdSpots = new MapCallbacks({

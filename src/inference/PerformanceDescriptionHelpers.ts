@@ -55,6 +55,8 @@ export type MiseEnSceneHelper = {
         name: string;
         color?: ColorDescription;
         radius?: number;
+        soundOnCatch?: BallSound;
+        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;

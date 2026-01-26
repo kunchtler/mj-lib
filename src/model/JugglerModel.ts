@@ -13,10 +13,6 @@ export type JugglerModelParams = {
      */
     hands: [HandModel, HandModel];
     /**
-     * The place where the hand is when the other hand takes a ball from it.
-     */
-    swapPos: Vector3;
-    /**
      * The juggler's name.
      */
     name: string;

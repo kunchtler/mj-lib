@@ -174,7 +174,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
                 rotation: tableTemplate.unknownSpot?.rotation ?? [0, 0, 0]
             };
             newTable = {
-                id: "// TODO",
+                id: `${juggler.name}?Table`,
                 height: newTableHeight,
                 width: tableTemplate.width ?? DEFAULT_TABLE_WIDTH,
                 depth: tableTemplate.depth ?? DEFAULT_TABLE_DEPTH,

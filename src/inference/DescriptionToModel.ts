@@ -1,5 +1,10 @@
 // import { score11 as score } from "../examples/patternTest";
-import { BallDescription, JugglingPhrase, JugglingScore } from "./PerformanceDescription";
+import {
+    BallDescription,
+    JugglingPhrase,
+    JugglingScore,
+    MiseEnScene
+} from "./PerformanceDescription";
 import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
@@ -15,7 +20,8 @@ import {
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
-import { BallSound } from "../model";
+import { BallSound, HandModel, JugglerModel } from "../model";
+import { Euler, Vector3 } from "three";
 
 //TODO : Silent Throws ?
 //TODO : Have final repr in simulator using only splines ?
@@ -37,6 +43,7 @@ import { BallSound } from "../model";
 
 export function JugglingScoreToModel(
     score: JugglingScore,
+    miseEnScene: MiseEnScene,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
     const jugglersMap = new Map<
@@ -152,7 +159,32 @@ export function JugglingScoreToModel(
     });
 
     // 7. Combine timelines with positions to create models.
+    const performanceModel = new PerformanceModel();
+    const ballTemplatesMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
+    for (const ball of miseEnScene.ballTemplates) {
+        ballTemplatesMiseEnScene.set(ball.name, ball);
+    }
+    for (const juggler of miseEnScene.jugglers) {
+        const leftHand = new HandModel({
+            jugglerName: juggler.name,
+            catchSpot: new Vector3(...juggler.leftHand.catchSpot.position),
+            tossSpot: new Vector3(...juggler.leftHand.tossSpot.position),
+            defaultHoldSpotNumber,
+            holdSpots: holdSpotsPos,
+            restSpot: restPos,
+            scale,
+            swapSpot: swapPos,
+            timeline
+        });
 
+        const jugglerModel = new JugglerModel({
+            name: juggler.name,
+            position: new Vector3(...juggler.position),
+            rotation: new Euler(...juggler.rotation),
+            scale: new Vector3(...juggler.scale),
+            hands: []
+        });
+    }
     // 8. All done.
 
     //TODO : Rename to parser only ? Name of method a bit convoluted.

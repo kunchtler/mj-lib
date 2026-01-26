@@ -3,8 +3,8 @@ import { ThreeSyncedPosition, ThreeSyncedRotation } from "./ThreeSyncedProperty"
 import { localToWorldVector } from "../utils";
 
 export type SpotModelParams = {
-    position?: Vector3;
-    rotation?: Euler;
+    position?: [number, number, number];
+    rotation?: [number, number, number];
 };
 
 export class SpotModel {
@@ -17,8 +17,10 @@ export class SpotModel {
     readonly _object = new Object3D();
 
     constructor({ position, rotation }: SpotModelParams) {
-        this.position = new ThreeSyncedPosition(this._object, position);
-        this.rotation = new ThreeSyncedRotation(this._object, rotation);
+        position ??= [0, 0, 0];
+        rotation ??= [0, 0, 0];
+        this.position = new ThreeSyncedPosition(this._object, new Vector3(...position));
+        this.rotation = new ThreeSyncedRotation(this._object, new Euler(...rotation));
     }
 
     // TODO : Document distance is global.
