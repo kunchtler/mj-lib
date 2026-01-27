@@ -1,3 +1,6 @@
+/* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
+// Reason of the above suppression : it is based on the name "addEventListener";
+// For which our clock api has a bit of a different way of working.
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PerformanceAudio } from "../audio";
@@ -5,6 +8,8 @@ import { PerformanceModel } from "../model";
 import { Clock } from "../utils";
 import { useFrame } from "@react-three/fiber";
 
+// TODO : Test moveing whole performnce around with an engloping object (and chaging scale and rotation).
+// TODO : Test scale for everything that has scale in fact.
 
 export function Performance({
     listener,
@@ -23,7 +28,10 @@ export function Performance({
     // Mesh / Object3D References.
     const ballsRef = useRef(new Map<string, { mesh?: THREE.Mesh }>());
     const jugglersRef = useRef(
-        new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
+        new Map<
+            string,
+            { leftHandMesh?: THREE.Mesh; rightHandMesh?: THREE.Mesh; bodyMesh: THREE.Mesh }
+        >()
     );
     const performanceRef = useRef<THREE.Object3D>(null!);
 
@@ -33,27 +41,41 @@ export function Performance({
     // Bind some of the audio to the clock.
     useEffect(() => {
         // Adds event listeners, and store their removal method in an array.
-        const removePlayListener = clock.addEventListener("play", () => {
+        const onPlay = () => {
             setStatus("playing");
-        });
-        const removePauseListener = clock.addEventListener("pause", () => {
+        };
+        const onPause = () => {
             setStatus("paused");
-        });
-        const removeEndListener = clock.addEventListener("reachedEnd", () => {
+        };
+        const onReachedEnd = () => {
             setStatus("reachedEnd");
-        });
+        };
+        clock.addEventListener("play", onPlay);
+        clock.addEventListener("pause", onPause);
+        clock.addEventListener("reachedEnd", onReachedEnd);
 
         // Return a function to remove all event listeners.
         return () => {
-            removePlayListener();
-            removePauseListener();
-            removeEndListener();
+            clock.removeEventListener("play", onPlay);
+            clock.removeEventListener("pause", onPause);
+            clock.removeEventListener("reachedEnd", onReachedEnd);
         };
     }, [clock]);
 
     useEffect(() => {
         performanceAudio.setPlaybackRate(1);
     });
+
+    // TODO : Audio system.
+    // - May need adding "manualUpdate" back to clock.
+    // - Play with sounds to see if we ask them to play while pause,
+    // - they won't play, and then play again when pressing play once more.
+    // useFrame(() => {
+    //     const time = clock.getTime();
+    //     for (const [i] of ballsRef.current) {
+
+    //     }
+    // })
 
     useFrame(() => {
         const time = clock.getTime();
@@ -65,58 +87,62 @@ export function Performance({
             }
 
             // Change the ball juggler's channel if need be.
-            const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
+            // const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
 
-            // Check if a ball has changed jugglers to change its gain.
-            if (prevEv !== null && previousTime.current < prevEvTime)
-                if (
-                    prevEvTime !== null &&
-                    prevEv instanceof TossEvent &&
-                    previousTime.current < prevEvTime &&
-                    prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
-                ) {
-                    console.log("changed");
-                    performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
-                }
+            // // Check if a ball has changed jugglers to change its gain.
+            // if (prevEv !== null && previousTime.current < prevEvTime)
+            //     if (
+            //         prevEvTime !== null &&
+            //         prevEv instanceof TossEvent &&
+            //         previousTime.current < prevEvTime &&
+            //         prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
+            //     ) {
+            //         console.log("changed");
+            //         performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
+            //     }
 
-            // TODO : Stop all ball sounds if we jumped too far.
+            // // TODO : Stop all ball sounds if we jumped too far.
 
-            // Make the ball sound if needed.
-            if (
-                prevEv !== null &&
-                prevEv.sound !== undefined &&
-                previousTime.current < prevEvTime &&
-                !clock.isPaused()
-            ) {
-                const audioBuffer = buffersMap.get(id);
-                if (audioBuffer === undefined) {
-                    console.warn(`Can't play sound `);
-                }
-                performanceAudio.playBallSound(id, buffersMap.get(id)!);
-            }
+            // // Make the ball sound if needed.
+            // if (
+            //     prevEv !== null &&
+            //     prevEv.sound !== undefined &&
+            //     previousTime.current < prevEvTime &&
+            //     !clock.isPaused()
+            // ) {
+            //     const audioBuffer = buffersMap.get(id);
+            //     if (audioBuffer === undefined) {
+            //         console.warn(`Can't play sound `);
+            //     }
+            //     performanceAudio.playBallSound(id, buffersMap.get(id)!);
+            // }
         }
 
         previousTime.current = time;
 
-        for (const { name: jugglerName } of description.jugglersData) {
-            const { body, leftHand, rightHand } = jugglersRef.current.get(jugglerName)!;
-            const jugglerModel = model.jugglers.get(jugglerName)!;
-            // Update the hands' positions.
-            rightHand?.position.copy(
-                changeCoordinateSystem(
-                    jugglerModel.rightHand.position(time),
-                    performanceRef.current,
-                    body
-                )
-            );
-            leftHand?.position.copy(
-                changeCoordinateSystem(
-                    jugglerModel.leftHand.position(time),
-                    performanceRef.current,
-                    body
-                )
-            );
-        }
+        // for (const { name: jugglerName } of description.jugglersData) {
+        //     const {
+        //         bodyMesh: body,
+        //         leftHandMesh: leftHand,
+        //         rightHandMesh: rightHand
+        //     } = jugglersRef.current.get(jugglerName)!;
+        //     const jugglerModel = model.jugglers.get(jugglerName)!;
+        //     // Update the hands' positions.
+        //     rightHand?.position.copy(
+        //         changeCoordinateSystem(
+        //             jugglerModel.rightHand.position(time),
+        //             performanceRef.current,
+        //             body
+        //         )
+        //     );
+        //     leftHand?.position.copy(
+        //         changeCoordinateSystem(
+        //             jugglerModel.leftHand.position(time),
+        //             performanceRef.current,
+        //             body
+        //         )
+        //     );
+        // }
     });
 
     return (

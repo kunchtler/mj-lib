@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 // TODO : Find a way to remove those warnings.
+// See : https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
 import { ReactNode, useEffect, useState } from "react";
 import { Clock } from "../src";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";

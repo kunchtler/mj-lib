@@ -1,10 +1,14 @@
 import * as THREE from "three";
-import { createHandGeometry, createHandMaterial } from "./Default3DModels";
+import {
+    createCircleHandGeometry,
+    createHandMaterial,
+    createRectHandGeometry
+} from "./Default3DModels";
 import {
     DEFAULT_HAND_COLOR,
-    DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
-    DEFAULT_HAND_SPHERE_RADIUS,
-    DEFAULT_HAND_SPHERE_WIDTH_SEGMENT
+    DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
+    DEFAULT_CIRCLE_HAND_RADIUS,
+    DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT
 } from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
@@ -16,16 +20,16 @@ export type HandMeshProps = {
     ref?: Ref<THREE.Mesh>;
 };
 
-export function HandMesh({
-    radius = DEFAULT_HAND_SPHERE_RADIUS,
-    widthSegments = DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
-    heightSegments = DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
+export function HandCircleMesh({
+    radius = DEFAULT_CIRCLE_HAND_RADIUS,
+    widthSegments = DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
+    heightSegments = DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
     color = DEFAULT_HAND_COLOR,
     ref
 }: HandMeshProps) {
     return (
         <mesh
-            geometry={createHandGeometry({
+            geometry={createCircleHandGeometry({
                 radius,
                 widthSegments,
                 heightSegments
@@ -34,4 +38,20 @@ export function HandMesh({
             ref={ref}
         />
     );
+}
+
+export function HandRectMesh({
+    radius = DEFAULT_CIRCLE_HAND_RADIUS,
+    widthSegments = DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
+    heightSegments = DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
+    color = DEFAULT_HAND_COLOR,
+    ref
+}: HandMeshProps) {
+    const geometry = createRectHandGeometry({
+        radius,
+        widthSegments,
+        heightSegments
+    });
+    const material = createHandMaterial({ color });
+    return <mesh geometry={geometry} material={material} ref={ref} />;
 }
