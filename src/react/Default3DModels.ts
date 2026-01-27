@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import {
-    DEFAULT_JUGGLER_CUBE_HEIGHT,
-    DEFAULT_JUGGLER_CUBE_WIDTH,
-    DEFAULT_JUGGLER_CUBE_DEPTH,
-    DEFAULT_JUGGLER_CUBE_COLOR,
+    DEFAULT_CUBE_BODY_HEIGHT,
+    DEFAULT_CUBE_BODY_WIDTH,
+    DEFAULT_CUBE_BODY_DEPTH,
+    DEFAULT_CUBE_BODY_COLOR,
     DEFAULT_HAND_COLOR,
-    DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT,
-    DEFAULT_HAND_SPHERE_RADIUS,
-    DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
+    DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
+    DEFAULT_CIRCLE_HAND_RADIUS,
+    DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
     DEFAULT_BALL_COLOR,
     DEFAULT_BALL_HEIGHT_SEGMENT,
     DEFAULT_BALL_RADIUS,
@@ -15,13 +15,16 @@ import {
     DEFAULT_TABLE_COLOR,
     DEFAULT_TABLE_DEPTH,
     DEFAULT_TABLE_HEIGHT,
-    DEFAULT_TABLE_WIDTH
+    DEFAULT_TABLE_WIDTH,
+    DEFAULT_CUBE_HAND_LENGTH,
+    DEFAULT_CUBE_HAND_WIDTH,
+    DEFAULT_CUBE_HAND_DEPTH
 } from "../constants/miseEnSceneDefaultValues";
 
 export function createJugglerCubeGeometry({
-    height = DEFAULT_JUGGLER_CUBE_HEIGHT,
-    width = DEFAULT_JUGGLER_CUBE_WIDTH,
-    depth = DEFAULT_JUGGLER_CUBE_DEPTH
+    height = DEFAULT_CUBE_BODY_HEIGHT,
+    width = DEFAULT_CUBE_BODY_WIDTH,
+    depth = DEFAULT_CUBE_BODY_DEPTH
 }: { height?: number; width?: number; depth?: number } = {}): THREE.BufferGeometry {
     const geometry = new THREE.BoxGeometry(depth, height, width);
     geometry.translate(0, height / 2, 0);
@@ -31,21 +34,35 @@ export function createJugglerCubeGeometry({
 }
 
 export function createJugglerMaterial({
-    color = DEFAULT_JUGGLER_CUBE_COLOR
+    color = DEFAULT_CUBE_BODY_COLOR
 }: { color?: THREE.ColorRepresentation } = {}): THREE.MeshPhongMaterial {
     return new THREE.MeshPhongMaterial({ color: color });
 }
 
-export function createHandGeometry({
-    radius = DEFAULT_HAND_SPHERE_RADIUS,
-    widthSegments = DEFAULT_HAND_SPHERE_WIDTH_SEGMENT,
-    heightSegments = DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT
+export function createCircleHandGeometry({
+    radius = DEFAULT_CIRCLE_HAND_RADIUS,
+    widthSegments = DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
+    heightSegments = DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT
 }: {
     radius?: number;
     widthSegments?: number;
     heightSegments?: number;
 } = {}) {
     return new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+}
+
+export function createRectHandGeometry({
+    length = DEFAULT_CUBE_HAND_LENGTH,
+    width = DEFAULT_CUBE_HAND_WIDTH,
+    depth = DEFAULT_CUBE_HAND_DEPTH
+}: {
+    length?: number;
+    width?: number;
+    depth?: number;
+} = {}) {
+    const geometry = new THREE.BoxGeometry(length, depth, width);
+    geometry.translate(length / 2, depth / 2, 0);
+    return geometry;
 }
 
 export function createHandMaterial({

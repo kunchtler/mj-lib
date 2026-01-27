@@ -1,27 +1,27 @@
 ////////// Juggler //////////
 
 // Body
-export const DEFAULT_JUGGLER_CUBE_HEIGHT = 1.8;
-export const DEFAULT_JUGGLER_CUBE_WIDTH = 0.5;
-export const DEFAULT_JUGGLER_CUBE_DEPTH = 0.3;
-export const DEFAULT_JUGGLER_CUBE_COLOR = 0x202020;
-export const DEFAULT_JUGGLER_CUBE_ARM_LENGTH = 0.4;
-export const DEFAULT_JUGGLER_CUBE_VISIBILITY = true;
+export const DEFAULT_CUBE_BODY_HEIGHT = 1.8;
+export const DEFAULT_CUBE_BODY_WIDTH = 0.5;
+export const DEFAULT_CUBE_BODY_DEPTH = 0.3;
+export const DEFAULT_CUBE_BODY_COLOR = 0x202020;
+export const DEFAULT_CUBE_BODY_ARM_LENGTH = 0.4;
+export const DEFAULT_CUBE_BODY_VISIBILITY = true;
 
 // Hand - rectangle model
-export const DEFAULT_JUGGLER_HAND_LENGTH = 0.2;
-export const DEFAULT_JUGGLER_HAND_WIDTH = 0.1;
-export const DEFAULT_JUGGLER_HAND_DEPTH = 0.02;
-export const DEFAULT_JUGGLER_HAND_COLOR = DEFAULT_JUGGLER_CUBE_COLOR;
+export const DEFAULT_CUBE_HAND_LENGTH = 0.2;
+export const DEFAULT_CUBE_HAND_WIDTH = 0.1;
+export const DEFAULT_CUBE_HAND_DEPTH = 0.02;
+export const DEFAULT_CUBE_HAND_COLOR = DEFAULT_CUBE_BODY_COLOR;
 
 // Hand - circle model
-export const DEFAULT_HAND_SPHERE_RADIUS = 0.05;
-export const DEFAULT_HAND_SPHERE_WIDTH_SEGMENT = 8;
-export const DEFAULT_HAND_SPHERE_HEIGHT_SEGMENT = 4;
+export const DEFAULT_CIRCLE_HAND_RADIUS = 0.05;
+export const DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT = 8;
+export const DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT = 4;
 
 // Hand - global properties
 export const DEFAULT_HAND_COLOR = 0xffdbac;
-export const DEFAULT_JUGGLER_HAND_VISIBILITY = false;
+export const DEFAULT_HAND_VISIBILITY = false;
 
 ////////// Ball //////////
 

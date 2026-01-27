@@ -4,10 +4,10 @@ import {
     createJugglerMaterial as createBodyMaterial
 } from "./Default3DModels";
 import {
-    DEFAULT_JUGGLER_CUBE_COLOR,
-    DEFAULT_JUGGLER_CUBE_DEPTH,
-    DEFAULT_JUGGLER_CUBE_HEIGHT,
-    DEFAULT_JUGGLER_CUBE_WIDTH
+    DEFAULT_CUBE_BODY_COLOR,
+    DEFAULT_CUBE_BODY_DEPTH,
+    DEFAULT_CUBE_BODY_HEIGHT,
+    DEFAULT_CUBE_BODY_WIDTH
 } from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
@@ -22,10 +22,10 @@ export type BodyMeshProps = {
 //TODO : Customization options
 
 export function BodyMesh({
-    height = DEFAULT_JUGGLER_CUBE_HEIGHT,
-    width = DEFAULT_JUGGLER_CUBE_WIDTH,
-    depth = DEFAULT_JUGGLER_CUBE_DEPTH,
-    color = DEFAULT_JUGGLER_CUBE_COLOR,
+    height = DEFAULT_CUBE_BODY_HEIGHT,
+    width = DEFAULT_CUBE_BODY_WIDTH,
+    depth = DEFAULT_CUBE_BODY_DEPTH,
+    color = DEFAULT_CUBE_BODY_COLOR,
     ref
 }: BodyMeshProps) {
     return (
