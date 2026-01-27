@@ -1,5 +1,5 @@
 import { Canvas, extend, invalidate, useFrame } from "@react-three/fiber";
-import { BallMesh, BodyMesh, HandMesh, TableMesh } from "../src/react";
+import { BallMesh, BodyMesh, HandCircleMesh, TableMesh } from "../src/react";
 import {
     CatchEvent,
     Clock,
@@ -281,7 +281,7 @@ function mapJuggler(
                     });
                 }}
             />
-            <HandMesh
+            <HandCircleMesh
                 ref={(node) => {
                     updateMapRef<
                         THREE.Mesh,
@@ -296,7 +296,7 @@ function mapJuggler(
                     });
                 }}
             />
-            <HandMesh
+            <HandCircleMesh
                 ref={(node) => {
                     updateMapRef<
                         THREE.Mesh,

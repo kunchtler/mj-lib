@@ -53,32 +53,23 @@ export type JugglingScore = {
 
 // TODO : Check if scale is working correctly.
 // TODO : Move sounds back to mise en scene (they shouldn't be in score).
-export type MiseEnScene = {
+export type PerformanceLayout = {
     ballTemplates: {
         name: string;
-        color: ColorDescription;
         radius: number;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
     }[];
     jugglers: {
         name: string;
         position: [number, number, number];
         rotation: [number, number, number];
         scale: [number, number, number];
-        leftHand: DeepRequired<HandDescription>;
-        rightHand: DeepRequired<HandDescription>;
-        body: DeepRequired<BodyDescription>;
+        leftHand: DeepRequired<HandMiseEnSceneDescription>;
+        rightHand: DeepRequired<HandMiseEnSceneDescription>;
         table?: {
             id: string;
-            height: number;
-            width: number;
-            depth: number;
-            visible: boolean;
             position: [number, number, number];
             rotation: [number, number, number];
             scale: [number, number, number];
-            color: ColorDescription;
             spots: {
                 name: string;
                 position: [number, number, number];
@@ -89,6 +80,21 @@ export type MiseEnScene = {
                 rotation: [number, number, number];
             };
         };
+    }[];
+};
+
+export type PerformanceMeshDefinitions = {
+    ballTemplates: {
+        name: string;
+        color: ColorDescription;
+        radius: number;
+    }[];
+    jugglers: {
+        name: string;
+        leftHand: HandMeshDescription;
+        rightHand: HandMeshDescription;
+        body: BodyMeshDescription;
+        table?: TableMeshDescription;
     }[];
 };
 
@@ -115,12 +121,7 @@ export type SpotDescription = {
     rotation?: [number, number, number]; // Rotation indicates with its "y" axis where the up is, and therefore how the ball should be put on top of the spot.
 };
 
-export type HandDescription = {
-    length?: number; // From wrist to fingertip.
-    width?: number; // From thumb to little finger.
-    depth?: number; // From palm to back.
-    visible?: boolean; //P
-    color?: ColorDescription;
+export type HandMiseEnSceneDescription = {
     // TODO : have hand spot templates to avoid redundancy.
     // TODO : find a way to make optional.
     tossSpot: SpotDescription; // Relative to juggler origin. //P
@@ -130,12 +131,29 @@ export type HandDescription = {
     heldSpots?: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
 };
 
-export type BodyDescription = {
-    height?: number; //P
-    width?: number; //P
-    depth?: number; //P
-    color?: ColorDescription; //P
-    visible?: boolean; //P
+export type HandMeshDescription = {
+    length: number; // From wrist to fingertip.
+    width: number; // From thumb to little finger.
+    depth: number; // From palm to back.
+    visible: boolean; //P
+    color: ColorDescription;
+};
+
+export type BodyMeshDescription = {
+    height: number; //P
+    width: number; //P
+    depth: number; //P
+    color: ColorDescription; //P
+    visible: boolean; //P
+};
+
+export type TableMeshDescription = {
+    id: string;
+    height: number;
+    width: number;
+    depth: number;
+    visible: boolean;
+    color: ColorDescription;
 };
 
 export type TakeBall =

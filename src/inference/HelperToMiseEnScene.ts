@@ -1,25 +1,29 @@
 import { DeepRequired, ElementOf } from "../utils";
-import { HandDescription, MiseEnScene, SpotDescription } from "./PerformanceDescription";
+import {
+    HandMiseEnSceneDescription,
+    PerformanceLayout,
+    SpotDescription
+} from "./PerformanceDescription";
 import {
     DEFAULT_BALL_COLOR,
     DEFAULT_BALL_RADIUS,
-    DEFAULT_JUGGLER_CUBE_COLOR,
-    DEFAULT_JUGGLER_CUBE_DEPTH,
-    DEFAULT_JUGGLER_CUBE_HEIGHT,
-    DEFAULT_JUGGLER_CUBE_VISIBILITY,
-    DEFAULT_JUGGLER_CUBE_WIDTH,
+    DEFAULT_CUBE_BODY_COLOR,
+    DEFAULT_CUBE_BODY_DEPTH,
+    DEFAULT_CUBE_BODY_HEIGHT,
+    DEFAULT_CUBE_BODY_VISIBILITY,
+    DEFAULT_CUBE_BODY_WIDTH,
     DEFAULT_TABLE_COLOR,
     DEFAULT_TABLE_DEPTH,
     DEFAULT_TABLE_HEIGHT,
     DEFAULT_TABLE_WIDTH,
-    DEFAULT_JUGGLER_HAND_LENGTH,
-    DEFAULT_JUGGLER_HAND_WIDTH,
-    DEFAULT_JUGGLER_HAND_DEPTH,
-    DEFAULT_JUGGLER_HAND_VISIBILITY,
+    DEFAULT_CUBE_HAND_LENGTH,
+    DEFAULT_CUBE_HAND_WIDTH,
+    DEFAULT_CUBE_HAND_DEPTH,
+    DEFAULT_HAND_VISIBILITY,
     DEFAULT_TABLE_VISIBILITY,
     DEFAULT_HAND_COLOR
 } from "../constants/miseEnSceneDefaultValues";
-import { MiseEnSceneHelper } from "./PerformanceDescriptionHelpers";
+import { PerformanceLayoutHelper } from "./PerformanceDescriptionHelpers";
 
 export function createHandSpots(params: {
     catchTossDistance: number;
@@ -64,8 +68,8 @@ export function createHandSpots(params: {
     };
 }
 
-export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene {
-    const newMiseEnScene: MiseEnScene = { ballTemplates: [], jugglers: [] };
+export function completeMiseEnScene(miseEnScene: PerformanceLayoutHelper): PerformanceLayout {
+    const newMiseEnScene: PerformanceLayout = { ballTemplates: [], jugglers: [] };
 
     for (const template of miseEnScene.ballTemplates) {
         newMiseEnScene.ballTemplates.push({
@@ -79,11 +83,11 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
 
         // Complete body arguments
         const newBody = {
-            color: juggler.body?.color ?? DEFAULT_JUGGLER_CUBE_COLOR,
-            depth: juggler.body?.depth ?? DEFAULT_JUGGLER_CUBE_DEPTH,
-            height: juggler.body?.height ?? DEFAULT_JUGGLER_CUBE_HEIGHT,
-            width: juggler.body?.width ?? DEFAULT_JUGGLER_CUBE_WIDTH,
-            visible: juggler.body?.visible ?? DEFAULT_JUGGLER_CUBE_VISIBILITY
+            color: juggler.body?.color ?? DEFAULT_CUBE_BODY_COLOR,
+            depth: juggler.body?.depth ?? DEFAULT_CUBE_BODY_DEPTH,
+            height: juggler.body?.height ?? DEFAULT_CUBE_BODY_HEIGHT,
+            width: juggler.body?.width ?? DEFAULT_CUBE_BODY_WIDTH,
+            visible: juggler.body?.visible ?? DEFAULT_CUBE_BODY_VISIBILITY
         };
 
         // Complete transform information
@@ -102,10 +106,10 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
 
         // Complete hands information.
         // If some information is available to one of the hands, we duplicate it for the other hand.
-        const newLength = juggler.handBuilder?.length ?? DEFAULT_JUGGLER_HAND_LENGTH;
-        const newWidth = juggler.handBuilder?.width ?? DEFAULT_JUGGLER_HAND_WIDTH;
-        const newDepth = juggler.handBuilder?.depth ?? DEFAULT_JUGGLER_HAND_DEPTH;
-        const newVisibility = juggler.handBuilder?.visible ?? DEFAULT_JUGGLER_HAND_VISIBILITY;
+        const newLength = juggler.handBuilder?.length ?? DEFAULT_CUBE_HAND_LENGTH;
+        const newWidth = juggler.handBuilder?.width ?? DEFAULT_CUBE_HAND_WIDTH;
+        const newDepth = juggler.handBuilder?.depth ?? DEFAULT_CUBE_HAND_DEPTH;
+        const newVisibility = juggler.handBuilder?.visible ?? DEFAULT_HAND_VISIBILITY;
         const params = {
             catchTossDistance: juggler.handBuilder?.spotsBuild?.catchTossDistance ?? newBody.width,
             spotsHeight: juggler.handBuilder?.spotsBuild?.spotsHeight ?? (newBody.height * 6) / 10,
@@ -131,7 +135,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
                 });
             }
         }
-        const newRightHand: DeepRequired<HandDescription> = {
+        const newRightHand: DeepRequired<HandMiseEnSceneDescription> = {
             ...newRightSpots,
             length: newLength,
             width: newWidth,
@@ -140,7 +144,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
             color: DEFAULT_HAND_COLOR,
             heldSpots: newHeldSpots
         };
-        const newLeftHand: DeepRequired<HandDescription> = {
+        const newLeftHand: DeepRequired<HandMiseEnSceneDescription> = {
             ...newLeftSpots,
             length: newLength,
             width: newWidth,
@@ -151,7 +155,7 @@ export function completeMiseEnScene(miseEnScene: MiseEnSceneHelper): MiseEnScene
         };
 
         // Complete table information.
-        let newTable: ElementOf<MiseEnScene["jugglers"]>["table"];
+        let newTable: ElementOf<PerformanceLayout["jugglers"]>["table"];
         if (juggler.table === undefined) {
             newTable = undefined;
         } else {

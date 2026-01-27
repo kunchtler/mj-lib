@@ -1,5 +1,5 @@
 // import { score11 as score } from "../examples/patternTest";
-import { JugglingScore, MiseEnScene } from "./PerformanceDescription";
+import { JugglingScore, PerformanceLayout } from "./PerformanceDescription";
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -38,7 +38,7 @@ import { SpotModelParams, toSpotParam } from "../model/SpotModel";
 
 export function JugglingScoreToModel(
     score: JugglingScore,
-    miseEnScene: MiseEnScene,
+    miseEnScene: PerformanceLayout,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
     const jugglersMap = new Map<
@@ -136,8 +136,8 @@ export function JugglingScoreToModel(
     // 6. Create the timelines.
     //TODO : More conviniently create this from a fusion of score and mise en scene.
     //TODO : Also check for errors.
-    const ballIDsMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
-    const ballMapMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
+    const ballIDsMiseEnScene = new Map<string, ElementOf<PerformanceLayout["ballTemplates"]>>();
+    const ballMapMiseEnScene = new Map<string, ElementOf<PerformanceLayout["ballTemplates"]>>();
     for (const ball of miseEnScene.ballTemplates) {
         ballMapMiseEnScene.set(ball.name, ball);
     }
@@ -158,7 +158,10 @@ export function JugglingScoreToModel(
 
     // 7. Combine timelines with positions to create models.
     const performanceModel = new PerformanceModel();
-    const ballTemplatesMiseEnScene = new Map<string, ElementOf<MiseEnScene["ballTemplates"]>>();
+    const ballTemplatesMiseEnScene = new Map<
+        string,
+        ElementOf<PerformanceLayout["ballTemplates"]>
+    >();
     for (const ball of miseEnScene.ballTemplates) {
         ballTemplatesMiseEnScene.set(ball.name, ball);
     }

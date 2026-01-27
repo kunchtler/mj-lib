@@ -1,7 +1,7 @@
 import { BallSound } from "../model";
 import {
     BallDescription,
-    BodyDescription,
+    BodyMeshDescription,
     ColorDescription,
     FractionDescription,
     GlobalBeatDescription,
@@ -49,29 +49,25 @@ export type JugglingScoreHelper = {
         | ({ type: "variable" } & Partial<GlobalBeatDescription>);
 };
 
-export type MiseEnSceneHelper = {
+export type PerformanceLayoutHelper = {
     version: "0.1";
     ballTemplates: {
         name: string;
-        color?: ColorDescription;
-        radius?: number;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
+        soundOnCatch?: BallSound; //TODO : Remove ?
+        soundOnToss?: BallSound; //TODO : Remove ?
     }[];
     jugglers: {
         name: string;
         position?: [number, number, number];
         rotation?: [number, number, number];
         scale?: [number, number, number];
-        handBuilder?: HandDescriptionHelper;
-        body?: BodyDescription;
+        handBuilder?: HandLayoutHelper;
+        body?: { height?: number; depth?: number; width?: number };
         table?: {
             template: string;
             position?: [number, number, number];
             rotation?: [number, number, number];
-            color?: ColorDescription;
             scale?: [number, number, number];
-            visible?: boolean;
         };
     }[];
     tableTemplates?: {
@@ -91,13 +87,47 @@ export type MiseEnSceneHelper = {
     }[];
 };
 
-export type HandDescriptionHelper = {
-    // Mesh related properties.
+export type PerformanceMeshDefinitionsHelper = {
+    ballTemplates: {
+        name: string;
+        color?: ColorDescription;
+        radius?: number;
+    }[];
+    jugglers: {
+        name: string;
+        handBuilder?: {
+            // Mesh related properties.
+            length?: number; // From wrist to fingertip.
+            width?: number; // From thumb to little finger.
+            depth?: number; // From palm to back.
+            visible?: boolean; //P
+        };
+        body: {
+            height?: number;
+            width?: number;
+            depth?: number;
+            visible?: boolean;
+            color?: ColorDescription;
+        };
+        table?: {
+            template: string;
+            visible?: boolean;
+            color?: ColorDescription;
+        };
+    }[];
+    tableTemplates?: {
+        name: string;
+        height?: number;
+        width?: number;
+        depth?: number;
+    }[];
+};
+
+export type HandLayoutHelper = {
     length?: number; // From wrist to fingertip.
     width?: number; // From thumb to little finger.
     depth?: number; // From palm to back.
     heldSpots: SpotDescription[]; // Relative to hand's wrist (x is towards thumb, y towards up, z towards fingers).
-    visible?: boolean; //P
     scale?: [number, number, number];
     spotsBuild?: {
         catchTossDistance?: number;
