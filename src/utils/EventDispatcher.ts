@@ -15,16 +15,13 @@ export class EventDispatcher<T extends string = string> {
      * @param callback The callback function.
      * @returns A function to later remove this event listener.
      */
-    addEventListener(eventName: T, callback: CallbackFunction): () => void {
+    addEventListener(eventName: T, callback: CallbackFunction): void {
         let callbacks = this._listeners.get(eventName);
         if (callbacks === undefined) {
             callbacks = [];
             this._listeners.set(eventName, callbacks);
         }
         callbacks.push(callback);
-        return () => {
-            this.removeEventListener(eventName, callback);
-        };
     }
 
     /**
@@ -32,7 +29,7 @@ export class EventDispatcher<T extends string = string> {
      * @param eventName The name of the event to be removed from.
      * @param callback The callback function to remove (must be the same callback that was added with addEventListener)
      */
-    private removeEventListener(eventName: T, callback: CallbackFunction): void {
+    removeEventListener(eventName: T, callback: CallbackFunction): void {
         let callbacks = this._listeners.get(eventName);
         if (callbacks === undefined) {
             return;

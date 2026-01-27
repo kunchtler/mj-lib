@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
-/* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
+// TODO : Find a way to remove those warnings.
 import { ReactNode, useEffect, useState } from "react";
 import { Clock } from "../src";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";
@@ -46,51 +47,48 @@ export function TimeControls({ clock }: { clock: Clock }) {
         setPlaybackRate(clock.getPlaybackRate());
         setLoop(clock.getLoop());
 
-        // Adds event listeners, and store their removal method in an array.
-        const removeEventListeners: (() => void)[] = [];
-        removeEventListeners.push(
-            clock.addEventListener("play", () => {
-                setStatus("playing");
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("pause", () => {
-                setStatus("paused");
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("reachedEnd", () => {
-                setStatus("reachedEnd");
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("timeUpdate", () => {
-                setTime(clock.getTime());
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("playbackRateChange", () => {
-                setPlaybackRate(clock.getPlaybackRate());
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("boundsChange", () => {
-                setBounds([
-                    clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-                    clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
-                ]);
-            })
-        );
-        removeEventListeners.push(
-            clock.addEventListener("loopChange", () => {
-                setLoop(clock.getLoop());
-            })
-        );
+        // Adds event listeners.
+        const onPlay = () => {
+            setStatus("playing");
+        };
+        const onPause = () => {
+            setStatus("paused");
+        };
+        const onReachedEnd = () => {
+            setStatus("reachedEnd");
+        };
+        const onTimeUpdate = () => {
+            setTime(clock.getTime());
+        };
+        const onPlaybackRateChange = () => {
+            setPlaybackRate(clock.getPlaybackRate());
+        };
+        const onBoundsChange = () => {
+            setBounds([
+                clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+                clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+            ]);
+        };
+        const onLoopChange = () => {
+            setLoop(clock.getLoop());
+        };
+
+        clock.addEventListener("play", onPlay);
+        clock.addEventListener("pause", onPause);
+        clock.addEventListener("reachedEnd", onReachedEnd);
+        clock.addEventListener("timeUpdate", onTimeUpdate);
+        clock.addEventListener("playbackRateChange", onPlaybackRateChange);
+        clock.addEventListener("boundsChange", onBoundsChange);
+        clock.addEventListener("loopChange", onLoopChange);
         // Return a function to remove all event listeners.
         return () => {
-            removeEventListeners.forEach((callback) => {
-                callback();
-            });
+            clock.removeEventListener("play", onPlay);
+            clock.removeEventListener("pause", onPause);
+            clock.removeEventListener("reachedEnd", onReachedEnd);
+            clock.removeEventListener("timeUpdate", onTimeUpdate);
+            clock.removeEventListener("playbackRateChange", onPlaybackRateChange);
+            clock.removeEventListener("boundsChange", onBoundsChange);
+            clock.removeEventListener("loopChange", onLoopChange);
         };
     }, [clock]);
 
@@ -162,33 +160,29 @@ export function TimeControls({ clock }: { clock: Clock }) {
  * Converts time to a friendly string format.
  * E.g. : 90s -> 1:30
  * @param time The time in seconds.
+ * @param minDigitsMinutes The minimal number of digits used to write hours (will add trailing zeros to reach it. Ex : 62 sec with 3 min digits -> 001:02)
+ * @param showMilliseconds Whether to show the miliseconds or not (1:12.234)
  * @return The formatted string.
  */
-function formatTime(time: number, showMilliseconds = false): string {
+function formatTime(time: number, minDigitsMinutes: number = 0, showMilliseconds = false): string {
     let text = "";
     if (time < 0) {
         time = -time;
         text += "-";
     }
-    let hoursDefined = false;
-    if (time >= 3600) {
-        hoursDefined = true;
-        text += `${Math.floor(time / 3600)}:`;
-        time = time % 3600;
-    }
     const nbMinutes = Math.floor(time / 60);
-    if (hoursDefined && nbMinutes < 10) {
+    time -= nbMinutes;
+    for (let i = nbMinutes.toString.length; i <= minDigitsMinutes; i++) {
         text += "0";
     }
-    text += `${nbMinutes}:`;
-    const nbSeconds = Math.floor(time % 60);
-    // time = time % 60
+    text += nbMinutes.toString();
+    const nbSeconds = Math.floor(time);
     if (nbSeconds < 10) {
         text += "0";
     }
-    text += `${nbSeconds}`;
-    // if (showMilliseconds) {
-    //     text +=
-    // }
+    text += nbSeconds.toString();
+    if (showMilliseconds) {
+        text += Math.floor((time - nbSeconds) * 1000).toString();
+    }
     return text;
 }
