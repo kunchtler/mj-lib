@@ -32,7 +32,7 @@ type ClockEvents =
 /**
  * High precision clock supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
  *
- * NB : The getTime if way more precise than the clock HTMLMediaElements use.
+ * NB : The getTime always return the new time, where the clock HTMLMediaElements use may return the same time multiple calls in a row.
  *
  * **Events fired:**
  * - start: Whenever the clock starts.
@@ -83,7 +83,7 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
 
         // Note : changing the bounds or playback rate or pausing triggers the deletion of the following tiemout and recreates it
         // if needed. Thus we are sure it will be called with the current values of playback rate and bounds, and it will still be playing.
-        this._endTimeoutIdx = window.setTimeout(() => {
+        this._endTimeoutIdx = setTimeout(() => {
             if (this.getLoop()) {
                 // Loop back to the start (considering the ticking direction).
                 this.restart();
@@ -96,7 +96,7 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
                 this._setTimeNoEventTrigger(this._bounds[this._endBoundIdx()]!);
                 this.dispatchEvent("ended");
             }
-        }, this.timeUntilEnd());
+        }, this.timeUntilEnd() * 1000);
     }
 
     /**
@@ -130,9 +130,8 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
         const endingBound = this._bounds[this._endBoundIdx()];
         return endingBound === undefined
             ? Infinity
-            : this._playbackRate >= 0
-              ? (endingBound - this.getTime()) / this._playbackRate
-              : (this.getTime() - endingBound) / this._playbackRate;
+            : // if the playback rate is negative, everything still works ;)
+              (endingBound - this.getTime()) / this._playbackRate;
     }
 
     /**
@@ -182,13 +181,13 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      * Restarts the clock. If it ticked forward in time, goes to the start. If it ticked backwards, goes to the end.
      */
     restart(): void {
-        const endBound = this._bounds[this._endBoundIdx()];
-        if (endBound === undefined) {
+        const startBound = this._bounds[(this._endBoundIdx() + 1) % 2];
+        if (startBound === undefined) {
             console.warn(
-                `No ${this._playbackRate >= 0 ? "end" : "start"} time is specified for this clock. Will go back to 0.`
+                `No ${this._playbackRate >= 0 ? "start" : "end"} time is specified for this clock. Will go back to 0.`
             );
         }
-        this.setTime(endBound ?? 0);
+        this.setTime(startBound ?? 0);
     }
 
     /**
@@ -308,6 +307,41 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
         this.removeAllEventListeners();
     }
 }
+
+// Test the clock.
+// const clock = new Clock({ startTime: -1 });
+// clock.addEventListener("start", () => {
+//     console.log("start");
+// });
+// clock.addEventListener("pause", () => {
+//     console.log("pause");
+// });
+// clock.addEventListener("ended", () => {
+//     console.log("ended");
+// });
+// clock.addEventListener("manualTimeUpdate", () => {
+//     console.log("manualTimeUpdate");
+// });
+// clock.addEventListener("playbackRateChange", () => {
+//     console.log("playbackRateChange");
+// });
+// clock.addEventListener("boundsChange", () => {
+//     console.log("boundsChange");
+// });
+// clock.addEventListener("loopChange", () => {
+//     console.log("loopChange");
+// });
+
+// // clock.setBounds([-5, 5]);
+// // clock.setLoop(true);
+// setInterval(() => {
+//     console.log(clock.getTime());
+// }, 10000);
+// // setTimeout(() => {
+// //     clock.setPlaybackRate(-1.5);
+// // }, 3000);
+// clock.start();
+
 
 // export class MediaPlayer implements TimeController {
 //     media: HTMLMediaElement;
