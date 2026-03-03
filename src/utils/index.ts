@@ -7,6 +7,7 @@ export * from "./constants";
 export * from "./stringifyEvent";
 export * from "./utils";
 export * from "./utilityTypes";
+export * from "./useLazyRef";
 
 export * from "./spline/index";
 export * from "./three/index";
