@@ -24,7 +24,7 @@ export function TimeControls({ clock }: { clock: Clock }) {
     // The clock is the single truth source here, so UI callbacks should
     // interact with timeConductor instead of setting their own state.
 
-    const [status, setStatus] = useState<TimeState>(clock.isPaused() ? "paused" : "playing");
+    const [status, setStatus] = useState<TimeState>(clock.isStopped() ? "paused" : "playing");
     const [statusBeforeSliderChange, setStatusBeforeSliderChange] = useState<TimeState | undefined>(
         undefined
     );
@@ -38,7 +38,7 @@ export function TimeControls({ clock }: { clock: Clock }) {
 
     useEffect(() => {
         // Sets the various states in case the timeConductor has changed.
-        setStatus(clock.isPaused() ? "paused" : "playing");
+        setStatus(clock.isStopped() ? "paused" : "playing");
         setStatusBeforeSliderChange(undefined);
         setBounds([
             clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
@@ -97,12 +97,12 @@ export function TimeControls({ clock }: { clock: Clock }) {
         if (status === "playing") {
             clock.pause();
         } else if (status === "paused") {
-            clock.play().catch((error: unknown) => {
+            clock.start().catch((error: unknown) => {
                 console.warn(error);
             });
         } else {
             clock.setTime(bounds[0]);
-            clock.play().catch((error: unknown) => {
+            clock.start().catch((error: unknown) => {
                 console.warn(error);
             });
         }
@@ -123,7 +123,7 @@ export function TimeControls({ clock }: { clock: Clock }) {
     function onSliderChangeEnd(value: number) {
         clock.setTime(value);
         if (statusBeforeSliderChange === "reachedEnd" || statusBeforeSliderChange === "playing") {
-            clock.play().catch((error: unknown) => {
+            clock.start().catch((error: unknown) => {
                 console.warn(error);
             });
         }

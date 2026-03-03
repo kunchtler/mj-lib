@@ -157,7 +157,7 @@ function Performance({
                 prevEvTime !== null &&
                 prevEv instanceof CatchEvent &&
                 previousTime.current < prevEvTime &&
-                !clock.isPaused()
+                !clock.isStopped()
             ) {
                 performanceAudio.playBallSound(id, buffersMap.get(id)!);
             }

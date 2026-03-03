@@ -1,7 +1,3 @@
-//TODO : Streamline TimeController / TimeConductor / AudioPalyer names ?
-//TODO : Rename as Clock ?
-//TODO : Change filename.
-
 import { EventDispatcher } from "./EventDispatcher";
 
 export interface ClockParam {
@@ -13,43 +9,49 @@ export interface ClockParam {
 }
 
 type ClockEvents =
-    | "play"
+    | "start"
     | "pause"
-    | "reachedEnd"
-    | "timeUpdate"
+    | "ended"
+    // | "timeUpdate"
     | "playbackRateChange"
     | "boundsChange"
-    | "loopChange";
-// | "manualUpdate";
+    | "loopChange"
+    | "manualTimeUpdate";
 
-//TODO : remove some unused methods (currentTiem vs setTime / getTime, which is better to indicate that something is happening behind the scenes).
-//TODO : clean TimeController interface.
 //TODO : Try playbackrate of 0 + negative.
 //TODO 30/05/25 : Remove manual trigger and make it responability of person using a clock to have updates ?
 // Or allow both with option to customize callback frequency. Properly handle the stop signal that must arrive on time.
 
+// TODO : Use state machine
+// TODO : Check for events fired
+// TODO : Check for endTimeout Reconstruction.
+// TODO : CHeck that emit event is at the end of the functions.
+// TODO : Use getters / setters for public ?
+// TODO : All seconds or miliseconds ?
+
 /**
- * The TimeConductor class provides a high precision clock, that is more reactive than the one HTMLMediaElements use, supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
+ * High precision clock supporting a custom playback rate. It fires many events detailed below, that can have custom callbacks set with the addEventListener method.
  *
- * TODO : MediaPlayer, to put up to date, allows to use that clock with an HTMLMediaElement.
+ * NB : The getTime if way more precise than the clock HTMLMediaElements use.
  *
  * **Events fired:**
- * - play: Whenever the clock starts.
+ * - start: Whenever the clock starts.
  * - pause: Whenever the clock pauses.
- * - reachedEnd: Whenever the clock reached its upper bound (max time).
- * - timeUpdate: A convenience signals that fires whenever the time changes via setTime, or every 100 ms while the clock is ticking. TODO CHANGE that second one, should be handled bu UI ?
+ * - ended: Whenever the clock pauses because it reaches its ending bound or is disposed of.
  * - playbackRateChange: Whenever the playback rate changes.
- * - boundsChange: Whevenever the bounds (start and end time) change.
+ * - boundsChange: Whevenever the bounds (start or end time) change.
+ * - loopChange : Whenever the clock is set to loop / unloop.
+ * - manualTimeUpdate : Whenever a manual change occurs within the clock (either because of a call to setTime(), or because it looped and jumped back to the beginning).
  */
 export class Clock extends EventDispatcher<ClockEvents> /*implements TimeController*/ {
     private _lastUpdateTime: number;
     private _lastKnownTime: number;
     private _playbackRate: number;
-    private _paused: boolean;
-    private _timeupdateInterval?: number;
-    // private _stopInterval?: number;
+    private _endTimeoutIdx?: number;
     private _bounds: [number | undefined, number | undefined];
     private _loop: boolean;
+    private _isTicking: boolean;
+    // private _timeupdateInterval?: number;
     // private _timeupdateIntervalTime: number;
 
     /**
@@ -61,81 +63,132 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
         this._lastUpdateTime = performance.now() / 1000;
         this._lastKnownTime = startTime ?? 0;
         this._playbackRate = playbackRate ?? 1.0;
-        this._paused = true;
         this._bounds = bounds ?? [undefined, undefined];
         this._loop = loop ?? false;
+        this._isTicking = false;
 
         if (autoplay === true) {
-            this.play().catch(() => {
-                throw new Error();
-            });
-        }
-    }
-
-    private _stopOnEnd(): void {
-        if (this.getLoop()) {
-            this.restart();
-            //TODO : Should send reachedEnd here too ?
-        } else {
-            clearInterval(this._timeupdateInterval);
-            this._lastKnownTime = this.getTime();
-            this._paused = true;
-            if (this._bounds[1] !== undefined) {
-                this.setTime(this._bounds[1]);
-            } else {
-                this.dispatchEvent("timeUpdate");
-            }
-            this.dispatchEvent("reachedEnd");
+            this.start();
         }
     }
 
     /**
-     * Starts the clock whenever
-     * @returns a void promise. TODO: Change ?
+     * Create a timeout to handle what happens when the clock reaches its end bounds.
      */
-    play(): Promise<void> {
-        this._lastUpdateTime = performance.now() / 1000;
-        this._paused = false;
-        this.dispatchEvent("play");
-        this._timeupdateInterval = window.setInterval(() => {
-            if (this._bounds[1] !== undefined && this.getTime() >= this._bounds[1]) {
-                this._stopOnEnd();
+    private _createEndTimeout(): void {
+        // If there is no bound in the direction the clock is ticking, there is no end to reach.
+        if (this._bounds[this._endBoundIdx()] === undefined) {
+            return;
+        }
+
+        // Note : changing the bounds or playback rate or pausing triggers the deletion of the following tiemout and recreates it
+        // if needed. Thus we are sure it will be called with the current values of playback rate and bounds, and it will still be playing.
+        this._endTimeoutIdx = window.setTimeout(() => {
+            if (this.getLoop()) {
+                // Loop back to the start (considering the ticking direction).
+                this.restart();
+                // Recreate the stop interval. No need to delete it first as we are in the current timeout function.
+                this._createEndTimeout();
+            } else {
+                // Stop playback exactly at the time of the ending bound (but don't trigger a manual update event).
+                // See note above.
+                this._isTicking = false;
+                this._setTimeNoEventTrigger(this._bounds[this._endBoundIdx()]!);
+                this.dispatchEvent("ended");
             }
-            this.dispatchEvent("timeUpdate");
-        }, 100);
-        return Promise.resolve();
+        }, this.timeUntilEnd());
+    }
+
+    /**
+     * Deletes the existing timeout (that handles what to do when the clock reaches its end bound.)
+     */
+    private _clearEndTimeout(): void {
+        clearTimeout(this._endTimeoutIdx);
+        this._endTimeoutIdx = undefined;
+    }
+
+    /**
+     * Handles the deletion and recreation of the tiemout. Should be called whenever a parameter (playback rate, bounds, ...) changes.
+     */
+    private _recalibrateEndTimeout(): void {
+        this._clearEndTimeout();
+        // If we were playing, we need to recreate the handle end timeout.
+        if (this.isTicking()) {
+            this._createEndTimeout();
+        }
+    }
+
+    private _endBoundIdx(): number {
+        // If the clock ticks forwards, the ending bound is the upper one, and else it is the lower one.
+        return this._playbackRate >= 0 ? 1 : 0;
+    }
+
+    /**
+     * Computes, given the actual playback rate, in how many real time ms the clock will reach its ending bound.
+     */
+    timeUntilEnd(): number {
+        const endingBound = this._bounds[this._endBoundIdx()];
+        return endingBound === undefined
+            ? Infinity
+            : this._playbackRate >= 0
+              ? (endingBound - this.getTime()) / this._playbackRate
+              : (this.getTime() - endingBound) / this._playbackRate;
+    }
+
+    /**
+     * Starts the clock.
+     */
+    start(): void {
+        if (this.isTicking()) {
+            // Do nothing if we ask for the clock to play while its playing.
+            return;
+        }
+        this._lastUpdateTime = performance.now() / 1000;
+        this._isTicking = true;
+        this._createEndTimeout(); // Create a timeout to stop the clock when it reaches its end.
+        this.dispatchEvent("start");
     }
 
     /**
      * Pauses the clock.
      */
     pause(): void {
-        if (this.isPaused()) {
+        if (!this.isTicking()) {
+            // Do nothing if we ask the clock to pause while it is paused.
             return;
         }
-        clearInterval(this._timeupdateInterval);
         this._lastKnownTime = this.getTime();
-        this._paused = true;
+        this._isTicking = false;
+        this._clearEndTimeout(); // Clear the timeout created when the clock started.
         this.dispatchEvent("pause");
-        this.dispatchEvent("timeUpdate");
     }
 
     /**
      * Stops the clock (restarts the clock and pauses it).
      */
-    stop(): void {
-        this.pause();
-        this.restart();
-    }
+    // stop(): void {
+    //     if (this._state === "stopped") {
+    //         return;
+    //     }
+    //     this._lastKnownTime = this.getTime();
+    //     this._clearEndTimeout();
+    //     this._state = "stopped";
+    //     this.restart();
+    //     this.dispatchEvent("ended");
+    //     // this.dispatchEvent("timeUpdate");
+    // }
 
     /**
-     * Restarts the clock.
+     * Restarts the clock. If it ticked forward in time, goes to the start. If it ticked backwards, goes to the end.
      */
     restart(): void {
-        if (this.getBounds()[0] === undefined) {
-            console.warn("No start time is specified in TimeConductor. Will go back to 0.");
+        const endBound = this._bounds[this._endBoundIdx()];
+        if (endBound === undefined) {
+            console.warn(
+                `No ${this._playbackRate >= 0 ? "end" : "start"} time is specified for this clock. Will go back to 0.`
+            );
         }
-        this.setTime(this.getBounds()[0] ?? 0);
+        this.setTime(endBound ?? 0);
     }
 
     /**
@@ -155,6 +208,8 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
         this._lastKnownTime = this.getTime();
         this._lastUpdateTime = performance.now() / 1000;
         this._playbackRate = value;
+        // If we were playing, we need to recreate the handle end timeout.
+        this._recalibrateEndTimeout();
         this.dispatchEvent("playbackRateChange");
     }
 
@@ -163,7 +218,7 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      * @returns the time in seconds.
      */
     getTime(): number {
-        if (this.isPaused()) {
+        if (!this.isTicking()) {
             return this._lastKnownTime;
         } else {
             return (
@@ -174,21 +229,37 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
     }
 
     /**
+     * Sets the time of the clock without firing an event.
+     * @param time the time in seconds.
+     */
+    private _setTimeNoEventTrigger(time: number): void {
+        this._lastUpdateTime = performance.now() / 1000;
+        this._lastKnownTime = time;
+        // If we were playing, we need to recreate the handle end timeout.
+        this._recalibrateEndTimeout();
+    }
+
+    /**
      * Sets the time of the clock.
      * @param time the time in seconds.
      */
     setTime(time: number): void {
-        this._lastUpdateTime = performance.now() / 1000;
-        this._lastKnownTime = time;
-        this.dispatchEvent("timeUpdate");
+        this._setTimeNoEventTrigger(time);
+        this.dispatchEvent("manualTimeUpdate");
     }
 
     /**
-     *
+     * @returns whether the clock is ticking.
+     */
+    isTicking(): boolean {
+        return this._isTicking;
+    }
+
+    /**
      * @returns whether the clock is not ticking.
      */
-    isPaused(): boolean {
-        return this._paused;
+    isStopped(): boolean {
+        return !this._isTicking;
     }
 
     /**
@@ -205,6 +276,8 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      */
     setBounds(bounds: [number | undefined, number | undefined]) {
         this._bounds = bounds;
+        // If we were playing, we need to recreate the handle end timeout.
+        this._recalibrateEndTimeout();
         this.dispatchEvent("boundsChange");
     }
 
@@ -222,6 +295,7 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      */
     setLoop(value: boolean) {
         this._loop = value;
+        // No need to cancel a possible endTimeout. The logic of how to loop is handled inside the timeout callback.
         this.dispatchEvent("loopChange");
     }
 
@@ -229,8 +303,9 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      * Properly disposes of all event listeners and intervals.
      */
     dispose() {
+        this.dispatchEvent("ended");
+        this._clearEndTimeout();
         this.removeAllEventListeners();
-        clearInterval(this._timeupdateInterval);
     }
 }
 
