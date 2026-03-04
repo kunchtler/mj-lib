@@ -8,7 +8,7 @@ export interface ClockParam {
     loop?: boolean;
 }
 
-type ClockEvents =
+export type ClockEvents =
     | "start"
     | "pause"
     | "ended"
@@ -77,26 +77,30 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      */
     private _createEndTimeout(): void {
         // If there is no bound in the direction the clock is ticking, there is no end to reach.
-        if (this._bounds[this._endBoundIdx()] === undefined) {
+        const endBound = this._bounds[this._endBoundIdx()]; 
+        if (endBound === undefined) {
             return;
         }
 
         // Note : changing the bounds or playback rate or pausing triggers the deletion of the following tiemout and recreates it
         // if needed. Thus we are sure it will be called with the current values of playback rate and bounds, and it will still be playing.
-        this._endTimeoutIdx = setTimeout(() => {
-            if (this.getLoop()) {
-                // Loop back to the start (considering the ticking direction).
-                this.restart();
-                // Recreate the stop interval. No need to delete it first as we are in the current timeout function.
-                this._createEndTimeout();
-            } else {
-                // Stop playback exactly at the time of the ending bound (but don't trigger a manual update event).
-                // See note above.
-                this._isTicking = false;
-                this._setTimeNoEventTrigger(this._bounds[this._endBoundIdx()]!);
-                this.dispatchEvent("ended");
-            }
-        }, this.timeUntilEnd() * 1000);
+        this._endTimeoutIdx = setTimeout(
+            () => {
+                if (this.getLoop()) {
+                    // Loop back to the start (considering the ticking direction).
+                    this.restart();
+                    // Recreate the stop interval. No need to delete it first as we are in the current timeout function.
+                    this._createEndTimeout();
+                } else {
+                    // Stop playback exactly at the time of the ending bound (but don't trigger a manual update event).
+                    // See note above.
+                    this._isTicking = false;
+                    this._setTimeNoEventTrigger(this._bounds[this._endBoundIdx()]!);
+                    this.dispatchEvent("ended");
+                }
+            },
+            this.realTimeUntil(endBound) * 1000
+        );
     }
 
     /**
@@ -121,17 +125,6 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
     private _endBoundIdx(): number {
         // If the clock ticks forwards, the ending bound is the upper one, and else it is the lower one.
         return this._playbackRate >= 0 ? 1 : 0;
-    }
-
-    /**
-     * Computes, given the actual playback rate, in how many real time ms the clock will reach its ending bound.
-     */
-    timeUntilEnd(): number {
-        const endingBound = this._bounds[this._endBoundIdx()];
-        return endingBound === undefined
-            ? Infinity
-            : // if the playback rate is negative, everything still works ;)
-              (endingBound - this.getTime()) / this._playbackRate;
     }
 
     /**
@@ -296,6 +289,15 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
         this._loop = value;
         // No need to cancel a possible endTimeout. The logic of how to loop is handled inside the timeout callback.
         this.dispatchEvent("loopChange");
+    }
+
+    /**
+     * Computes in how many real seconds the clock will reacha target time. Accounts for playback rate.
+     * @param targetTime the playback time in seconds the clock should reach.
+     */
+    realTimeUntil(targetTime: number) {
+        // If the playback rate is negative, everything still works ;)
+        return (targetTime - this.getTime()) / this._playbackRate;
     }
 
     /**
