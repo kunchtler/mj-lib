@@ -4,7 +4,7 @@
  * Specify this is a module comment and rename it to my-module:
  * @module my-module
  */
-import { BallSound } from "../model";
+import { BallSoundDescription } from "../model";
 import { DeepFuse, DeepRequired } from "../utils";
 
 // TODO for description : Add support for...
@@ -24,8 +24,8 @@ import { DeepFuse, DeepRequired } from "../utils";
 export type JugglingScore = {
     ballTemplates: {
         name: string;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
+        soundOnCatch?: BallSoundDescription;
+        soundOnToss?: BallSoundDescription;
     }[];
     jugglers: {
         name: string;
@@ -246,6 +246,15 @@ export type GlobalBeatReference<FractionType = FractionDescription> = {
     beat: FractionType;
     timeInSeconds: FractionType;
     barBeat: { bar: number; beat: FractionType };
+};
+// TODO : Unify with scheduler LocType ?
+
+export type BallSoundDescription = {
+    name: string | string[];
+    /**
+     * Whether the sound should loop until the next event. False by default.
+     */
+    loop?: boolean;
 };
 
 // export type JugglingScore2 = {

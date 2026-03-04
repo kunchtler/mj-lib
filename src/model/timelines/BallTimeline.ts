@@ -1,13 +1,8 @@
 import { Timeline } from "../../utils/Timeline";
 
-// TODO : Unify with scheduler LocType ?
-
 export type BallSound = {
-    name: string | string[];
-    /**
-     * Whether the sound should loop until the next event. False by default.
-     */
-    loop?: boolean;
+    name: string;
+    loop: boolean;
 };
 
 export type BallEvent = {

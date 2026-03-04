@@ -13,7 +13,7 @@ import {
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
-import { BallModel, BallSound, HandModel, JugglerModel } from "../model";
+import { BallModel, BallSoundDescription, HandModel, JugglerModel } from "../model";
 import { Euler, Vector3 } from "three";
 import { toVector } from "../utils/three/Vector";
 import { SpotModelParams, toSpotParam } from "../model/SpotModel";
@@ -308,7 +308,10 @@ export function checkScoreNamesAndIDs(
     score: JugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): {
-    ballTemplates: Map<string, { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined>;
+    ballTemplates: Map<
+        string,
+        { soundOnCatch?: BallSoundDescription; soundOnToss?: BallSoundDescription } | undefined
+    >;
     ballIDs: Map<string, string>;
     tableIDs: Map<string, string>; // Maps table to juggler.
     jugglerNames: Set<string>;
@@ -325,7 +328,7 @@ export function checkScoreNamesAndIDs(
     // Check if ball template names are unique.
     const ballTemplates = new Map<
         string,
-        { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined
+        { soundOnCatch?: BallSoundDescription; soundOnToss?: BallSoundDescription } | undefined
     >();
     for (const { name: templateName, soundOnCatch, soundOnToss } of score.ballTemplates) {
         handleIfStringDuplicate({

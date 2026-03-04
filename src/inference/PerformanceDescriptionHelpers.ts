@@ -1,4 +1,4 @@
-import { BallSound } from "../model";
+import { BallSoundDescription } from "../model";
 import {
     BallDescription,
     BodyMeshDescription,
@@ -15,8 +15,8 @@ export type JugglingScoreHelper = {
     version: "0.1";
     ballTemplates: {
         name: string;
-        soundOnCatch?: BallSound;
-        soundOnToss?: BallSound;
+        soundOnCatch?: BallSoundDescription;
+        soundOnToss?: BallSoundDescription;
     }[];
     jugglers: {
         name: string;
@@ -53,8 +53,8 @@ export type PerformanceLayoutHelper = {
     version: "0.1";
     ballTemplates: {
         name: string;
-        soundOnCatch?: BallSound; //TODO : Remove ?
-        soundOnToss?: BallSound; //TODO : Remove ?
+        soundOnCatch?: BallSoundDescription; //TODO : Remove ?
+        soundOnToss?: BallSoundDescription; //TODO : Remove ?
     }[];
     jugglers: {
         name: string;

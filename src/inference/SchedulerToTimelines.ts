@@ -1,7 +1,8 @@
 import Fraction from "fraction.js";
 import { SymbolicEvent } from "./Scheduler";
 import { HandTimeline } from "../model/timelines/HandTimeline";
-import { BallEvent, BallSound, BallTimeline } from "../model/timelines/BallTimeline";
+import { BallEvent, BallTimeline } from "../model/timelines/BallTimeline";
+import { BallSoundDescription } from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { LocalBeatConverter } from "./LocalBeatConverter";
 
@@ -104,7 +105,10 @@ function addEventsToCreateHeldState(
 }
 
 export type CreateModelTimelinesParams = {
-    ballIDToSound: Map<string, { soundOnCatch?: BallSound; soundOnToss?: BallSound } | undefined>;
+    ballIDToSound: Map<
+        string,
+        { soundOnCatch?: BallSoundDescription; soundOnToss?: BallSoundDescription } | undefined
+    >;
     jugglers: Map<
         string,
         {
