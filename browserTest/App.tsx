@@ -9,7 +9,7 @@ import {
     DEFAULT_JUGGLER_CUBE_HEIGHT,
     DEFAULT_JUGGLER_CUBE_WIDTH,
     DEFAULT_TABLE_HEIGHT,
-    PerformanceAudio,
+    AudioEngine,
     TossEvent
 } from "../src";
 import { RefObject, useEffect, useRef, useState } from "react";
@@ -102,7 +102,7 @@ function Performance({
     const jugglersRef = useRef(
         new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
-    const [performanceAudio] = useState(() => new PerformanceAudio(listener));
+    const [performanceAudio] = useState(() => new AudioEngine(listener));
     const performanceRef = useRef<THREE.Object3D>(null!);
     // const audioRef = useRef(new PerformanceAudio());
 
@@ -149,7 +149,7 @@ function Performance({
                 prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
             ) {
                 console.log("changed");
-                performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
+                performanceAudio.changeJugglerGainForBall(id, prevEv.hand.juggler.name);
             }
 
             // Make the ball sound if needed.
@@ -220,7 +220,7 @@ function mapBalls(
     { id, color }: BallData,
     ballsRef: RefObject<Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>>,
     listener: THREE.AudioListener,
-    performanceAudio: PerformanceAudio
+    performanceAudio: AudioEngine
 ) {
     return (
         <BallMesh

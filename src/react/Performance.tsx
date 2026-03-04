@@ -3,13 +3,23 @@
 // For which our clock api has a bit of a different way of working.
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { PerformanceAudio } from "../audio";
+import { AudioEngine } from "../audio";
 import { PerformanceModel } from "../model";
-import { Clock } from "../utils";
+import { Clock, useLazyRef } from "../utils";
 import { useFrame } from "@react-three/fiber";
 
 // TODO : Test moveing whole performnce around with an engloping object (and chaging scale and rotation).
 // TODO : Test scale for everything that has scale in fact.
+// TODO : Currently, sound is computed on each frame, handle it with a proper outside class, and/or with event callbacks ?
+
+export function Performance2(specs: {
+    jugglers: Map<string, { mesh: THREE.Mesh; volume?: number }>;
+    balls: Map<string, { mesh: THREE.Mesh; volume?: number }>;
+    volume?: number;
+    buffersMap?: Map<string, AudioBuffer>;
+    clock: Clock;
+    model: PerformanceModel;
+}) {}
 
 export function Performance({
     listener,
@@ -25,45 +35,102 @@ export function Performance({
     // Previous time
     const previousTime = useRef<number>(-Infinity);
 
-    // Mesh / Object3D References.
-    const ballsRef = useRef(new Map<string, { mesh?: THREE.Mesh }>());
-    const jugglersRef = useRef(
-        new Map<
-            string,
-            { leftHandMesh?: THREE.Mesh; rightHandMesh?: THREE.Mesh; bodyMesh: THREE.Mesh }
-        >()
+    // References to a utility class that helps with managing audio of a performance.
+    // TODO : HANDLE LISTENER CHANGE ???
+    const audioControls = useLazyRef<AudioEngine>(() => new AudioEngine(listener));
+    // References to meshes of the scene to update to update their position.
+    const ballsRef = useLazyRef(() => new Map<string, { mesh?: THREE.Mesh }>());
+    const jugglersRef = useLazyRef(
+        () =>
+            new Map<
+                string,
+                { leftHandMesh?: THREE.Mesh; rightHandMesh?: THREE.Mesh; bodyMesh: THREE.Mesh }
+            >()
     );
-    const performanceRef = useRef<THREE.Object3D>(null!);
+    // const performanceRef = useRef<THREE.Object3D>(null!);
 
-    // Audio
-    const [performanceAudio] = useState(() => new PerformanceAudio(listener));
+    useEffect(() => {
+        // TODO : Listener change.
+        return;
+    });
 
     // Bind some of the audio to the clock.
-    useEffect(() => {
-        // Adds event listeners, and store their removal method in an array.
-        const onPlay = () => {
-            setStatus("playing");
-        };
-        const onPause = () => {
-            setStatus("paused");
-        };
-        const onReachedEnd = () => {
-            setStatus("reachedEnd");
-        };
-        clock.addEventListener("play", onPlay);
-        clock.addEventListener("pause", onPause);
-        clock.addEventListener("reachedEnd", onReachedEnd);
+    // useEffect(() => {
+    //     const onStart = () => {
+    //         audioControls.current.unpause();
+    //     };
+    //     const onPause = () => {
+    //         audioControls.current.pause();
+    //     };
+    //     const onEnded = () => {
+    //         // Do nothing, we want the sounds to keep playing even when the simulation stops at the end.
+    //         return;
+    //     };
+    //     const onManualTimeUpdate = () => {
+    //         // Load each ball with its sound at the right time.
+    //         for (const ballID of audioControls.current.ballIDs()) {
+    //             // Get the model.
+    //             const ballModel = model.balls.get(ballID);
+    //             if (ballModel === undefined) {
+    //                 continue;
+    //             }
+    //             // Figure out what is the previous sound the ball should have made, (accounting for the clock ticking forwards or backwards).
+    //             // TODO : For now, only forward.
+    //             const [prevEvTime, prevEv] = ballModel.timeline.prevEvent(clock.getTime());
+    //             if (
+    //                 prevEvTime !== null &&
+    //                 previousTime.current < prevEvTime &&
+    //                 prevEv.sound !== undefined
+    //             ) {
+    //                 // Check if a ball has changed jugglers to change its gain.
+    //                 if (
+    //                     prevEv.location.type === "held" &&
+    //                     prevEv.location.jugglerName !== audioControls.current.getBallJuggler(ballID)
+    //                 )
+    //                     audioControls.current.changeBallJuggler(
+    //                         ballID,
+    //                         prevEv.location.jugglerName
+    //                     );
+    //                 // Make the ball sound.
+    //                 audioControls.current.prevEv.sound.loop
+    //             }
+    //                 // TO CONTINUE : Have a way to load the sound the ball should play, but not playing it instantly, by modifying PerformanceAudio
+    //                 !clock.isStopped()
+    //             ) {
+    //                 performanceAudio.playBallSound(id, buffersMap.get(id)!);
+    //             }
+    //         }
+    //     };
+    //     const onPlaybackRateChange = () => {
+    //         // Change the playback so that the pitch is shifted.
+    //         // TODO : Is this the behaviour we want ? Or no pitch shift and normal sound.
+    //         // TODO : Test if works in reverse.
+    //         audioControls.current.setPlaybackRate(clock.getPlaybackRate());
+    //     };
 
-        // Return a function to remove all event listeners.
-        return () => {
-            clock.removeEventListener("play", onPlay);
-            clock.removeEventListener("pause", onPause);
-            clock.removeEventListener("reachedEnd", onReachedEnd);
-        };
-    }, [clock]);
+    //     clock.addEventListener("start", onStart);
+    //     clock.addEventListener("pause", onPause);
+    //     clock.addEventListener("ended", onEnded);
+    //     clock.addEventListener("manualTimeUpdate", onManualTimeUpdate);
+    //     clock.addEventListener("playbackRateChange", onPlaybackRateChange);
+    //     clock.addEventListener("boundsChange", onBoundsChange);
+    //     clock.addEventListener("loopChange", onLoopChange);
+
+    //     clock.addEventListener("playbackRateChange");
+    //     clock.addEventListener("play", onPlay);
+    //     clock.addEventListener("pause", onPause);
+    //     clock.addEventListener("reachedEnd", onReachedEnd);
+
+    //     // Return a function to remove all event listeners.
+    //     return () => {
+    //         clock.removeEventListener("play", onPlay);
+    //         clock.removeEventListener("pause", onPause);
+    //         clock.removeEventListener("reachedEnd", onReachedEnd);
+    //     };
+    // }, [clock]);
 
     useEffect(() => {
-        performanceAudio.setPlaybackRate(1);
+        audioControls.current.setPlaybackRate(1);
     });
 
     // TODO : Audio system.
@@ -149,9 +216,7 @@ export function Performance({
         <group position={position} ref={performanceRef}>
             {description.jugglersData.map((elem) => mapJuggler(elem, jugglersRef))}
             {description.tablesData.map((elem) => mapTables(elem))}
-            {description.ballsData.map((elem) =>
-                mapBalls(elem, ballsRef, listener, performanceAudio)
-            )}
+            {description.ballsData.map((elem) => mapBalls(elem, ballsRef, listener, audioControls))}
         </group>
     );
 }
@@ -160,7 +225,7 @@ function mapBalls(
     { id, color }: BallData,
     ballsRef: RefObject<Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>>,
     listener: THREE.AudioListener,
-    performanceAudio: PerformanceAudio
+    performanceAudio: AudioEngine
 ) {
     return (
         <BallMesh
