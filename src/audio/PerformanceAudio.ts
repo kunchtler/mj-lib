@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { BallSound, BallTimeline } from "../model";
-import { CallbackFunction, Clock, ClockEvents, EventDispatcher } from "../utils";
+import { BallSound, PerformanceModel } from "../model";
+import { CallbackFunction, Clock, ClockEvents } from "../utils";
 
 // ThreeJS requires an audioListener to create audio objects.
 // We create a decoy one that we immediately unbind
@@ -16,43 +16,75 @@ import { CallbackFunction, Clock, ClockEvents, EventDispatcher } from "../utils"
 //     }
 // }
 class BallAudio {
-    // private _jugglerGainNode: GainNode;
-    // private _jugglerGainName?: number;
-    audioBuffers: Map<string, AudioBuffer>;
+    private _jugglerGainNode: GainNode;
+    jugglerGainName?: string;
+    // audioBuffers: Map<string, AudioBuffer>;
     audio: THREE.PositionalAudio;
-    private _clock: Clock;
-    private _timeline: BallTimeline;
+    // private _clock: Clock;
+    // private _timeline: BallTimeline;
     private _timeoutIdx?: number;
     private _clockListeners: { event: ClockEvents; callback: CallbackFunction }[];
-    changeJugglerGain: (jugglerName: string) => void;
+    private _clock: Clock | undefined;
+    private _audioEngine: AudioEngine;
+    private _ballID: string;
 
     constructor(
         audio: THREE.PositionalAudio,
-        timeline: BallTimeline,
-        clock: Clock,
-        audioBuffers: Map<string, AudioBuffer>,
-        changeJugglerGain: (jugglerName: string) => void
+        audioEngine: AudioEngine,
+        ballID: string
+        // timeline: BallTimeline,
+        // clock: Clock,
+        // audioBuffers: Map<string, AudioBuffer>
     ) {
         this.audio = audio;
-        this._timeline = timeline;
-        this.audioBuffers = audioBuffers;
-        this.changeJugglerGain = changeJugglerGain;
-        this._clock = clock;
+        this._jugglerGainNode = audio.context.createGain();
+
+        // this.audioBuffers = audioBuffers;
+        // this._clock = clock;
+        this._audioEngine = audioEngine;
         this._clockListeners = [];
-        this._setupClock();
+
+        this._ballID = ballID;
+
+        // Change the default ThreeJS audio routing.
+        // Disconnect the Positional audio Gain from the AudioListener's gain Node.
+        this.audio.gain.disconnect();
+        // Connect it to the juggler gain which itself is connected to the perofrmance gain.
+        this.audio.gain.connect(this._jugglerGainNode);
+        this._jugglerGainNode.connect(this._audioEngine.getPerformanceGain());
+
+        // Change the ball's PositionalAudio properties to match the performance's ones.
+        // if (jugglerName !== undefined) {
+        //     this.changeJugglerGainForBall(ballID, jugglerName);
+        // }
+
+        this.setupClock();
     }
 
-    setClock(clock: Clock) {
-        this._unsetupClock();
-        this._clock = clock;
-        this._setupClock();
+    changeJuggler(jugglerName: string | undefined): void {
+        this.jugglerGainName = jugglerName;
+        const gainValue =
+            jugglerName === undefined ? 1 : this._audioEngine.getJugglerGain(jugglerName);
+        this._jugglerGainNode.gain.setValueAtTime(gainValue, 0.01);
     }
 
-    getClock(): Clock {
-        return this._clock;
+    setGain(gain: number): void {
+        this.audio.setVolume(gain);
     }
 
-    private _setupClock(): void {
+    getGain(): number {
+        return this.audio.getVolume();
+    }
+
+    setupClock(): void {
+        // Cleanup last clock.
+        this.unsetupClock();
+
+        this._clock = this._audioEngine.getClock();
+        if (this._clock === undefined) {
+            return;
+        }
+
         // Create callbacks
         const onStart = () => {
             this.createTimeout(0);
@@ -91,26 +123,27 @@ class BallAudio {
         }
     }
 
-    private _unsetupClock() {
+    changeModel() {
+        this.clearTimeout();
+        if (this._audioEngine.getClock()?.isTicking()) {
+            this.createTimeout(0);
+        }
+    }
+
+    unsetupClock() {
+        if (this._clock === undefined) {
+            return;
+        }
         this.clearTimeout();
         this.audio.stop();
         for (const { event, callback } of this._clockListeners) {
             this._clock.removeEventListener(event, callback);
         }
+        this._clock = undefined;
+        this._clockListeners = [];
+        this.changeJuggler(undefined);
     }
 
-    setTimeline(timeline: BallTimeline) {
-        this._timeline = timeline;
-        this.audio.stop();
-        this.clearTimeout();
-        if (this._clock.isTicking()) {
-            this.createTimeout(0);
-        }
-    }
-
-    getTimeline(): BallTimeline {
-        return this._timeline;
-    }
     /**
      * Have the ball play a sound immediately.
      * @param sound the sound name as found in the audio buffer.
@@ -124,7 +157,7 @@ class BallAudio {
             return;
         }
         // Find the audio buffer.
-        const audioBuffer = this.audioBuffers.get(sound.name);
+        const audioBuffer = this._audioEngine.audioBuffers.get(sound.name);
         if (audioBuffer === undefined) {
             // Sound buffer not found, play nothing.
             return;
@@ -141,30 +174,40 @@ class BallAudio {
      */
     createTimeout(delay: number): void {
         this._timeoutIdx = setTimeout(() => {
-            //1. Play sound if needed when starting.
-            const time = this._clock.getTime();
-            if (this._clock.getPlaybackRate() < 0) {
+            const clock = this._audioEngine.getClock();
+            const timeline = this._audioEngine
+                .getPerformanceModel()
+                ?.balls.get(this._ballID)?.timeline;
+            if (timeline === undefined || clock === undefined) {
+                // There are missing parameters, so we live early.
+                return;
+            }
+
+            const time = clock.getTime();
+            if (clock.getPlaybackRate() < 0) {
                 return; // TODO ?
             }
-            const [prevEvTime, prevEv] = this._timeline.prevEvent(time);
+
+            const [prevEvTime, prevEv] = timeline.prevEvent(time);
+            //1. Play sound if needed when starting.
             if (prevEvTime !== null) {
                 // Check if we are held by another juggler.
                 if (prevEv.location.type === "held") {
-                    this.changeJugglerGain(prevEv.location.jugglerName);
+                    this.changeJuggler(prevEv.location.jugglerName);
                 }
                 this.playSound(prevEv.sound, time - prevEvTime);
             }
 
             //2. Program to play the next sound.
-            const [nextEvTime, _] = this._timeline.nextEvent(time);
+            const [nextEvTime, _] = timeline.nextEvent(time);
             if (nextEvTime !== null) {
-                const newDelay = this._clock.realTimeUntil(nextEvTime);
+                const newDelay = clock.realTimeUntil(nextEvTime);
                 this.createTimeout(newDelay >= 0 ? newDelay : 0);
             } else {
                 this._timeoutIdx = undefined;
                 return;
             }
-        }, delay);
+        }, delay * 1000);
     }
 
     clearTimeout() {
@@ -173,19 +216,12 @@ class BallAudio {
     }
 
     dispose() {
-        this.clearTimeout();
-        this._unsetupClock();
+        this.unsetupClock();
+        // Reconfigure the audio routing as it used to be.
+        this.audio.gain.disconnect(this._jugglerGainNode);
+        this._jugglerGainNode.disconnect(this._audioEngine.getPerformanceGain());
+        this.audio.gain.connect(this._audioEngine.getListener().gain);
     }
-
-    // dispose() {
-    //     // Reconfigure the audio routing as it used to be.
-    //     this._audio.gain.disconnect(this._jugglerGainNode);
-    //     this._jugglerGainNode.disconnect(this._performanceGainNode);
-    //     ballData.audio.gain.connect(this._listener.gain);
-
-    //     // Stop any ongoing sound.
-    //     ballData.audio.stop();
-    // }
 }
 
 /**
@@ -197,90 +233,69 @@ class BallAudio {
  * - The performance gain is connected to a THREE.AudioListener.
  */
 export class AudioEngine {
-    private _balls: Map<
-        string,
-        { audio: BallAudio; jugglerGainNode: GainNode; jugglerGainName?: string }
-    >;
-    private _jugglers: Map<string, { gainValue: number; balls: Set<string> }>;
+    private _balls: Map<string, BallAudio>;
+    private _jugglerGains: Map<string, number>;
     private _performanceGain: GainNode;
     private _listener: THREE.AudioListener;
-    private _clock: Clock;
-    private _model: Model;
+    private _clock: Clock | undefined;
+    private _model: PerformanceModel | undefined;
+    audioBuffers: Map<string, AudioBuffer>;
 
-    constructor(listener: THREE.AudioListener) {
+    constructor(listener: THREE.AudioListener, clock: Clock, model: PerformanceModel) {
         this._balls = new Map();
-        this._jugglers = new Map();
-        this._playbackRate = 1;
-        this._isPaused = false;
+        this._jugglerGains = new Map();
         this._listener = listener;
+        this.audioBuffers = new Map();
         // We create a gain node to control the whole's performance volume.
         this._performanceGain = listener.context.createGain();
         // This gain node is connected to the listener's gain node (the master volume).
         this._performanceGain.connect(listener.getInput());
+        this.setClock(clock);
+        this.setPerformanceModel(model);
     }
 
-    addBallAudio(
-        ballID: string,
-        audio: THREE.PositionalAudio,
-        jugglerName?: string,
-        timeline: BallTimeline
-    ): void {
-        // Add the ball's audio data to the map.
-        const jugglerGain = audio.context.createGain();
-        this._balls.set(ballID, { audio: audio, jugglerGainNode: jugglerGain });
-
-        // Change the default ThreeJS audio routing.
-        // Disconnect the Positional audio Gain from the AudioListener's gain Node.
-        audio.gain.disconnect();
-        // Connect it to the juggler gain which itself is connected to the perofrmance gain.
-        audio.gain.connect(jugglerGain);
-        jugglerGain.connect(this._performanceGain);
-
-        // Change the ball's PositionalAudio properties to match the performance's ones.
-        audio.setPlaybackRate(this._playbackRate);
-        if (jugglerName !== undefined) {
-            this.changeJugglerGainForBall(ballID, jugglerName);
+    setBallAudio(ballID: string, audio: THREE.PositionalAudio): void {
+        // Handle a ball with the existing ID properly.
+        if (this._balls.has(ballID)) {
+            this.deleteBallAudio(ballID);
         }
+
+        const ballAudio = new BallAudio(audio, this, ballID);
+        this._balls.set(ballID, ballAudio);
     }
 
     deleteBallAudio(ballID: string) {
         // Remove from the balls map.
-        const ballData = this._balls.get(ballID);
-        if (ballData === undefined) {
+        const ballAudio = this._balls.get(ballID);
+        if (ballAudio === undefined) {
             return;
         }
         this._balls.delete(ballID);
 
         // Reconfigure the audio routing as it used to be.
-        ballData.audio.gain.disconnect(ballData.jugglerGainNode);
-        ballData.jugglerGainNode.disconnect(this._performanceGain);
-        ballData.audio.gain.connect(this._listener.gain);
-
-        // Stop any ongoing sound.
-        ballData.audio.stop();
+        ballAudio.dispose();
     }
 
     setJugglerGain(jugglerName: string, gainValue: number): void {
-        const juggler = this._jugglers.get(jugglerName);
+        const juggler = this._jugglerGains.get(jugglerName);
+
         if (juggler === undefined) {
-            this._jugglers.set(jugglerName, { balls: new Set(), gainValue });
+            this._jugglerGains.set(jugglerName, gainValue);
             return;
         }
-        for (const ballID of juggler.balls) {
-            this._balls.get(ballID)!.jugglerGainNode.gain.setValueAtTime(gainValue, 0.01);
+        for (const ball of this._balls.values()) {
+            if (ball.jugglerGainName === jugglerName) {
+                ball.changeJuggler(jugglerName);
+            }
         }
     }
 
-    getJugglerGain(jugglerName: string): number | undefined {
-        return this._jugglers.get(jugglerName)?.gainValue;
+    getJugglerGain(jugglerName: string): number {
+        return this._jugglerGains.get(jugglerName) ?? 1;
     }
 
-    setBallVolume(ballID: string, volume: number): void {
-        this._balls.get(ballID)?.audio.setVolume(volume);
-    }
-
-    getBallVolume(ballID: string): number | undefined {
-        return this._balls.get(ballID)?.audio.getVolume();
+    getPerformanceGain(): GainNode {
+        return this._performanceGain;
     }
 
     // setListener(listener: THREE.AudioListener) {
@@ -291,30 +306,31 @@ export class AudioEngine {
     //     return this._listener;
     // }
 
-    changeJugglerGainForBall(ballID: string, jugglerName: string): void {
-        const ballData = this._balls.get(ballID);
-        if (ballData === undefined) {
-            return;
+    setClock(clock: Clock | undefined) {
+        for (const ball of this._balls.values()) {
+            ball.setupClock();
         }
-        ballData.jugglerGainName = jugglerName;
-        const targetVolume = this._jugglers.get(jugglerName);
-        if (targetVolume === undefined) {
-            return;
-        }
-        this._balls.get(ballID)?.jugglerGainNode.gain.setValueAtTime(targetVolume, 0.01);
+        this._clock = clock;
     }
 
-    getBallJuggler(ballID: string): string | undefined {
-        return this._balls.get(ballID)?.jugglerGainName;
+    getClock(): Clock | undefined {
+        return this._clock;
     }
 
-    // ballIDs() {
-    //     return this._balls.keys();
-    // }
+    setPerformanceModel(model: PerformanceModel | undefined) {
+        for (const ball of this._balls.values()) {
+            ball.changeModel();
+        }
+        this._model = model;
+    }
 
-    // jugglerNames() {
-    //     return this._jugglers.keys();
-    // }
+    getPerformanceModel(): PerformanceModel | undefined {
+        return this._model;
+    }
+
+    getListener(): THREE.AudioListener {
+        return this._listener;
+    }
 
     dispose(): void {
         // Remove all balls
@@ -326,40 +342,3 @@ export class AudioEngine {
         this._performanceGain.disconnect();
     }
 }
-
-// setClock(clock: Clock) {
-//         // 1. Remove the old timeConductor's event listeners.
-//         this._clockRemoveEventListenersFunc.forEach((callback) => {
-//             callback();
-//         });
-
-//         // 2. Set the new clock.
-//         this._clock = clock;
-
-//         const removePlay = clock.addEventListener("play", () => {
-//             for (const ball of this.balls.values()) {
-//                 ball.unpause();
-//             }
-//         });
-//         const removePause = clock.addEventListener("pause", () => {
-//             for (const ball of this.balls.values()) {
-//                 ball.pause();
-//             }
-//         });
-//         const removeReachedEnd = clock.addEventListener("reachedEnd", () => {
-//             for (const ball of this.balls.values()) {
-//                 ball.stop();
-//             }
-//         });
-//         const removePlaybackRateChange = clock.addEventListener("playbackRateChange", () => {
-//             for (const ball of this.balls.values()) {
-//                 ball.setPlaybackRate(clock.getPlaybackRate());
-//             }
-//         });
-//         this._clockRemoveEventListenersFunc = [
-//             removePlay,
-//             removePause,
-//             removePlaybackRateChange,
-//             removeReachedEnd
-//         ];
-//     }

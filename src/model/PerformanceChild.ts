@@ -4,6 +4,8 @@ import { PerformanceModel } from "./PerformanceModel";
 //     performance?: PerformanceModel;
 // };
 
+// TODO : GC handles perfectly fine cyclic references. NOT NEEDED.
+
 /**
  * Class inherited by all model classes contained within a performance.
  *
