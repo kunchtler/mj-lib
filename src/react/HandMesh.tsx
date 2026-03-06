@@ -5,18 +5,23 @@ import {
     createRectHandGeometry
 } from "./Default3DModels";
 import {
-    DEFAULT_HAND_COLOR,
+    DEFAULT_HAND_COLOR as DEFAULT_CIRCLE_HAND_COLOR,
     DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
     DEFAULT_CIRCLE_HAND_RADIUS,
-    DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT
+    DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
+    DEFAULT_HAND_VISIBILITY,
+    DEFAULT_CUBE_HAND_DEPTH,
+    DEFAULT_CUBE_HAND_WIDTH,
+    DEFAULT_CUBE_HAND_COLOR
 } from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
 
-export type HandMeshProps = {
+export type HandCircleMeshProps = {
     radius?: number;
     widthSegments?: number;
     heightSegments?: number;
     color?: THREE.ColorRepresentation;
+    visible?: boolean;
     ref?: Ref<THREE.Mesh>;
 };
 
@@ -24,9 +29,10 @@ export function HandCircleMesh({
     radius = DEFAULT_CIRCLE_HAND_RADIUS,
     widthSegments = DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
     heightSegments = DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
-    color = DEFAULT_HAND_COLOR,
+    color = DEFAULT_CIRCLE_HAND_COLOR,
+    visible = DEFAULT_HAND_VISIBILITY,
     ref
-}: HandMeshProps) {
+}: HandCircleMeshProps) {
     return (
         <mesh
             geometry={createCircleHandGeometry({
@@ -35,23 +41,35 @@ export function HandCircleMesh({
                 heightSegments
             })}
             material={createHandMaterial({ color })}
+            visible={visible}
             ref={ref}
         />
     );
 }
 
+
+export type HandRectMeshProps = {
+    length?: number;
+    width?: number;
+    depth?: number;
+    color?: THREE.ColorRepresentation;
+    visible?: boolean;
+    ref?: Ref<THREE.Mesh>;
+};
+
 export function HandRectMesh({
-    radius = DEFAULT_CIRCLE_HAND_RADIUS,
-    widthSegments = DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT,
-    heightSegments = DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT,
-    color = DEFAULT_HAND_COLOR,
+    length = DEFAULT_CUBE_HAND_DEPTH,
+    width = DEFAULT_CUBE_HAND_WIDTH,
+    depth = DEFAULT_CUBE_HAND_DEPTH,
+    color = DEFAULT_CUBE_HAND_COLOR,
+    visible = DEFAULT_HAND_VISIBILITY,
     ref
-}: HandMeshProps) {
+}: HandRectMeshProps) {
     const geometry = createRectHandGeometry({
-        radius,
-        widthSegments,
-        heightSegments
+        length,
+        width,
+        depth
     });
     const material = createHandMaterial({ color });
-    return <mesh geometry={geometry} material={material} ref={ref} />;
+    return <mesh geometry={geometry} material={material} visible={visible} ref={ref} />;
 }
