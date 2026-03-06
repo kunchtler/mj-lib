@@ -24,7 +24,7 @@ class BallAudio {
     // private _timeline: BallTimeline;
     private _timeoutIdx?: number;
     private _clockListeners: { event: ClockEvents; callback: CallbackFunction }[];
-    private _clock: Clock | undefined;
+    private _clock: Clock | undefined; //Set only to correctly unset clock callbacks. Access clock via the audioEngine instead.
     private _audioEngine: AudioEngine;
     private _ballID: string;
 
@@ -78,8 +78,11 @@ class BallAudio {
 
     setupClock(): void {
         // Cleanup last clock.
-        this.unsetupClock();
+        if (this._clock !== undefined) {
+            this.unsetupClock();
+        }
 
+        // Setup new clock.
         this._clock = this._audioEngine.getClock();
         if (this._clock === undefined) {
             return;
@@ -199,7 +202,7 @@ class BallAudio {
             }
 
             //2. Program to play the next sound.
-            const [nextEvTime, _] = timeline.nextEvent(time);
+            const nextEvTime = timeline.nextEvent(time)[0];
             if (nextEvTime !== null) {
                 const newDelay = clock.realTimeUntil(nextEvTime);
                 this.createTimeout(newDelay >= 0 ? newDelay : 0);
@@ -211,6 +214,9 @@ class BallAudio {
     }
 
     clearTimeout() {
+        if (this._timeoutIdx === undefined) {
+            return;
+        }
         clearTimeout(this._timeoutIdx);
         this._timeoutIdx = undefined;
     }
@@ -223,6 +229,13 @@ class BallAudio {
         this.audio.gain.connect(this._audioEngine.getListener().gain);
     }
 }
+
+export type AudioEngineParams = {
+    listener: THREE.AudioListener;
+    clock?: Clock;
+    model?: PerformanceModel;
+    buffersMap?: Map<string, AudioBuffer>;
+};
 
 /**
  * Manages the audio of a performance with proper audio Routing.
@@ -241,11 +254,11 @@ export class AudioEngine {
     private _model: PerformanceModel | undefined;
     audioBuffers: Map<string, AudioBuffer>;
 
-    constructor(listener: THREE.AudioListener, clock: Clock, model: PerformanceModel) {
+    constructor({ listener, clock, model, buffersMap }: AudioEngineParams) {
         this._balls = new Map();
         this._jugglerGains = new Map();
         this._listener = listener;
-        this.audioBuffers = new Map();
+        this.audioBuffers = buffersMap ?? new Map<string, AudioBuffer>();
         // We create a gain node to control the whole's performance volume.
         this._performanceGain = listener.context.createGain();
         // This gain node is connected to the listener's gain node (the master volume).
