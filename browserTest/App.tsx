@@ -102,7 +102,7 @@ function Performance({
     const jugglersRef = useRef(
         new Map<string, { leftHand?: THREE.Mesh; rightHand?: THREE.Mesh; body: THREE.Mesh }>()
     );
-    const [performanceAudio] = useState(() => new AudioEngine(listener));
+    const [performanceAudio] = useState(() => new AudioEngine({ listener }));
     const performanceRef = useRef<THREE.Object3D>(null!);
     // const audioRef = useRef(new PerformanceAudio());
 

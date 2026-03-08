@@ -4,6 +4,7 @@ import {
     DEFAULT_TABLE_COLOR,
     DEFAULT_TABLE_DEPTH,
     DEFAULT_TABLE_HEIGHT,
+    DEFAULT_TABLE_VISIBILITY,
     DEFAULT_TABLE_WIDTH
 } from "../constants/miseEnSceneDefaultValues";
 import { Ref } from "react";
@@ -13,8 +14,7 @@ export type TableMeshProps = {
     width?: number;
     depth?: number;
     color?: THREE.ColorRepresentation;
-    position?: THREE.Vector3Tuple;
-    rotation?: THREE.Vector3Tuple;
+    visible?: boolean;
     ref?: Ref<THREE.Mesh>;
 };
 
@@ -23,16 +23,14 @@ export function TableMesh({
     width = DEFAULT_TABLE_WIDTH,
     depth = DEFAULT_TABLE_DEPTH,
     color = DEFAULT_TABLE_COLOR,
-    position,
-    rotation,
+    visible = DEFAULT_TABLE_VISIBILITY,
     ref
 }: TableMeshProps) {
     return (
         <mesh
             geometry={createTableGeometry({ height, width, depth })}
             material={createTableMaterial({ color })}
-            position={position}
-            rotation={rotation}
+            visible={visible}
             ref={ref}
         />
     );

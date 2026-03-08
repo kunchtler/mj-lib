@@ -4,7 +4,6 @@
  * Specify this is a module comment and rename it to my-module:
  * @module my-module
  */
-import { BallSoundDescription } from "../model";
 import { DeepFuse, DeepRequired } from "../utils";
 
 // TODO for description : Add support for...
@@ -83,20 +82,48 @@ export type PerformanceLayout = {
     }[];
 };
 
-export type PerformanceMeshDefinitions = {
-    ballTemplates: {
-        name: string;
-        color: ColorDescription;
-        radius: number;
-    }[];
+export type BallMeshDescription = {
+    name: string;
+    color: ColorDescription;
+    radius: number;
+};
+
+export type PerformanceMeshesDescription = {
+    ballTemplates: BallMeshDescription[];
     jugglers: {
         name: string;
-        leftHand: HandMeshDescription;
+        leftHand: HandMeshDescription; //TODO : Make optional.
         rightHand: HandMeshDescription;
         body: BodyMeshDescription;
         table?: TableMeshDescription;
     }[];
 };
+
+//TODO : Have tables independent of juggler, and just have parameter for juggler default table.
+// that way, multiple jugglers can take from the same spot.
+// No need for now to implement custom taking from siteswap, later.
+// Remake scheduler with proper juggler states that hold ref to world state, as no problem with cyclic dep.
+// So that they can access all other tables and jugglers.
+// Also, as Nicolas said, no big difference for spots on table or hand or on body.
+// It is jsut that the ones on hands have the special insertion rule, but that can be given by an outside function.
+// Defaultposwith3balls(spot1, spot2, spot3).
+
+// export type PerformanceMeshesDescription = {
+//     balls: {
+//         name: string;
+//         color: ColorDescription;
+//         radius: number;
+//     }[];
+//     jugglers: {
+//         name: string;
+//         leftHand: HandMeshDescription; //TODO : Make optional.
+//         rightHand: HandMeshDescription;
+//         body: BodyMeshDescription;
+//         table?: TableMeshDescription;
+//     }[];
+// };
+
+
 
 export type ColorDescription = number | string;
 export type FractionDescription = number | string;

@@ -1,58 +1,74 @@
 /* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
 // Reason of the above suppression : it is based on the name "addEventListener";
 // For which our clock api has a bit of a different way of working.
-import { useEffect, useRef, useState } from "react";
+import { Fragment, RefObject, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { AudioEngine } from "../audio";
 import { PerformanceModel } from "../model";
 import { Clock, useLazyRef } from "../utils";
 import { useFrame } from "@react-three/fiber";
+import {
+    BallMeshDescription,
+    BodyMeshDescription,
+    HandMeshDescription,
+    PerformanceMeshesDescription,
+    TableMeshDescription
+} from "../inference";
+import { BallMesh } from "./BallMesh";
+import { BodyMesh } from "./BodyMesh";
+import { HandRectMesh } from "./HandMesh";
+import { TableMesh } from "./TableMesh";
 
 // TODO : Test moveing whole performnce around with an engloping object (and chaging scale and rotation).
 // TODO : Test scale for everything that has scale in fact.
 // TODO : Currently, sound is computed on each frame, handle it with a proper outside class, and/or with event callbacks ?
 
-export function Performance2(specs: {
-    jugglers: Map<string, { mesh: THREE.Mesh; volume?: number }>;
-    balls: Map<string, { mesh: THREE.Mesh; volume?: number }>;
-    volume?: number;
-    buffersMap?: Map<string, AudioBuffer>;
-    clock: Clock;
-    model: PerformanceModel;
-}) {}
-
 export function Performance({
     listener,
     model,
     clock,
+    meshesDescription,
     buffersMap
 }: {
     listener: THREE.AudioListener;
     model: PerformanceModel;
+    meshesDescription: PerformanceMeshesDescription;
     clock: Clock;
     buffersMap: Map<string, AudioBuffer>;
 }) {
     // Previous time
-    const previousTime = useRef<number>(-Infinity);
+    // const previousTime = useRef<number>(-Infinity);
 
     // References to a utility class that helps with managing audio of a performance.
     // TODO : HANDLE LISTENER CHANGE ???
-    const audioControls = useLazyRef<AudioEngine>(() => new AudioEngine(listener));
+    const audioControls = useRef<AudioEngine | undefined>(undefined);
     // References to meshes of the scene to update to update their position.
-    const ballsRef = useLazyRef(() => new Map<string, { mesh?: THREE.Mesh }>());
-    const jugglersRef = useLazyRef(
-        () =>
-            new Map<
-                string,
-                { leftHandMesh?: THREE.Mesh; rightHandMesh?: THREE.Mesh; bodyMesh: THREE.Mesh }
-            >()
+    const ballsRef = useRef(
+        new Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>()
     );
+    const jugglersRef = useRef(
+        new Map<
+            string,
+            { leftHandMesh?: THREE.Mesh; rightHandMesh?: THREE.Mesh; bodyMesh?: THREE.Mesh }
+        >()
+    ); // TODO : Figure how to use lazyRefs without ESLint complaining in UseEffects ?
     // const performanceRef = useRef<THREE.Object3D>(null!);
 
+    // TODO : This assumes first the positional audio are created and that then they are added.
+    // Work on a version that adds them (with ref).
     useEffect(() => {
-        // TODO : Listener change.
-        return;
-    });
+        // Recreate the audioEngine, and add again
+        const audioEngine = new AudioEngine({ listener, model, clock, buffersMap });
+        ballsRef.current.forEach((ballInfo, ballID) => {
+            if (ballInfo.audio !== undefined) {
+                audioEngine.setBallAudio(ballID, ballInfo.audio);
+            }
+        });
+        audioControls.current = audioEngine;
+        return () => {
+            audioControls.current?.dispose();
+        };
+    }, [listener, model, clock, buffersMap]);
 
     // Bind some of the audio to the clock.
     // useEffect(() => {
@@ -129,21 +145,6 @@ export function Performance({
     //     };
     // }, [clock]);
 
-    useEffect(() => {
-        audioControls.current.setPlaybackRate(1);
-    });
-
-    // TODO : Audio system.
-    // - May need adding "manualUpdate" back to clock.
-    // - Play with sounds to see if we ask them to play while pause,
-    // - they won't play, and then play again when pressing play once more.
-    // useFrame(() => {
-    //     const time = clock.getTime();
-    //     for (const [i] of ballsRef.current) {
-
-    //     }
-    // })
-
     useFrame(() => {
         const time = clock.getTime();
 
@@ -152,40 +153,7 @@ export function Performance({
             if (mesh !== undefined) {
                 mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
             }
-
-            // Change the ball juggler's channel if need be.
-            // const [prevEvTime, prevEv] = model.balls.get(id)!.timeline.prevEvent(time);
-
-            // // Check if a ball has changed jugglers to change its gain.
-            // if (prevEv !== null && previousTime.current < prevEvTime)
-            //     if (
-            //         prevEvTime !== null &&
-            //         prevEv instanceof TossEvent &&
-            //         previousTime.current < prevEvTime &&
-            //         prevEv.hand.juggler.name !== performanceAudio.getBallJuggler(id)
-            //     ) {
-            //         console.log("changed");
-            //         performanceAudio.changeBallJuggler(id, prevEv.hand.juggler.name);
-            //     }
-
-            // // TODO : Stop all ball sounds if we jumped too far.
-
-            // // Make the ball sound if needed.
-            // if (
-            //     prevEv !== null &&
-            //     prevEv.sound !== undefined &&
-            //     previousTime.current < prevEvTime &&
-            //     !clock.isPaused()
-            // ) {
-            //     const audioBuffer = buffersMap.get(id);
-            //     if (audioBuffer === undefined) {
-            //         console.warn(`Can't play sound `);
-            //     }
-            //     performanceAudio.playBallSound(id, buffersMap.get(id)!);
-            // }
         }
-
-        previousTime.current = time;
 
         // for (const { name: jugglerName } of description.jugglersData) {
         //     const {
@@ -212,145 +180,204 @@ export function Performance({
         // }
     });
 
+    // Parent container group or empty ?
     return (
-        <group position={position} ref={performanceRef}>
-            {description.jugglersData.map((elem) => mapJuggler(elem, jugglersRef))}
-            {description.tablesData.map((elem) => mapTables(elem))}
-            {description.ballsData.map((elem) => mapBalls(elem, ballsRef, listener, audioControls))}
-        </group>
+        <>
+            {[...model.jugglers].map(([jugglerName, jugglerModel]) => {
+                const meshInfo = meshesDescription.jugglers.find(
+                    (juggler) => juggler.name === jugglerName
+                );
+                if (meshInfo === undefined) {
+                    return;
+                }
+                return (
+                    <Juggler
+                        key={jugglerName}
+                        name={jugglerName}
+                        bodyMeshInfo={meshInfo.body}
+                        rightHandMeshInfo={meshInfo.rightHand}
+                        leftHandMeshInfo={meshInfo.leftHand}
+                        position={jugglerModel.position.getLocal()}
+                        rotation={jugglerModel.rotation.getLocal()}
+                        jugglersRef={jugglersRef}
+                    />
+                );
+            })}
+            {[...model.tables].map(([tableID, tableModel]) => {
+                const meshInfo = meshesDescription.jugglers.find(
+                    (juggler) => juggler.table?.id === tableID
+                )?.table;
+                if (meshInfo === undefined) {
+                    return;
+                }
+                return (
+                    <Table
+                        key={tableID}
+                        meshInfo={meshInfo}
+                        position={tableModel.position.getLocal()}
+                        rotation={tableModel.rotation.getLocal()}
+                    />
+                );
+            })}
+            {[...model.balls].map(([ballID, ballModel]) => {
+                const meshInfo = meshesDescription.ballTemplates.find(
+                    (ball) => ball.name === ballName //TODO : Make it so the templates are forgotten at some point.
+                );
+                if (meshInfo === undefined) {
+                    return;
+                }
+                return (
+                    <Ball
+                        key={ballID}
+                        id={ballID}
+                        meshInfo={meshInfo}
+                        ballsRef={ballsRef}
+                        listener={listener}
+                    />
+                );
+            })}
+        </>
     );
 }
 
-function mapBalls(
-    { id, color }: BallData,
-    ballsRef: RefObject<Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>>,
-    listener: THREE.AudioListener,
-    performanceAudio: AudioEngine
-) {
+function Ball({
+    id,
+    meshInfo,
+    ballsRef,
+    listener
+}: {
+    id: string;
+    meshInfo: BallMeshDescription;
+    ballsRef: RefObject<Map<string, { mesh?: THREE.Mesh; audio?: THREE.PositionalAudio }>>;
+    listener: THREE.AudioListener;
+}) {
     return (
         <BallMesh
-            key={id}
-            color={color}
-            ref={(node) => {
-                updateMapRef<THREE.Mesh, string, { mesh?: THREE.Mesh }>(
-                    node,
-                    ballsRef,
-                    id,
-                    (ball, node) => {
-                        ball.mesh = node;
-                    }
-                );
-            }}
+            // key={id}
+            color={meshInfo.color}
+            radius={meshInfo.radius}
+            ref={updateMapRef(ballsRef, id, (ball, node) => {
+                ball.mesh = node;
+            })}
         >
             <positionalAudio
                 args={[listener]}
-                ref={(node) => {
-                    if (node !== null) {
-                        performanceAudio.addBallAudio(id, node);
-                    } else {
-                        performanceAudio.deleteBallAudio(id);
-                    }
-                }}
+                ref={updateMapRef(ballsRef, id, (ball, node) => {
+                    ball.audio = node;
+                })}
             />
         </BallMesh>
     );
 }
 
-function mapJuggler(
-    { name, position }: JugglerData,
+function Juggler({
+    name,
+    position,
+    rotation,
+    leftHandMeshInfo,
+    rightHandMeshInfo,
+    bodyMeshInfo,
+    jugglersRef
+}: {
+    name: string;
+    position: THREE.Vector3;
+    rotation: THREE.Euler;
+    leftHandMeshInfo: HandMeshDescription;
+    rightHandMeshInfo: HandMeshDescription;
+    bodyMeshInfo: BodyMeshDescription;
     jugglersRef: RefObject<
         Map<
             string,
             {
-                leftHand?: THREE.Mesh;
-                rightHand?: THREE.Mesh;
-                body?: THREE.Mesh;
+                leftHandMesh?: THREE.Mesh;
+                rightHandMesh?: THREE.Mesh;
+                bodyMesh?: THREE.Mesh;
             }
         >
-    >
-) {
+    >;
+}) {
     return (
-        <group position={position} key={name}>
+        <group position={position} rotation={rotation}>
             <BodyMesh
-                ref={(node) => {
-                    updateMapRef<
-                        THREE.Mesh,
-                        string,
-                        {
-                            leftHand?: THREE.Mesh;
-                            rightHand?: THREE.Mesh;
-                            body?: THREE.Mesh;
-                        }
-                    >(node, jugglersRef, name, (juggler, node) => {
-                        juggler.body = node;
-                    });
-                }}
+                {...bodyMeshInfo}
+                ref={
+                    updateMapRef(jugglersRef, name, (juggler, node) => {
+                        juggler.bodyMesh = node;
+                    }) //TODO : Not needed anymore, remove ?
+                }
             />
-            <HandMesh
-                ref={(node) => {
-                    updateMapRef<
-                        THREE.Mesh,
-                        string,
-                        {
-                            leftHand?: THREE.Mesh;
-                            rightHand?: THREE.Mesh;
-                            body?: THREE.Mesh;
-                        }
-                    >(node, jugglersRef, name, (juggler, node) => {
-                        juggler.rightHand = node;
-                    });
-                }}
+            <HandRectMesh
+                {...rightHandMeshInfo}
+                ref={updateMapRef(jugglersRef, name, (juggler, node) => {
+                    juggler.rightHandMesh = node;
+                })}
             />
-            <HandMesh
-                ref={(node) => {
-                    updateMapRef<
-                        THREE.Mesh,
-                        string,
-                        {
-                            leftHand?: THREE.Mesh;
-                            rightHand?: THREE.Mesh;
-                            body?: THREE.Mesh;
-                        }
-                    >(node, jugglersRef, name, (juggler, node) => {
-                        juggler.leftHand = node;
-                    });
-                }}
+            <HandRectMesh
+                {...leftHandMeshInfo}
+                ref={updateMapRef(jugglersRef, name, (juggler, node) => {
+                    juggler.leftHandMesh = node;
+                })}
             />
         </group>
     );
 }
 
-// Note : MapValueObject must have all fields optional.
-function updateMapRef<NodeType, MapKey, MapValueObject extends object>(
-    node: NodeType | null,
-    mapRef: RefObject<Map<MapKey, Partial<MapValueObject>>>,
-    key: MapKey,
-    addToRefFunc: (juggler: Partial<MapValueObject>, node: NodeType) => void
-) {
-    let elem = mapRef.current.get(key);
-    if (node !== null) {
-        // The node is being mounted.
-        if (elem === undefined) {
-            // The mapRef has not the specified key, so we create it.
-            elem = {};
-            mapRef.current.set(key, elem);
-        }
-        // We complete the value object.
-        addToRefFunc(elem, node);
-    } else {
-        // The node is being dismounted.
-        if (elem === undefined) {
-            // The refs have already been cleared.
-            return;
-        }
-        // Clear the whole ref
-        mapRef.current.delete(key);
-    }
+
+function Table({
+    position,
+    rotation,
+    meshInfo
+}: {
+    position: THREE.Vector3;
+    rotation: THREE.Euler;
+    meshInfo: TableMeshDescription;
+}) {
+    return (
+        <object3D position={position} rotation={rotation}>
+            <TableMesh {...meshInfo} />;
+        </object3D>
+    );
 }
 
-function mapTables({ position, rotation, name }: TableData) {
-    return <TableMesh position={position} rotation={rotation} key={name} />;
+/**
+ * Say you want references to be held in a map, but you want a key to hold multiple references as an object. This function allows to easily fill such a map with new refs
+ * @param mapRef the referenced map.
+ * @param key the key of the element to update in the map.
+ * @param onMount a function to update an existing object of the map with the new value.
+ * @returns
+ */
+function updateMapRef<Elem, Key, Value extends object>(
+    mapRef: RefObject<Map<Key, Partial<Value>>>,
+    key: Key,
+    onMount: (value: Partial<Value>, node: Elem) => void,
+    onDismount?: (value: Partial<Value>) => void
+) {
+    return (node: Elem | null) => {
+        let elem = mapRef.current.get(key);
+        if (node !== null) {
+            // The node is being mounted.
+            if (elem === undefined) {
+                // The mapRef does not have the specified key, so we create it.
+                elem = {};
+                mapRef.current.set(key, elem);
+            }
+            // We complete the value object.
+            onMount(elem, node);
+        } else {
+            // The node is being dismounted (its value is null).
+            if (elem === undefined) {
+                // The refs have already been cleared.
+                return;
+            }
+            // Clear the whole ref
+            if (onDismount !== undefined) {
+                onDismount(elem);
+            }
+            mapRef.current.delete(key);
+        }
+    };
 }
+
 
 // import { JSX, RefObject, useRef } from "react";
 // import { PerformanceView } from "../view/PerformanceView";
