@@ -23,19 +23,24 @@ export class ActiveHandComputer {
 
         // If no event default hand was found, never, give it a default one (right hand).
         if (this.defaultHandChanges.length === 0) {
-            this.defaultHandChanges.push({
-                localBeat: handChanges.length === 0 ? new Fraction(0) : handChanges[0].localBeat,
-                handIdx: 1
-            });
+            this._createFirstHand(handChanges.length === 0 ? new Fraction(0) : handChanges[0].localBeat)
         }
+    }
+
+    private _createFirstHand(localBeat: Fraction) {
+        this.defaultHandChanges.push({
+            localBeat,
+            handIdx: 1
+        });
     }
 
     defaultHandAtLocalBeat(localBeat: Fraction): { handIdx: number; offbeat: boolean } {
         if (this.defaultHandChanges.length === 0) {
-            throw Error(
+            console.error(
                 "No hand info to infer hand from. This shouldn't happen unless \
                 the class has been messed up with after initialization."
             );
+            this._createFirstHand(new Fraction(0));
         }
         let idx = this.defaultHandChanges.findIndex((info) => info.localBeat.gt(localBeat));
         idx = idx === 0 ? 0 : idx === -1 ? this.defaultHandChanges.length - 1 : idx - 1;
