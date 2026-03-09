@@ -18,34 +18,37 @@ import { DeepFuse, DeepRequired } from "../utils";
 // - Separate pattern from JugglerDescription ? Instead have name of the juggler in the pattern and lex/parse it ?
 // - Map sound name -> AudioBuffer ?
 
+export type PerformanceDescription = DeepFuse<
+    DeepFuse<JugglingScore, PerformanceLayout>,
+    PerformanceMeshesDescription
+>;
+
 // TODO : Have the sounds in the ball IDs instead of in the template.
 // TODO : Same for ball template names ? No, I don't think so. We may have template names not present.
 export type JugglingScore = {
-    ballTemplates: {
-        name: string;
+    balls: {
+        id: string;
+        templateName: string;
         soundOnCatch?: BallSoundDescription;
         soundOnToss?: BallSoundDescription;
     }[];
     jugglers: {
         name: string;
-        table?: {
-            id: string;
-            ballsOnTableAtStart: {
-                id: string;
-                name: string; // Todo : differentiate template name from sound category ?
-                spot?: string;
-            }[];
-            spots: {
-                name: string;
-                acceptedBallName: string;
-            }[];
-        };
-        ballsHeldAtStart: [
-            (Required<BallDescription> | undefined)[],
-            (Required<BallDescription> | undefined)[]
-        ];
+        ballsHeldAtStart: [(string | undefined)[], (string | undefined)[]]; // TODO : Fuse with leftHand.heldSpots ???
         beatReference: JugglerBeatReference;
         jugglingPhrases: JugglingPhrase[];
+        defaultTableID?: string;
+    }[];
+    tables: {
+        id: string;
+        spots: {
+            name: string;
+            ballID: string;
+            acceptedBallName: string;
+        }[];
+        unknownSpot: {
+            ballIDs: string[];
+        };
     }[];
     globalBeat: GlobalBeatDescription;
 };
@@ -53,8 +56,8 @@ export type JugglingScore = {
 // TODO : Check if scale is working correctly.
 // TODO : Move sounds back to mise en scene (they shouldn't be in score).
 export type PerformanceLayout = {
-    ballTemplates: {
-        name: string;
+    balls: {
+        id: string;
         radius: number;
     }[];
     jugglers: {
@@ -64,39 +67,39 @@ export type PerformanceLayout = {
         scale: [number, number, number];
         leftHand: DeepRequired<HandMiseEnSceneDescription>;
         rightHand: DeepRequired<HandMiseEnSceneDescription>;
-        table?: {
-            id: string;
+    }[];
+    tables: {
+        id: string;
+        position: [number, number, number];
+        rotation: [number, number, number];
+        scale: [number, number, number];
+        spots: {
+            name: string;
             position: [number, number, number];
             rotation: [number, number, number];
-            scale: [number, number, number];
-            spots: {
-                name: string;
-                position: [number, number, number];
-                rotation: [number, number, number];
-            }[];
-            unknownSpot: {
-                position: [number, number, number];
-                rotation: [number, number, number];
-            };
+        }[];
+        unknownSpot: {
+            position: [number, number, number];
+            rotation: [number, number, number];
         };
     }[];
 };
 
 export type BallMeshDescription = {
-    name: string;
+    id: string;
     color: ColorDescription;
     radius: number;
 };
 
 export type PerformanceMeshesDescription = {
-    ballTemplates: BallMeshDescription[];
+    balls: BallMeshDescription[];
     jugglers: {
         name: string;
         leftHand: HandMeshDescription; //TODO : Make optional.
         rightHand: HandMeshDescription;
         body: BodyMeshDescription;
-        table?: TableMeshDescription;
     }[];
+    tables: TableMeshDescription[];
 };
 
 //TODO : Have tables independent of juggler, and just have parameter for juggler default table.
@@ -122,8 +125,6 @@ export type PerformanceMeshesDescription = {
 //         table?: TableMeshDescription;
 //     }[];
 // };
-
-
 
 export type ColorDescription = number | string;
 export type FractionDescription = number | string;
