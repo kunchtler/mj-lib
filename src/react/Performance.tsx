@@ -1,7 +1,7 @@
 /* eslint-disable @eslint-react/web-api/no-leaked-event-listener */
 // Reason of the above suppression : it is based on the name "addEventListener";
 // For which our clock api has a bit of a different way of working.
-import { Fragment, RefObject, useEffect, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { AudioEngine } from "../audio";
 import { PerformanceModel } from "../model";
@@ -204,9 +204,7 @@ export function Performance({
                 );
             })}
             {[...model.tables].map(([tableID, tableModel]) => {
-                const meshInfo = meshesDescription.jugglers.find(
-                    (juggler) => juggler.table?.id === tableID
-                )?.table;
+                const meshInfo = meshesDescription.tables.find((table) => table.id === tableID);
                 if (meshInfo === undefined) {
                     return;
                 }
@@ -219,10 +217,8 @@ export function Performance({
                     />
                 );
             })}
-            {[...model.balls].map(([ballID, ballModel]) => {
-                const meshInfo = meshesDescription.ballTemplates.find(
-                    (ball) => ball.name === ballName //TODO : Make it so the templates are forgotten at some point.
-                );
+            {[...model.balls].map(([ballID]) => {
+                const meshInfo = meshesDescription.balls.find((ball) => ball.id === ballID);
                 if (meshInfo === undefined) {
                     return;
                 }
