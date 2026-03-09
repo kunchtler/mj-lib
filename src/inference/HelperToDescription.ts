@@ -9,8 +9,9 @@ import {
 } from "./PerformanceDescription";
 import { PerformanceDescriptionHelper } from "./PerformanceDescriptionHelpers";
 import { createLayoutAndMeshesDescriptionFromHelper } from "./HelperToLayoutAndMeshes";
+import { deepFuse } from "../utils/fuse";
 
-function DescriptionFromHelpers(
+export function descriptionFromHelper(
     helper: PerformanceDescriptionHelper,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceDescription {
@@ -22,14 +23,14 @@ function DescriptionFromHelpers(
         helper,
         new Map<string, string>([...ballGeneratedIDs, ...ballUserIDs])
     );
-    return constructPerformanceFromParts(score, layout, meshesDescription);
+    return constructPerformanceFromParts(score, layout, meshesDescription, errorLogger);
 }
 
 export function constructPerformanceFromParts(
     score: JugglingScore,
     layout: PerformanceLayout,
     meshesDescription: PerformanceMeshesDescription,
-    errorLogger: TimedErrorLogger
+    errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceDescription {
     const description: PerformanceDescription = {
         balls: [],
@@ -47,7 +48,7 @@ export function constructPerformanceFromParts(
             });
             continue;
         }
-        description.balls.push({ ...ball1, ...ball2, ...ball3 });
+        description.balls.push(deepFuse(deepFuse(ball1, ball2), ball3));
     }
     for (const juggler1 of score.jugglers) {
         const juggler2 = layout.jugglers.find((juggler) => juggler.name === juggler1.name);
@@ -61,7 +62,7 @@ export function constructPerformanceFromParts(
             });
             continue;
         }
-        description.jugglers.push({ ...juggler1, ...juggler2, ...juggler3 });
+        description.jugglers.push(deepFuse(deepFuse(juggler1, juggler2), juggler3));
     }
     for (const table1 of score.tables) {
         const table2 = layout.tables.find((table) => table.id === table1.id);
@@ -73,6 +74,7 @@ export function constructPerformanceFromParts(
             });
             continue;
         }
-        description.tables.push({ ...table1, ...table2, ...table3 });
+        description.tables.push(deepFuse(deepFuse(table1, table2), table3));
     }
+    return description;
 }

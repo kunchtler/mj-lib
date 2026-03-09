@@ -1,68 +1,96 @@
 import { DeepFuse } from "./utilityTypes";
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+    return typeof v === "object" && v !== null && v.constructor === Object;
+}
 
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-    isObject(v) && v.constructor === Object;
-
-function deepFuse<A, B>(elem1: A, elem2: B): DeepFuse<A, B> {
-    // ─── MAP ───────────────────────────────
-    if (elem1 instanceof Map && elem2 instanceof Map) {
-        const result = new Map();
-        // First add all key value pairs of elem1.
-        // If the key exists in elem2, fuse the values.
-        for (const [key1, val1] of elem1) {
-            if (key1 in elem2) {
-                result.set(key1, deepFuse(val1, elem2.get(key1)));
-            } else {
-                result.set(key1, val1);
-            }
-        }
-        // Then add all keys of elem2 not in elem1.
-        for (const [key2, val2] of elem2) {
-            if (!elem1.has(key2)) {
-                result.set(key2, val2);
-            }
-        }
-        return result as DeepMergeStrict<A, B>;
+// TODO : Document.
+// This function follows the type as described in ./utilityTypes.
+export function deepFuse<A, B>(a: A, b: B): DeepFuse<A, B> {
+    
+    if (a instanceof Map && b instanceof Map) {
+        throw Error("Maps not implemented.");
+        // const result = new Map();
+        // // First add all key value pairs of elem1.
+        // // If the key exists in elem2, fuse the values.
+        // for (const [key1, val1] of a) {
+        //     if (key1 in b) {
+        //         result.set(key1, deepFuse(val1, b.get(key1)));
+        //     } else {
+        //         result.set(key1, val1);
+        //     }
+        // }
+        // // Then add all keys of elem2 not in elem1.
+        // for (const [key2, val2] of b) {
+        //     if (!a.has(key2)) {
+        //         result.set(key2, val2);
+        //     }
+        // }
+        // return result as DeepMergeStrict<A, B>;
     }
 
     // ─── SET ───────────────────────────────
-    if (elem1 instanceof Set && elem2 instanceof Set) {
-        const result = new Set(elem1);
-        for (const bVal of elem2) {
-            result.add(bVal);
-        }
-        return result as DeepMergeStrict<A, B>;
+    if (a instanceof Set && b instanceof Set) {
+        throw Error("Sets not implemented.");
+        // const result = new Set(a);
+        // for (const bVal of b) {
+        //     result.add(bVal);
+        // }
+        // return result as DeepMergeStrict<A, B>;
     }
 
     // ─── ARRAY (includes tuples) ───────────
-    if (Array.isArray(elem1) && Array.isArray(elem2)) {
-        const length = Math.min(elem1.length, elem2.length);
-        const result = elem1.slice() as unknown[];
+    if (Array.isArray(a) && Array.isArray(b)) {
+        const result: unknown[] = [];
 
-        for (let i = 0; i < length; i++) {
-            result[i] = deepFuse(elem1[i], elem2[i]);
-        }
-
-        return result as DeepMergeStrict<A, B>;
-    }
-
-    // ─── OBJECT ────────────────────────────
-    if (isPlainObject(elem1) && isPlainObject(elem2)) {
-        const result: Record<string, unknown> = { ...elem1 };
-
-        for (const key of Object.keys(elem2)) {
-            if (key in result) {
-                result[key] = deepFuse(result[key], (elem2 as Record<string, unknown>)[key]);
+        for (let i = 0; i < Math.max(a.length, b.length); i++) {
+            if (i < a.length) {
+                if (i < b.length) {
+                    result[i] = deepFuse(a[i], b[i]);
+                } else {
+                    result[i] = a[i];
+                }
             } else {
-                result[key] = (elem2 as Record<string, unknown>)[key];
+                result[i] = b[i];
             }
         }
 
-        return result as DeepMergeStrict<A, B>;
+        return result as DeepFuse<A, B>;
     }
 
-    // ─── FALLBACK ──────────────────────────
-    return elem1 as DeepMergeStrict<A, B>;
+    // ─── OBJECT ────────────────────────────
+    if (isPlainObject(a) && isPlainObject(b)) {
+        const result: Record<string, unknown> = {};
+
+        for (const key of Object.keys(a)) {
+            if (key in Object.keys(b)) {
+                result[key] = deepFuse(a[key], b[key]);
+            } else {
+                result[key] = a[key];
+            }
+        }
+        for (const key of Object.keys(b)) {
+            if (key in Object.keys(a)) {
+                // Previously handled.
+                continue;
+            } else {
+                result[key] = b[key];
+            }
+        }
+
+        return result as DeepFuse<A, B>;
+    }
+
+    if (
+        (typeof a === "number" && typeof b === "number" && (a as number) === (b as number)) ||
+        (typeof a === "boolean" && typeof b === "boolean" && (a as boolean) === (b as boolean)) ||
+        (typeof a === "string" && typeof b === "string" && (a as string) === (b as string)) ||
+        (typeof a === "bigint" && typeof b === "bigint" && (a as bigint) === (b as bigint)) ||
+        (typeof a === "undefined" && typeof b === "undefined") ||
+        (a === null && b === null)
+    ) {
+        return a as DeepFuse<A, B>;
+    }
+
+    throw Error("Not implemented.");
 }
