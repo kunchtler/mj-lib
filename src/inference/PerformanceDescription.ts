@@ -371,43 +371,25 @@ export type BallSoundDescription = {
 
 // Uncomment to see if typescript complains about incompatible types.
 
-// function foo(x: JugglingScore) {}
-// function fooJSON(x: JSONJugglingScore) {}
-// function goo(x: MiseEnScene) {}
-// let a: PerformanceDescription;
-// foo(a);
-// goo(a);
-// let aJSON: JSONPerformanceDescription;
-// fooJSON(aJSON);
-
-// type test = MiseEnScene & PerformanceDescription;
-// let x: test;
-// let y: JugglingScore;
-// y = x;
-// x = y;
-
-// TODO : Separate in Mise En Scene what is useful for the trajectories computations and what is useful for the models.
-
-// export type JugglingScore2 = {
-//     ballTemplates: {
-//         name: string;
-//     }[];
-//     jugglers: {
-//         name: string;
-//         table?: {
-//             id: string;
-//             ballsOnTableAtStart: {
-//                 id: string;
-//                 templateName: string; // Todo : differentiate template name from sound category ?
-//                 spot?: string;
-//             }[];
-//             spots: {
-//                 name: string;
-//                 acceptedBallName: string;
-//             }[];
-//         };
-//         ballsHeldAtStart: [Required<BallDescription>[], Required<BallDescription>[]];
-//         jugglingPhrases: JugglingPhrase[];
-//     }[];
-//     scoreRhythm?: ScoreRhythmDescription;
+// function foo(x: PerformanceDescription) {}
+// function foo1(x: JugglingScore) {}
+// function foo2(x: PerformanceLayout) {}
+// function foo3(x: PerformanceMeshesDescription) {}
+// const a: PerformanceDescription = {
+//     balls: [],
+//     jugglers: [],
+//     tables: [],
+//     globalBeat: {
+//         beatReference: { beat: 0, barBeat: { bar: 0, beat: 0 }, timeInSeconds: 0 },
+//         changes: []
+//     }
 // };
+// const a1: JugglingScore = a;
+// const a2: PerformanceLayout = a;
+// const a3: PerformanceMeshesDescription = a;
+// foo1(a);
+// foo1(a1);
+// foo2(a2);
+// foo2(a2);
+// foo3(a3);
+// foo3(a3);
