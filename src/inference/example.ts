@@ -1,6 +1,6 @@
-import { JSONPerformanceDescription } from "./PerformanceDescription";
+import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
 
-const example: JSONPerformanceDescription = {
+const example: JugglingScoreHelper = {
     ballTemplates: [
         { name: "Do", color: "red", soundOnCatch: {name: "Do4"} },
         { name: "Re", color: "orange", soundOnCatch: {name: "Re4"} },

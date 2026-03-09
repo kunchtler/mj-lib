@@ -11,6 +11,7 @@ import {
     BallMeshDescription,
     BodyMeshDescription,
     HandMeshDescription,
+    PerformanceDescription,
     PerformanceMeshesDescription,
     TableMeshDescription
 } from "../inference";
@@ -22,6 +23,19 @@ import { TableMesh } from "./TableMesh";
 // TODO : Test moveing whole performnce around with an engloping object (and chaging scale and rotation).
 // TODO : Test scale for everything that has scale in fact.
 // TODO : Currently, sound is computed on each frame, handle it with a proper outside class, and/or with event callbacks ?
+
+export function Wrapper({
+    listener,
+    clock,
+    performanceDescription
+}: {
+    listener: THREE.AudioListener;
+    clock: Clock;
+    performanceDescription: PerformanceDescription;
+}) {
+    return Performance({ listener, clock });
+}
+
 
 export function Performance({
     listener,

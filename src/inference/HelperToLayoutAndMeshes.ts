@@ -70,7 +70,7 @@ export function createHandSpots(params: {
     };
 }
 
-export function completeMiseEnSceneAndMeshDescriptions(
+export function createLayoutAndMeshesDescriptionFromHelper(
     helper: PerformanceLayoutAndMeshHelper,
     ballIDs: Map<string, string>
 ): { layout: PerformanceLayout; meshesDescription: PerformanceMeshesDescription } {
