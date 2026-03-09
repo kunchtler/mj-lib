@@ -47,7 +47,7 @@ export function formatJugglerPhrasesForScheduler(
         }
     >,
     ballTemplateNames: Set<string>,
-    ballIDs: Map<string, string>,
+    ballIDs: Map<string, unknown>,
     globalBeatConverter: GlobalBeatConverter
 ) {
     // Create the following dictionaries for each juggler.

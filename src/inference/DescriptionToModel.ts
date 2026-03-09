@@ -1,5 +1,5 @@
 // import { score11 as score } from "../examples/patternTest";
-import { JugglingScore, PerformanceLayout } from "./PerformanceDescription";
+import { JugglingScore, PerformanceLayout, BallSoundDescription } from "./PerformanceDescription";
 import Fraction from "fraction.js";
 import { JugglerState, Scheduler, SchedulerJuggler } from "./Scheduler";
 import { PerformanceModel } from "../model/PerformanceModel";
@@ -13,7 +13,7 @@ import {
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
-import { BallModel, BallSoundDescription, HandModel, JugglerModel } from "../model";
+import { BallModel, HandModel, JugglerModel } from "../model";
 import { Euler, Vector3 } from "three";
 import { toVector } from "../utils/three/Vector";
 import { SpotModelParams, toSpotParam } from "../model/SpotModel";
@@ -74,12 +74,16 @@ export function JugglingScoreToModel(
     );
     for (const juggler of jugglersMap.values()) {
         const { events, localBeatConverter } = formattedRes.get(juggler.name)!;
-        const initialState = createInitialJugglerStates(juggler, errorLogger);
+        const table: ElementOf<JugglingScore["tables"]> | undefined = score.tables.find(
+            (table) => table.id === juggler.defaultTableID
+        );
+        const initialState = createInitialJugglerStates(juggler, table, errorLogger);
 
+        // TODO : Adapt Scheduler to have tables outside of juggling state.
         let tableSpots: Map<string, string> | undefined = undefined;
-        if (juggler.table !== undefined) {
+        if (table !== undefined) {
             tableSpots = new Map<string, string>();
-            for (const spot of juggler.table.spots) {
+            for (const spot of table.spots) {
                 tableSpots.set(spot.name, spot.acceptedBallName);
             }
         }
@@ -93,8 +97,12 @@ export function JugglingScoreToModel(
     }
 
     // 4. Use the scheduler to infer the complete timeline of events.
+    const ballIDMap = new Map<string, string>();
+    for (const [ballID, { template }] of ballIDs) {
+        ballIDMap.set(ballID, template);
+    }
     const schedulerOutput = new Scheduler({
-        ballIDMap: ballIDs,
+        ballIDMap: ballIDMap,
         jugglers: schedulerJugglers
     }).validatePattern();
 
@@ -102,74 +110,63 @@ export function JugglingScoreToModel(
     console.log("Global Errors :\n");
     errorLogger.printErrorsInConsole();
     console.log("\n");
-    for (const [jugglerName, { errorLogger, events: timeline }] of schedulerOutput) {
-        console.log(`Juggler ${jugglerName} :\n`);
-        // const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
-        // for (const { beat, ...state } of states) {
-        //     tmp.setElement(beat, { state: state });
-        // }
-        // for (const ev of events) {
-        //     const elem = tmp.getElementByKey(ev.beat);
-        //     if (elem !== undefined) {
-        //         elem.event = ev;
-        //     } else {
-        //         tmp.setElement(ev.beat, { event: ev });
-        //     }
-        // }
-        // for (const [beat, { state, event }] of tmp) {
-        //     console.log(stringifyStateEvent(beat, state, event));
-        //     console.log("\n");
-        // }
-        // console.log("States:\n");
-        // states.forEach((elem) => {
-        //     console.log(stringifyState(elem, elem.beat) + "\n");
-        // });
-        // console.log("Events:\n");
-        // events.forEach((elem) => {
-        //     console.log(stringifyEvent(elem) + "\n");
-        // });
-        // console.log("Errors:\n");
-        // errorLogger.printErrorsInConsole();
-    }
+    // for (const [jugglerName, { errorLogger, events: timeline }] of schedulerOutput) {
+    //     console.log(`Juggler ${jugglerName} :\n`);
+    // const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
+    // for (const { beat, ...state } of states) {
+    //     tmp.setElement(beat, { state: state });
+    // }
+    // for (const ev of events) {
+    //     const elem = tmp.getElementByKey(ev.beat);
+    //     if (elem !== undefined) {
+    //         elem.event = ev;
+    //     } else {
+    //         tmp.setElement(ev.beat, { event: ev });
+    //     }
+    // }
+    // for (const [beat, { state, event }] of tmp) {
+    //     console.log(stringifyStateEvent(beat, state, event));
+    //     console.log("\n");
+    // }
+    // console.log("States:\n");
+    // states.forEach((elem) => {
+    //     console.log(stringifyState(elem, elem.beat) + "\n");
+    // });
+    // console.log("Events:\n");
+    // events.forEach((elem) => {
+    //     console.log(stringifyEvent(elem) + "\n");
+    // });
+    // console.log("Errors:\n");
+    // errorLogger.printErrorsInConsole();
+    // }
     // console.log("Fini\n\n");
 
     // 6. Create the timelines.
     //TODO : More conviniently create this from a fusion of score and mise en scene.
     //TODO : Also check for errors.
-    const ballIDsMiseEnScene = new Map<string, ElementOf<PerformanceLayout["ballTemplates"]>>();
-    const ballMapMiseEnScene = new Map<string, ElementOf<PerformanceLayout["ballTemplates"]>>();
-    for (const ball of miseEnScene.ballTemplates) {
-        ballMapMiseEnScene.set(ball.name, ball);
-    }
-    for (const [ballID, ballName] of ballIDs) {
-        ballIDsMiseEnScene.set(ballID, ballMapMiseEnScene.get(ballName)!);
-    }
     const timelineJugglersParam: CreateModelTimelinesParams["jugglers"] = new Map();
     for (const [jugglerName, { events }] of schedulerOutput) {
         const { localBeatConverter } = schedulerJugglers.get(jugglerName)!;
-        const { table } = jugglersMap.get(jugglerName)!;
-        timelineJugglersParam.set(jugglerName, { events, localBeatConverter, tableID: table?.id });
+        const { defaultTableID } = jugglersMap.get(jugglerName)!;
+        timelineJugglersParam.set(jugglerName, {
+            events,
+            localBeatConverter,
+            tableID: defaultTableID
+        });
     }
     const timelines = createModelTimelines({
         jugglers: timelineJugglersParam,
-        ballIDToSound: ballIDsMiseEnScene,
+        ballIDToSound: ballIDs,
         globalBeatConverter
     });
 
     // 7. Combine timelines with positions to create models.
     const performanceModel = new PerformanceModel();
-    const ballTemplatesMiseEnScene = new Map<
-        string,
-        ElementOf<PerformanceLayout["ballTemplates"]>
-    >();
-    for (const ball of miseEnScene.ballTemplates) {
-        ballTemplatesMiseEnScene.set(ball.name, ball);
-    }
 
     for (const [ballID, timeline] of timelines.balls) {
         const ballModel = new BallModel({
             id: ballID,
-            radius: ballIDsMiseEnScene.get(ballID)!.radius,
+            radius: miseEnScene.balls.find((ball) => ball.id === ballID)!.radius,
             timeline: timeline
         });
         performanceModel.balls.set(ballID, ballModel);
@@ -263,33 +260,34 @@ export function JugglingScoreToModel(
 // Formats the jugglers in the juggling score in the form of an initial state.
 function createInitialJugglerStates(
     juggler: ElementOf<JugglingScore["jugglers"]>,
+    table: ElementOf<JugglingScore["tables"]> | undefined,
     errorLogger: TimedErrorLogger<Fraction>
 ): JugglerState {
     const heldState: JugglerState["held"] = [[], []];
     for (let handIdx = 0; handIdx < 2; handIdx++) {
-        for (const ball of juggler.ballsHeldAtStart[handIdx]) {
+        for (const ballID of juggler.ballsHeldAtStart[handIdx]) {
             //TODO In the future : support undefined ???
-            if (ball === undefined) {
+            if (ballID === undefined) {
                 errorLogger.logError({
                     severity: "Error",
                     message: `Juggler ${juggler.name} can't start with undefined spots in hands. This is not supported yet.`
                 });
                 continue;
             }
-            heldState[handIdx].push(ball.id);
+            heldState[handIdx].push(ballID);
         }
     }
 
     let tableState: JugglerState["table"] = undefined;
-    if (juggler.table?.ballsOnTableAtStart !== undefined) {
+    if (table !== undefined) {
         tableState = { namedSpot: new Map(), unknown: new Set() };
-
-        for (const ball of juggler.table.ballsOnTableAtStart) {
-            if (ball.spot !== undefined) {
-                tableState.namedSpot.set(ball.spot, ball.id);
-            } else {
-                tableState.unknown.add(ball.id);
+        for (const spot of table.spots) {
+            if (spot.ballID !== undefined) {
+                tableState.namedSpot.set(spot.name, spot.ballID);
             }
+        }
+        for (const ballID of table.unknownSpot.ballIDs) {
+            tableState.unknown.add(ballID);
         }
     }
 
@@ -308,43 +306,149 @@ export function checkScoreNamesAndIDs(
     score: JugglingScore,
     errorLogger: TimedErrorLogger<Fraction>
 ): {
-    ballTemplates: Map<
+    ballTemplates: Set<string>;
+    ballIDs: Map<
         string,
-        { soundOnCatch?: BallSoundDescription; soundOnToss?: BallSoundDescription } | undefined
+        {
+            template: string;
+            soundOnCatch?: BallSoundDescription;
+            soundOnToss?: BallSoundDescription;
+        }
     >;
-    ballIDs: Map<string, string>;
-    tableIDs: Map<string, string>; // Maps table to juggler.
+    tableIDs: Set<string>;
     jugglerNames: Set<string>;
 } {
     // Check to see if :
-    // - ball template names are unique.
-    // - ball IDs are unique (held and on table and in juggling phrases "setupHands").
+    // - ball IDs and template names are unique (held and on table and in juggling phrases "setupHands").
     // - table IDs are unique.
+    // - ballIDs on a table and in hands refer to existing ball IDs.
     // - on a table, spot names are unique.
     // - on a table, balls refer to existing spot names.
     // - juggler names are unique.
     // - check that no ball name is also an ID and conversely.
 
-    // Check if ball template names are unique.
-    const ballTemplates = new Map<
+    // Populate ball Ids and templates maps and sets.
+    const ballTemplates = new Set<string>();
+    const ballIDs = new Map<
         string,
-        { soundOnCatch?: BallSoundDescription; soundOnToss?: BallSoundDescription } | undefined
+        {
+            template: string;
+            soundOnCatch?: BallSoundDescription;
+            soundOnToss?: BallSoundDescription;
+        }
     >();
-    for (const { name: templateName, soundOnCatch, soundOnToss } of score.ballTemplates) {
+    for (const { id, templateName, soundOnCatch, soundOnToss } of score.balls) {
+        ballTemplates.add(templateName);
         handleIfStringDuplicate({
-            name: templateName,
-            namesList: ballTemplates,
-            errorMessage: `Duplicate ball template name: "${templateName}".`,
+            name: id,
+            namesList: ballIDs,
+            errorMessage: `Duplicate ball ID: "${id}".`,
             errorLogger: errorLogger
         });
-        ballTemplates.set(templateName, { soundOnCatch, soundOnToss });
+        ballIDs.set(templateName, { template: templateName, soundOnCatch, soundOnToss });
+    }
+
+    // Check that no ball name is also an ID and conversely.
+    const intersection = setIntersection(new Set(ballTemplates.keys()), new Set(ballIDs.keys()));
+    if (intersection.size > 0) {
+        for (const name of intersection) {
+            errorLogger.logError({
+                severity: "CriticalError",
+                message: `"${name}" is both a ball template name and a ball ID.`
+            });
+        }
+    }
+
+    // Table checks.
+    const tableIDs = new Set<string>();
+    const foundBallIDs = new Set<string>();
+    for (const table of score.tables) {
+        const spotNames = new Set<string>();
+
+        // Check if table ID is unique.
+        handleIfStringDuplicate({
+            name: table.id,
+            namesList: tableIDs,
+            errorMessage: `Duplicate table ID "${table.id}".`,
+            errorLogger: errorLogger
+        });
+        tableIDs.add(table.id);
+
+        for (const spot of table.spots) {
+            // Uniqueness of table spot names.
+            handleIfStringDuplicate({
+                name: spot.name,
+                namesList: spotNames,
+                errorMessage: `Duplicate spot name "${spot.name}" on table ${table.id}.`,
+                errorLogger: errorLogger
+            });
+            spotNames.add(spot.name);
+
+            // Spot accepted balls refer to existing ball template.
+            // handleIfStringUnknown({
+            //     name: acceptedBallName,
+            //     namesList: ballTemplates,
+            //     errorMessage: `Unknown ball template name "${acceptedBallName}" for spot "${spotName}" on table ${table.id}.`,
+            //     errorLogger: errorLogger
+            // });
+
+            if (spot.ballID !== undefined) {
+                // Balls on table refer to existing ball ID.
+                handleIfStringUnknown({
+                    name: spot.ballID,
+                    namesList: ballIDs,
+                    errorMessage: `Unknown ball ID "${spot.ballID}" on the table ${table.id}.`,
+                    errorLogger: errorLogger
+                });
+
+                // Balls are in one place only.
+                handleIfStringDuplicate({
+                    name: spot.ballID,
+                    namesList: foundBallIDs,
+                    errorMessage: `Ball ${spot.ballID} has been created twice.`,
+                    errorLogger: errorLogger
+                });
+                foundBallIDs.add(spot.ballID);
+
+                // Ball is of the correct type.
+                const ballTemplate = ballIDs.get(spot.ballID)?.template ?? spot.acceptedBallName;
+                if (ballTemplate !== spot.acceptedBallName) {
+                    errorLogger.logError({
+                        severity: "Warn",
+                        message: `Ball ${spot.ballID} is on a spot that should only accept ball with template ${spot.acceptedBallName}.`
+                    });
+                }
+            }
+        }
+
+        for (const ballID of table.unknownSpot.ballIDs) {
+            // Balls on table refer to existing ball ID.
+            handleIfStringUnknown({
+                name: ballID,
+                namesList: ballIDs,
+                errorMessage: `Unknown ball ID "${ballID}" on the table ${table.id}.`,
+                errorLogger: errorLogger
+            });
+
+            // Balls are in one place only.
+            handleIfStringDuplicate({
+                name: ballID,
+                namesList: foundBallIDs,
+                errorMessage: `Ball ${ballID} has been created twice.`,
+                errorLogger: errorLogger
+            });
+            foundBallIDs.add(ballID);
+        }
     }
 
     // Juggler checks.
     const jugglerNames = new Set<string>();
-    const ballIDs = new Map<string, string>();
-    const tableIDs = new Map<string, string>();
-    for (const { name: jugglerName, ballsHeldAtStart, jugglingPhrases, table } of score.jugglers) {
+    for (const {
+        name: jugglerName,
+        ballsHeldAtStart,
+        jugglingPhrases,
+        defaultTableID
+    } of score.jugglers) {
         // Uniqueness of juggler names.
         handleIfStringDuplicate({
             name: jugglerName,
@@ -354,88 +458,39 @@ export function checkScoreNamesAndIDs(
         });
         jugglerNames.add(jugglerName);
 
+        //Table ID refers to an existing table.
+        let table: ElementOf<JugglingScore["tables"]> | undefined = undefined;
+        if (defaultTableID !== undefined) {
+            handleIfStringUnknown({
+                name: defaultTableID,
+                namesList: tableIDs,
+                errorMessage: `Table ID no found: "${defaultTableID}".`,
+                errorLogger: errorLogger
+            });
+            table = score.tables.find((table) => table.id === defaultTableID);
+        }
+
         for (const ballsInHand of ballsHeldAtStart) {
-            for (const ball of ballsInHand) {
-                if (ball === undefined) {
+            for (const ballID of ballsInHand) {
+                if (ballID === undefined) {
                     continue;
                 }
-                // Held balls refer to existing template names.
+                // Held balls refer to existing ball IDs
                 handleIfStringUnknown({
-                    name: ball.name,
-                    namesList: ballTemplates,
-                    errorMessage: `Unknown ball template name "${ball.name}" held by juggler "${jugglerName}".`,
+                    name: ballID,
+                    namesList: ballIDs,
+                    errorMessage: `Unknown ball template name "${ballID}" held by juggler "${jugglerName}".`,
                     errorLogger: errorLogger
                 });
 
                 // Uniqueness of ball IDs.
                 handleIfStringDuplicate({
-                    name: ball.id,
+                    name: ballID,
                     namesList: ballIDs,
-                    errorMessage: `Duplicate ball ID: "${ball.id}".`,
+                    errorMessage: `Duplicate ball ID: "${ballID}".`,
                     errorLogger: errorLogger
                 });
-                ballIDs.set(ball.id, ball.name);
-            }
-        }
-
-        const spotNames = new Set<string>();
-        if (table !== undefined) {
-            // Check if table ID is unique.
-            handleIfStringDuplicate({
-                name: table.id,
-                namesList: tableIDs,
-                errorMessage: `Duplicate table ID "${table.id}" of juggler ${jugglerName}.`,
-                errorLogger: errorLogger
-            });
-            tableIDs.set(table.id, jugglerName);
-
-            // Check if table spot names are unique.
-            for (const { name: spotName, acceptedBallName } of table.spots) {
-                // Uniqueness of table spot names.
-                handleIfStringDuplicate({
-                    name: spotName,
-                    namesList: spotNames,
-                    errorMessage: `Duplicate spot name "${spotName}" on table of juggler ${jugglerName} (id: ${table.id}).`,
-                    errorLogger: errorLogger
-                });
-                spotNames.add(spotName);
-
-                // Spot accepted balls refer to existing ball template.
-                handleIfStringUnknown({
-                    name: acceptedBallName,
-                    namesList: ballTemplates,
-                    errorMessage: `Unknown ball template name "${acceptedBallName}" for spot "${spotName}" on table of juggler ${jugglerName} (id: ${table.id}).`,
-                    errorLogger: errorLogger
-                });
-            }
-
-            for (const ball of table.ballsOnTableAtStart) {
-                // Balls on table refer to existing template name.
-                handleIfStringUnknown({
-                    name: ball.name,
-                    namesList: ballTemplates,
-                    errorMessage: `Unknown ball template name "${ball.name}" on the table of juggler "${jugglerName}".`,
-                    errorLogger: errorLogger
-                });
-
-                // Uniqueness of ball user-defined IDs.
-                handleIfStringDuplicate({
-                    name: ball.id,
-                    namesList: ballIDs,
-                    errorMessage: `Duplicate ball ID: "${ball.id}".`,
-                    errorLogger: errorLogger
-                });
-                ballIDs.set(ball.id, ball.name);
-
-                // Spot name refer to an existing spot of the table.
-                if (ball.spot !== undefined) {
-                    handleIfStringUnknown({
-                        name: ball.spot,
-                        namesList: spotNames,
-                        errorMessage: `Unknown spot name "${ball.spot}" on the table of juggler "${jugglerName}".`,
-                        errorLogger: errorLogger
-                    });
-                }
+                foundBallIDs.add(ballID);
             }
         }
 
@@ -456,24 +511,33 @@ export function checkScoreNamesAndIDs(
                                     severity: "CriticalError",
                                     message: `Juggler "${jugglerName}" has no table, so can't use the fromSpot attribute.`
                                 });
-                            } else if (!spotNames.has(ball.fromSpot)) {
+                            } else {
                                 // All spot names refer to existing spot names.
                                 handleIfStringUnknown({
                                     name: ball.fromSpot,
-                                    namesList: spotNames,
+                                    namesList: new Set(table.spots.map((spot) => spot.name)),
                                     errorMessage: `Unknown spot name "${ball.fromSpot}" on the table of juggler "${jugglerName}".`,
                                     errorLogger: errorLogger
                                 });
                             }
                         }
                     } else {
-                        // All ball IDs refer to existing user-defined IDs.
+                        // Held balls refer to existing ball IDs
                         handleIfStringUnknown({
                             name: ball.id,
                             namesList: ballIDs,
                             errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
                             errorLogger: errorLogger
                         });
+
+                        // Uniqueness of ball IDs.
+                        handleIfStringDuplicate({
+                            name: ball.id,
+                            namesList: ballIDs,
+                            errorMessage: `Duplicate ball ID: "${ball.id}".`,
+                            errorLogger: errorLogger
+                        });
+                        foundBallIDs.add(ball.id);
                     }
                 }
             }
@@ -484,7 +548,7 @@ export function checkScoreNamesAndIDs(
                     handleIfStringUnknown({
                         name: ball.name,
                         namesList: ballTemplates,
-                        errorMessage: `TODO`,
+                        errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
                         errorLogger: errorLogger
                     });
                     if (ball.toSpot !== undefined) {
@@ -493,37 +557,35 @@ export function checkScoreNamesAndIDs(
                                 severity: "CriticalError",
                                 message: `Juggler "${jugglerName}" has no table, so can't use the toSpot attribute.`
                             });
-                        } else if (!spotNames.has(ball.toSpot)) {
+                        } else {
                             // All spot names refer to existing spot names.
                             handleIfStringUnknown({
                                 name: ball.toSpot,
-                                namesList: spotNames,
+                                namesList: new Set(table.spots.map((spot) => spot.name)),
                                 errorMessage: `Unknown spot name "${ball.toSpot}" in juggler's "${jugglerName}" juggling phrases.`,
                                 errorLogger: errorLogger
                             });
                         }
                     }
                 } else {
-                    // All ball IDs refer to existing user-defined IDs.
+                    // Held balls refer to existing ball IDs
                     handleIfStringUnknown({
                         name: ball.id,
                         namesList: ballIDs,
                         errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
                         errorLogger: errorLogger
                     });
+
+                    // Uniqueness of ball IDs.
+                    handleIfStringDuplicate({
+                        name: ball.id,
+                        namesList: ballIDs,
+                        errorMessage: `Duplicate ball ID: "${ball.id}".`,
+                        errorLogger: errorLogger
+                    });
+                    foundBallIDs.add(ball.id);
                 }
             }
-        }
-    }
-
-    // Check that no ball name is also an ID and conversely.
-    const intersection = setIntersection(new Set(ballTemplates.keys()), new Set(ballIDs.keys()));
-    if (intersection.size > 0) {
-        for (const name of intersection) {
-            errorLogger.logError({
-                severity: "CriticalError",
-                message: `"${name}" is both a ball template name and a ball ID.`
-            });
         }
     }
 

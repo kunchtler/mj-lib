@@ -453,7 +453,9 @@ export function createModelTimelines({
                             spotIdx: convertSpot(cat.to.spotIdx, ev.catches.preHandState.length)
                         },
                         transition: { type: "keep" },
-                        sound: ballIDToSound.get(cat.ballID)?.soundOnCatch
+                        sound: soundDescriptionToInstance(
+                            ballIDToSound.get(cat.ballID)?.soundOnCatch
+                        )
                     });
                     jugglerTimelines.get(cat.to.juggler)![cat.to.handIdx].addEvent(evTime, {
                         type: "catch",
@@ -515,7 +517,9 @@ export function createModelTimelines({
                             siteswapHeight:
                                 toss.mode.type === "Height" ? toss.mode.height : undefined
                         },
-                        sound: ballIDToSound.get(toss.ballID)?.soundOnCatch
+                        sound: soundDescriptionToInstance(
+                            ballIDToSound.get(toss.ballID)?.soundOnToss
+                        )
                     });
                     jugglerTimelines.get(toss.from.juggler)![toss.from.handIdx].addEvent(evTime, {
                         type: "toss",
@@ -527,4 +531,17 @@ export function createModelTimelines({
     }
 
     return { jugglers: jugglerTimelines, balls: ballTimelines };
+}
+
+function soundDescriptionToInstance(soundDescription: BallSoundDescription | undefined) {
+    if (soundDescription === undefined) {
+        return undefined;
+    }
+    return {
+        name:
+            typeof soundDescription.name === "string"
+                ? soundDescription.name
+                : soundDescription.name[Math.floor(Math.random() * soundDescription.name.length)],
+        loop: soundDescription.loop ?? false
+    };
 }

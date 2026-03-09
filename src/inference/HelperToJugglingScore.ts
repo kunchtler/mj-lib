@@ -4,7 +4,7 @@ import Fraction from "fraction.js";
 import { TimedErrorLogger, ElementOf } from "../utils";
 import { JugglingScore } from "./PerformanceDescription";
 import { JugglingScoreHelper } from "./PerformanceDescriptionHelpers";
-import { handleIfStringUnknown } from "./DescriptionToModel";
+import { handleIfStringDuplicate, handleIfStringUnknown } from "./DescriptionToModel";
 
 // This is dirty and makes me wanna cry a bit.
 // Edit : it's a tidbit better now that it is finished.
@@ -67,7 +67,14 @@ export function createJugglingScoreFromHelper(
     const ballGeneratedIDs = new Map<string, string>();
     const ballTemplateNames = new Set<string>();
 
+    // Gather template names and check is they are unique.
     for (const { name } of score.ballTemplates) {
+        handleIfStringDuplicate({
+            name: name,
+            namesList: ballTemplateNames,
+            errorMessage: `Duplicate ball template name: "${name}".`,
+            errorLogger: errorLogger
+        });
         ballTemplateNames.add(name);
     }
 
