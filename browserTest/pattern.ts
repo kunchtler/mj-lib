@@ -1,29 +1,30 @@
-import { RawJugglingPattern } from "../src/inference/PatternToModel";
+import { PerformanceDescriptionHelper } from "../src/inference/PerformanceDescriptionHelpers";
 
-export const pattern: RawJugglingPattern = {
+export const pattern: PerformanceDescriptionHelper = {
+    version: "0.1",
+    ballTemplates: [
+        { name: "Do", color: "red", soundOnCatch: { name: "Do" } },
+        { name: "Re", color: "orange", soundOnCatch: { name: "Re" } },
+        { name: "Mi", color: "yellow", soundOnCatch: { name: "Mi" } },
+        { name: "Fa", color: "green", soundOnCatch: { name: "Fa" } },
+        { name: "Sol", color: "deepskyblue", soundOnCatch: { name: "Sol" } },
+        { name: "La", color: "darkblue", soundOnCatch: { name: "La" } },
+        { name: "Si", color: "white", soundOnCatch: { name: "Si" } },
+        { name: "Do'", color: "red", soundOnCatch: { name: "Do'" } }
+    ],
     jugglers: [
         {
             name: "Kylian",
-            hasTable: "KylianT",
-            balls: [
-                { id: "Do?K", name: "Do", sound: "Do" },
-                { id: "Re?K", name: "Re", sound: "Re" },
-                { id: "Mi?K", name: "Mi", sound: "Mi" }
-            ],
-            events: [
-                [
-                    "0",
-                    {
-                        tempo: "1",
-                        hands: [["Do"], ["Re", "Mi"]],
-                        pattern: "R35003 35003 35003 42334 05003 35003 35003 42334 0300"
-                    }
-                ]
+            // defaultTableID: "KylianT",
+            position: [0, -1, 0],
+            ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" }, { name: "Mi" }]],
+            jugglingPhrases: [
+                {
+                    startTime: { type: "byGlobalBeat", beat: 0 },
+                    pattern: "R35003 35003 35003 42334 05003 35003 35003 42334 0300"
+                }
             ]
         }
     ],
-    musicConverter: [[0, { signature: "1", tempo: { note: "1", bpm: 200 } }]]
+    globalBeat: { type: "constant", beatsPerMinute: 180 }
 };
-
-// const model = patternToModel(pattern);
-// console.log(model);

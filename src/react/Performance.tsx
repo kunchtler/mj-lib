@@ -3,9 +3,9 @@
 // For which our clock api has a bit of a different way of working.
 import { RefObject, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { AudioEngine } from "../audio";
+import { AudioEngine, getNoteBuffer } from "../audio";
 import { PerformanceModel } from "../model";
-import { Clock, useLazyRef } from "../utils";
+import { Clock, FracTimedErrorLogger, useLazyRef } from "../utils";
 import { useFrame } from "@react-three/fiber";
 import {
     BallMeshDescription,
@@ -19,6 +19,9 @@ import { BallMesh } from "./BallMesh";
 import { BodyMesh } from "./BodyMesh";
 import { HandRectMesh } from "./HandMesh";
 import { TableMesh } from "./TableMesh";
+import { descriptionFromHelper } from "../inference/HelperToDescription";
+import { PerformanceDescriptionHelper } from "../inference/PerformanceDescriptionHelpers";
+import { performanceDescriptionToModel } from "../inference/DescriptionToModel";
 
 // TODO : Test moveing whole performnce around with an engloping object (and chaging scale and rotation).
 // TODO : Test scale for everything that has scale in fact.
@@ -27,13 +30,47 @@ import { TableMesh } from "./TableMesh";
 export function Wrapper({
     listener,
     clock,
-    performanceDescription
+    descriptionHelper
 }: {
     listener: THREE.AudioListener;
     clock: Clock;
-    performanceDescription: PerformanceDescription;
+    descriptionHelper: PerformanceDescriptionHelper;
 }) {
-    return Performance({ listener, clock });
+    const errorLogger = new FracTimedErrorLogger();
+    const description = descriptionFromHelper(descriptionHelper, errorLogger);
+    const model = performanceDescriptionToModel(description, description, errorLogger);
+    errorLogger.printErrorsInConsole();
+    if (model === undefined) {
+        return <></>;
+    }
+
+    // Loading sounds.
+    // TODO : Better handle this promise to have some UI blocking the start of the sound while they load.
+    const buffersMap = new Map<string, AudioBuffer>();
+    const loadingSounds = new Set<string>();
+    const promises: Promise<void>[] = [];
+    for (const ball of description.balls) {
+        for (const sound of [ball.soundOnCatch?.name, ball.soundOnToss?.name]) {
+            if (typeof sound === "string") {
+                if (!loadingSounds.has(sound)) {
+                    loadingSounds.add(sound);
+                    promises.push(
+                        getNoteBuffer(sound, listener.context)
+                            .then((buffer) => {
+                                if (buffer !== undefined) {
+                                    buffersMap.set(sound, buffer);
+                                }
+                            })
+                            .catch(() => {
+                                console.log("Something went wrong");
+                            })
+                    );
+                }
+            }
+        }
+    }
+    // Promise.all(promises).then()
+    return Performance({ listener, clock, meshesDescription: description, model, buffersMap });
 }
 
 

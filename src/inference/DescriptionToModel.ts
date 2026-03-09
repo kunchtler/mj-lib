@@ -36,7 +36,7 @@ import { SpotModelParams, toSpotParam } from "../model/SpotModel";
 //TODO : Handle all pre-parser processing in a dedicated function to better separate concerns ?
 //TODO : Inconsistent table.template and ball.name to refer to template.
 
-export function JugglingScoreToModel(
+export function performanceDescriptionToModel(
     score: JugglingScore,
     miseEnScene: PerformanceLayout,
     errorLogger: TimedErrorLogger<Fraction>
