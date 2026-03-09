@@ -11,10 +11,10 @@ import {
     SpotDescription
 } from "./PerformanceDescription";
 
-// export type PerformanceDescriptionHelper = DeepFuse<
-//     DeepFuse<JugglingScoreHelper, PerformanceLayoutHelper>,
-//     PerformanceMeshDefinitionsHelper
-// >;
+export type PerformanceDescriptionHelper = DeepFuse<
+    JugglingScoreHelper,
+    PerformanceLayoutAndMeshHelper
+>;
 
 export type JugglingScoreHelper = {
     version: "0.1";

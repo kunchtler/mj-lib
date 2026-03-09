@@ -4,7 +4,7 @@
  * Specify this is a module comment and rename it to my-module:
  * @module my-module
  */
-import { DeepFuse, DeepRequired } from "../utils";
+import { DeepFuse, DeepRequired, ElementOf } from "../utils";
 
 // TODO for description : Add support for...
 // - custom meshes (imported / through Three / through Fiber)
@@ -23,6 +23,9 @@ export type PerformanceDescription = DeepFuse<
     PerformanceMeshesDescription
 >;
 
+// type Test1 = PerformanceDescription["balls"];
+// type Test2 = Omit<ElementOf<PerformanceDescription["jugglers"]>, "leftHand" | "rightHand">;
+// type Test3 = PerformanceDescription["tables"];
 // TODO : Have the sounds in the ball IDs instead of in the template.
 // TODO : Same for ball template names ? No, I don't think so. We may have template names not present.
 export type JugglingScore = {

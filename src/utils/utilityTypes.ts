@@ -38,20 +38,19 @@ type MergeTuples<A, B> = A extends readonly []
  * DeepFuse<{x: number}[], {y: string}[]> = DeepFuse<{x: number}, {y: string}>[]
  */
 export type DeepFuse<A, B> =
+    // Check for type unions. If both unions are different, don't go further.
     // Combine Maps
     A extends Map<infer K1, infer V1>
-        ? B extends Map<infer K2, infer V2>
-            ? // Both A and B are maps, we comine their value types.
-              Map<K1 & K2, DeepFuse<V1, V2>>
-            : // A is a map but B is not.
-              never
+        ? B extends Map<K1, infer V2>
+            ? // Both A and B are maps with the same key type, we combine their value types.
+              Map<K1, DeepFuse<V1, V2>>
+            : never
         : // Combine Sets
           A extends Set<infer V1>
           ? B extends Set<infer V2>
               ? // Both A and B are sets, we comine their key types.
                 Set<DeepFuse<V1, V2>>
-              : // A is a set but B is not.
-                never
+              : never
           : // Combine arrays or tuples.
             A extends readonly (infer Aitem)[]
             ? B extends readonly (infer Bitem)[]
@@ -72,25 +71,57 @@ export type DeepFuse<A, B> =
             : // Combine objects.
               A extends object
               ? B extends object
-                  ? {
-                        //Look into keys that exist either in A or B
-                        // If K is both a key of object A and B, we merge the objects.
-                        // Else, we can normally return the object.
-                        [K in keyof A | keyof B]: K extends keyof A
-                            ? K extends keyof B
-                                ? DeepFuse<A[K], B[K]>
-                                : A[K]
-                            : K extends keyof B
-                              ? B[K]
-                              : // This should never happen, has K is by definition
-                                // either a key of A or B.
-                                never;
-                    }
+                  ? // Create object from the keys of both A and B.
+                    SimplifyView<
+                        {
+                            // If a key if both optional in A and optional in B, make it optional.
+                            [K in KeysOptionalInBoth<A, B>]?: DeepFuse<A[K], B[K]>;
+                        } & {
+                            // If a key is both in A and B, but not optional in both, it is required.
+                            [K in Exclude<KeysInBoth<A, B>, KeysOptionalInBoth<A, B>>]: DeepFuse<
+                                A[K],
+                                B[K]
+                            >;
+                        } & {
+                            // If a key is optional and only in A.
+                            [K in Exclude<OptionalKeysOf<A>, keyof B>]?: A[K];
+                        } & {
+                            // If a key is optional and only in B.
+                            [K in Exclude<OptionalKeysOf<B>, keyof A>]?: B[K];
+                        } & {
+                            // If a key is required and only in A.
+                            [K in Exclude<RequiredKeysOf<A>, keyof B>]: A[K];
+                        } & {
+                            // If a key is required and only in B.
+                            [K in Exclude<RequiredKeysOf<B>, keyof A>]: B[K];
+                        }
+                    >
                   : // A is an object but B is not.
                     never
-              : // Combine types of A and B, which should be primitives.
+              : // A and B should be primitives. Combine them only if they match exactly.
                 A & B;
 
+type OptionalKeysOf<Obj> = keyof {
+    [Key in keyof Obj as Omit<Obj, Key> extends Obj ? Key : never]: Obj[Key];
+};
+
+type RequiredKeysOf<Obj> = Exclude<keyof Obj, OptionalKeysOf<Obj>>;
+
+type KeysOptionalInBoth<A, B> = Extract<OptionalKeysOf<A>, OptionalKeysOf<B>>;
+
+type KeysInBoth<A, B> = Extract<keyof A, keyof B>;
+
+// Used so VSCode's tooltip on hover will not display "A & B", but its actual result.
+type SimplifyView<T> = {
+    [K in keyof T]: T[K];
+} & {};
+
+// type Test = SimplifyView<
+//     DeepFuse<
+//         { x1?: string; x2?: number; x3?: string; x5: string },
+//         { x1?: string; x2: number; x4?: number; x6: number }
+//     >
+// >;
 // type Xobj = {x: number}
 // type Yobj = {y: string}
 // type Test0 = DeepFuse<Xobj, Yobj>;
