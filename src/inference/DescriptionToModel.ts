@@ -547,7 +547,7 @@ export function handleIfStringUnknown({
         let text = errorMessage;
         const matchingWords = closestWordsTo(name, namesList.keys(), 2);
         if (matchingWords.length > 0) {
-            text += `\nDid you mean "${matchingWords[0]}" ?`;
+            text += `\nDo you mean "${matchingWords[0]}" ?`;
         }
         errorLogger.logError({ time: time, severity: "CriticalError", message: text });
     }

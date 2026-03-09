@@ -1,7 +1,9 @@
-import { DeepRequired, ElementOf } from "../utils";
+import { DeepRequired } from "../utils";
 import {
+    HandMeshDescription,
     HandMiseEnSceneDescription,
     PerformanceLayout,
+    PerformanceMeshesDescription,
     SpotDescription
 } from "./PerformanceDescription";
 import {
@@ -23,7 +25,7 @@ import {
     DEFAULT_TABLE_VISIBILITY,
     DEFAULT_HAND_COLOR
 } from "../constants/miseEnSceneDefaultValues";
-import { PerformanceLayoutHelper } from "./PerformanceDescriptionHelpers";
+import { PerformanceLayoutAndMeshHelper } from "./PerformanceDescriptionHelpers";
 
 export function createHandSpots(params: {
     catchTossDistance: number;
@@ -68,31 +70,47 @@ export function createHandSpots(params: {
     };
 }
 
-export function completeMiseEnScene(miseEnScene: PerformanceLayoutHelper): PerformanceLayout {
-    const newMiseEnScene: PerformanceLayout = { ballTemplates: [], jugglers: [] };
+export function completeMiseEnSceneAndMeshDescriptions(
+    helper: PerformanceLayoutAndMeshHelper,
+    ballIDs: Map<string, string>
+): { layout: PerformanceLayout; meshesDescription: PerformanceMeshesDescription } {
+    const newLayout: PerformanceLayout = { balls: [], jugglers: [], tables: [] };
+    const newMeshesDescription: PerformanceMeshesDescription = {
+        balls: [],
+        jugglers: [],
+        tables: []
+    };
 
-    for (const template of miseEnScene.ballTemplates) {
-        newMiseEnScene.ballTemplates.push({
-            ...template,
+    for (const [ballID, ballTemplate] of ballIDs) {
+        const template = helper.ballTemplates.find(
+            (template) => template.name === ballTemplate
+        ) ?? { name: "", color: undefined, radius: undefined };
+        newLayout.balls.push({
+            id: ballID,
+            radius: template.radius ?? DEFAULT_BALL_RADIUS
+        });
+        newMeshesDescription.balls.push({
+            id: ballID,
             color: template.color ?? DEFAULT_BALL_COLOR,
             radius: template.radius ?? DEFAULT_BALL_RADIUS
         });
     }
-    for (let i = 0; i < miseEnScene.jugglers.length; i++) {
-        const juggler = miseEnScene.jugglers[i];
+
+    for (let i = 0; i < helper.jugglers.length; i++) {
+        const juggler = helper.jugglers[i];
 
         // Complete body arguments
         const newBody = {
-            color: juggler.body?.color ?? DEFAULT_CUBE_BODY_COLOR,
             depth: juggler.body?.depth ?? DEFAULT_CUBE_BODY_DEPTH,
             height: juggler.body?.height ?? DEFAULT_CUBE_BODY_HEIGHT,
             width: juggler.body?.width ?? DEFAULT_CUBE_BODY_WIDTH,
+            color: juggler.body?.color ?? DEFAULT_CUBE_BODY_COLOR,
             visible: juggler.body?.visible ?? DEFAULT_CUBE_BODY_VISIBILITY
         };
 
         // Complete transform information
         // Used for the position and rotation.
-        const alpha = i / (miseEnScene.jugglers.length - 1);
+        const alpha = i / (helper.jugglers.length - 1);
         const angle = (((1 - alpha) * 9) / 10) * Math.PI + ((alpha * 11) / 10) * Math.PI;
         const newJugglerPosition = juggler.position ?? [
             4 + 4 * Math.cos(angle),
@@ -106,10 +124,9 @@ export function completeMiseEnScene(miseEnScene: PerformanceLayoutHelper): Perfo
 
         // Complete hands information.
         // If some information is available to one of the hands, we duplicate it for the other hand.
-        const newLength = juggler.handBuilder?.length ?? DEFAULT_CUBE_HAND_LENGTH;
-        const newWidth = juggler.handBuilder?.width ?? DEFAULT_CUBE_HAND_WIDTH;
-        const newDepth = juggler.handBuilder?.depth ?? DEFAULT_CUBE_HAND_DEPTH;
-        const newVisibility = juggler.handBuilder?.visible ?? DEFAULT_HAND_VISIBILITY;
+        const newHandLength = juggler.handBuilder?.length ?? DEFAULT_CUBE_HAND_LENGTH;
+        const newHandWidth = juggler.handBuilder?.width ?? DEFAULT_CUBE_HAND_WIDTH;
+        const newHandDepth = juggler.handBuilder?.depth ?? DEFAULT_CUBE_HAND_DEPTH;
         const params = {
             catchTossDistance: juggler.handBuilder?.spotsBuild?.catchTossDistance ?? newBody.width,
             spotsHeight: juggler.handBuilder?.spotsBuild?.spotsHeight ?? (newBody.height * 6) / 10,
@@ -124,7 +141,7 @@ export function completeMiseEnScene(miseEnScene: PerformanceLayoutHelper): Perfo
         const newHeldSpots: DeepRequired<SpotDescription>[] = [];
         if (juggler.handBuilder?.heldSpots === undefined) {
             newHeldSpots.push({
-                position: [0, newDepth / 2, newLength / 2],
+                position: [0, newHandDepth / 2, newHandLength / 2],
                 rotation: [0, 0, 0]
             });
         } else {
@@ -135,76 +152,87 @@ export function completeMiseEnScene(miseEnScene: PerformanceLayoutHelper): Perfo
                 });
             }
         }
-        const newRightHand: DeepRequired<HandMiseEnSceneDescription> = {
+        const newRightHandLayout: DeepRequired<HandMiseEnSceneDescription> = {
             ...newRightSpots,
-            length: newLength,
-            width: newWidth,
-            depth: newDepth,
-            visible: newVisibility,
-            color: DEFAULT_HAND_COLOR,
             heldSpots: newHeldSpots
         };
-        const newLeftHand: DeepRequired<HandMiseEnSceneDescription> = {
+        const newLeftHandLayout: DeepRequired<HandMiseEnSceneDescription> = {
             ...newLeftSpots,
-            length: newLength,
-            width: newWidth,
-            depth: newDepth,
-            visible: newVisibility,
-            color: DEFAULT_HAND_COLOR,
             heldSpots: newHeldSpots
         };
-
-        // Complete table information.
-        let newTable: ElementOf<PerformanceLayout["jugglers"]>["table"];
-        if (juggler.table === undefined) {
-            newTable = undefined;
-        } else {
-            const tableTemplate = miseEnScene.tableTemplates?.find(
-                (template) => template.name === juggler.table?.template
-            );
-            if (tableTemplate === undefined) {
-                console.error("Unrecognized table template");
-                continue;
-            }
-            const newTableHeight = tableTemplate.height ?? DEFAULT_TABLE_HEIGHT;
-            const newSpots = tableTemplate.spots.map((spot) => {
-                return {
-                    ...spot,
-                    rotation: spot.rotation ?? [0, 0, 0]
-                };
-            });
-            const newUnknownSpot = {
-                position: tableTemplate.unknownSpot?.position ?? [0, newTableHeight, 0],
-                rotation: tableTemplate.unknownSpot?.rotation ?? [0, 0, 0]
-            };
-            newTable = {
-                id: `${juggler.name}?Table`,
-                height: newTableHeight,
-                width: tableTemplate.width ?? DEFAULT_TABLE_WIDTH,
-                depth: tableTemplate.depth ?? DEFAULT_TABLE_DEPTH,
-                visible: juggler.table.visible ?? DEFAULT_TABLE_VISIBILITY,
-                color: juggler.table.color ?? DEFAULT_TABLE_COLOR,
-                position: juggler.table.position ?? [
-                    newJugglerPosition[0] + 1,
-                    newJugglerPosition[1],
-                    newJugglerRotation[2]
-                ],
-                rotation: juggler.table.rotation ?? [0, Math.PI, 0],
-                scale: juggler.table.scale ?? [1, 1, 1],
-                spots: newSpots,
-                unknownSpot: newUnknownSpot
-            };
-        }
-        newMiseEnScene.jugglers.push({
+        const newHandMesh: DeepRequired<HandMeshDescription> = {
+            length: newHandLength,
+            width: newHandWidth,
+            depth: newHandDepth,
+            visible: juggler.handBuilder?.visible ?? DEFAULT_HAND_VISIBILITY,
+            color: juggler.handBuilder?.color ?? DEFAULT_HAND_COLOR
+        };
+        newLayout.jugglers.push({
             name: juggler.name,
             position: newJugglerPosition,
             rotation: newJugglerRotation,
             scale: newScale,
+            leftHand: newLeftHandLayout,
+            rightHand: newRightHandLayout
+        });
+        newMeshesDescription.jugglers.push({
+            name: juggler.name,
             body: newBody,
-            leftHand: newLeftHand,
-            rightHand: newRightHand,
-            table: newTable
+            leftHand: newHandMesh,
+            rightHand: newHandMesh
         });
     }
-    return newMiseEnScene;
+
+    for (const table of helper.tables ?? []) {
+        // Complete table information.
+        const newTableHeight = table.height ?? DEFAULT_TABLE_HEIGHT;
+        const newTableWidth = table.width ?? DEFAULT_TABLE_WIDTH;
+        const newTableDepth = table.depth ?? DEFAULT_TABLE_DEPTH;
+        const newSpots = table.spots.map((spot) => {
+            return {
+                ...spot,
+                rotation: spot.rotation ?? [0, 0, 0]
+            };
+        });
+        const newUnknownSpot = {
+            position: table.unknownSpot?.position ?? [0, newTableHeight, 0],
+            rotation: table.unknownSpot?.rotation ?? [0, 0, 0]
+        };
+        let newTablePosition: [number, number, number];
+        let newTableRotation: [number, number, number];
+        if (table.position !== undefined) {
+            newTablePosition = table.position;
+            newTableRotation = table.rotation ?? [0, 0, 0];
+        } else {
+            newTablePosition = [0, 0, 0];
+            newTableRotation = [0, 0, 0];
+            // Look if the table is used by a juggler, and put it in front of them.
+            // const jugglerName = helper.jugglers.find((juggler) => juggler.defaultTableID === table.id)?.name;
+            // if (jugglerName === undefined) {
+            //     position = [0, 0, 0]
+            //     rotation = [0, 0, 0]
+            // } else {
+            //     const juggler = newLayout.jugglers.find((juggler) => juggler.name === jugglerName)!;
+            //     position = [juggler.position[0] + juggler.rotation[0]]
+            // }
+        }
+        newLayout.tables.push({
+            id: table.id,
+            position: newTablePosition,
+            rotation: newTableRotation,
+            scale: table.scale ?? [1, 1, 1],
+            spots: newSpots,
+            unknownSpot: newUnknownSpot
+        });
+        newMeshesDescription.tables.push({
+            id: table.id,
+            height: newTableHeight,
+            width: newTableWidth,
+            depth: newTableDepth,
+            color: table.color ?? DEFAULT_TABLE_COLOR,
+            visible: table.visible ?? DEFAULT_TABLE_VISIBILITY
+        });
+    }
+
+    return { layout: newLayout, meshesDescription: newMeshesDescription };
 }
