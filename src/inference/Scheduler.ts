@@ -490,6 +490,7 @@ export class Scheduler {
             // Update the event with the provided info.
             jugglerTimeline[jugglerTimeline.length - 1] = {
                 ...jugglerTimeline[jugglerTimeline.length - 1],
+                state,
                 ...info
             };
         }
@@ -682,8 +683,7 @@ class JugglerManager {
         catches?: CompleteCatches;
     } {
         state = cloneState(state);
-        const preHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
-        const postHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
+
         // Identify each ball that has been caught by their destination hand.
         const caughtBallsByHand: [BallID[], BallID[]] = [[], []];
         const caughtBallsInfo: CompleteCatchInfo[] = [];
@@ -747,6 +747,8 @@ class JugglerManager {
             return { state };
         }
 
+        const preHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
+        const postHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
         for (const { handIdx, spotIdx: ballIdx } of caughtBallsInfo) {
             preHandState[handIdx][ballIdx] = undefined;
         }
@@ -766,13 +768,20 @@ class JugglerManager {
     ): { state: JugglerState; tosses?: HalfCompletedTosses } {
         const { globalBeat, tosses } = this.events[eventIdx];
 
-        // We remove the tossed balls from state.held as they are treated.
         state = cloneState(state);
-        const preHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
-        const postHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
 
         const halfCompletedTossesInfo: HalfCompletedTossInfo[] = [];
         const unhandledTosses = new Set<SchedulerToss>(tosses);
+        // As balls are tossed, we don't remove them from state as it would alter any subsequent toss.
+        // Instead, we keep an ordered set of all balls that can still be tossed.
+        // We use the fact that sets iterate over their insertion order to make sure we
+        // iterate from the newest to the oldest ball.
+        const ballsStillInHandIdx = [new Set<number>(), new Set<number>()];
+        for (let handIdx = 0; handIdx < state.held.length; handIdx++) {
+            for (let spotIdx = state.held[handIdx].length - 1; spotIdx >= 0; spotIdx--) {
+                ballsStillInHandIdx[handIdx].add(spotIdx);
+            }
+        }
 
         // First, we handle each tossed ball that has a designated ID.
         // (we wouldn't want to toss it by mistake when considering a previous ball)
@@ -793,10 +802,17 @@ class JugglerManager {
                     );
                     continue;
                 }
+                if (!ballsStillInHandIdx[toss.from.handIdx].has(ballIdx)) {
+                    this.logError(
+                        globalBeat,
+                        "Error",
+                        `Can't toss ball ${stringifyBall(toss.ball)} from the ${toss.from.handIdx === 1 ? "right" : "left"} hand as it has been tossed already.\nContinue by trying to toss it later.`
+                    );
+                    continue;
+                }
 
-                // Remove the ball from the state so as to not toss it again
-                // when considering the next tosses in this for loop.
-                state.held[toss.from.handIdx].slice(ballIdx, ballIdx + 1);
+                // Mark the ball as tossed.
+                ballsStillInHandIdx[toss.from.handIdx].delete(ballIdx);
                 unhandledTosses.delete(toss);
                 // Add the toss information to the outputed array.
                 halfCompletedTossesInfo.push({
@@ -819,13 +835,12 @@ class JugglerManager {
 
         // Now we go for all balls in order.
         for (const toss of unhandledTosses) {
-            const tossHand = state.held[toss.from.handIdx];
-
-            let tossedBallIdx: number;
+            let tossedBallIdx: number | undefined = undefined;
             if (toss.ball === undefined) {
                 // If no tossed ball is specified, we need to find it.
                 // By default, it is the last one in the hand list.
-                if (tossHand.length === 0) {
+                tossedBallIdx = getFirstInsertedKey(ballsStillInHandIdx[toss.from.handIdx]);
+                if (tossedBallIdx === undefined) {
                     this.logError(
                         globalBeat,
                         "Error",
@@ -833,7 +848,6 @@ class JugglerManager {
                     );
                     continue;
                 }
-                tossedBallIdx = tossHand.length - 1;
             } else {
                 let ballName: string;
                 if ("id" in toss.ball) {
@@ -845,14 +859,14 @@ class JugglerManager {
                     ballName = toss.ball.name;
                 }
                 // We need to find a ball with the matching note in hand.
-                const matchingBallsIdx: number[] = [];
-                for (let ballIdx = 0; ballIdx < tossHand.length; ballIdx++) {
-                    const ballID = tossHand[ballIdx];
-                    if (this.ballIDMap.get(ballID) === ballName) {
-                        matchingBallsIdx.push(ballIdx);
+                // We look for them in the order of newest to oldets in hand.
+                const matchingBallIdx: number[] = [];
+                for (const ballIdx of ballsStillInHandIdx[toss.from.handIdx]) {
+                    if (this.ballIDMap.get(state.held[toss.from.handIdx][ballIdx]) === ballName) {
+                        matchingBallIdx.push(ballIdx);
                     }
                 }
-                if (matchingBallsIdx.length === 0) {
+                if (matchingBallIdx.length === 0) {
                     // No ball in hand match the template.
                     this.logError(
                         globalBeat,
@@ -862,21 +876,20 @@ class JugglerManager {
                     continue;
                 }
 
-                tossedBallIdx = matchingBallsIdx[matchingBallsIdx.length - 1];
+                tossedBallIdx = matchingBallIdx[0];
 
-                if (matchingBallsIdx.length > 1) {
+                if (matchingBallIdx.length > 1) {
                     // Multiple balls in hand match the template.
                     this.logError(
                         globalBeat,
                         "Warn",
-                        `Multiple balls ${stringifyBall(toss.ball)} can be thrown from the ${toss.from.handIdx === 1 ? "right" : "left"}. This ambiguity may have consequences later.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nProceeds by choosing ball ${stringifyBall(tossHand[tossedBallIdx])}.`
+                        `Multiple balls ${stringifyBall(toss.ball)} can be thrown from the ${toss.from.handIdx === 1 ? "right" : "left"}. This ambiguity may have consequences later.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nProceeds by choosing ball ${state.held[toss.from.handIdx][tossedBallIdx]}.`
                     );
                 }
             }
 
-            // Remove the ball from the state so as to not toss it again
-            // when considering the next tosses in this for loop.
-            state.held[toss.from.handIdx].slice(tossedBallIdx, tossedBallIdx + 1);
+            // Mark the ball as tossed.
+            ballsStillInHandIdx[toss.from.handIdx].delete(tossedBallIdx);
             unhandledTosses.delete(toss);
             // Add the toss information to the outputed array.
             halfCompletedTossesInfo.push({
@@ -891,7 +904,7 @@ class JugglerManager {
                     handIdx: toss.to.handIdx,
                     beat: toss.to.globalBeat
                 },
-                ballID: tossHand[tossedBallIdx],
+                ballID: state.held[toss.from.handIdx][tossedBallIdx],
                 mode: toss.mode
             });
         }
@@ -900,8 +913,18 @@ class JugglerManager {
             return { state };
         }
 
+        const preHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
+        const postHandState: PartialHeldState = [[...state.held[0]], [...state.held[1]]];
+        // Create the post-toss state by making all tossed ball undefined.
         for (const toss of halfCompletedTossesInfo) {
             postHandState[toss.from.handIdx][toss.from.spotIdx] = undefined;
+        }
+
+        // Remove all tossed balls from hand to create the state.
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            state.held[handIdx] = state.held[handIdx].filter((value, index) =>
+                ballsStillInHandIdx[handIdx].has(index)
+            );
         }
 
         return {
