@@ -16,7 +16,7 @@ export default defineConfig((config) => {
     // console.log(config);
     return {
         base: "",
-        server: { https: { key: "./musjugvr.key", cert: "./musjugvr.crt" } },
+        // server: { https: { key: "./musjugvr.key", cert: "./musjugvr.crt" } },
         build: {
             lib: {
                 entry: "./src/index.ts",
