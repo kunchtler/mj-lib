@@ -158,7 +158,7 @@ export function formatJugglerPhrasesForScheduler(
     //     return undefined;
     // }
 
-    // Now that the first information have been computed, get some more :
+    // Now that the first information has been computed, get some more :
     const res = new Map<
         string,
         {
@@ -233,12 +233,14 @@ export function formatJugglerPhrasesForScheduler(
                 // 10. Format mode and check it makes actual sense.
                 let newMode: TossMode;
                 if (toss.mode.type === "Height") {
-                    if (toss.mode.height <= 0) {
+                    if (toss.mode.height < 0) {
                         errorLogger.logError({
                             severity: "Error",
-                            message: `Can't toss a ball at siteswap height <= 0. Continue by skipping this toss.`,
+                            message: `Can't toss a ball at siteswap height < 0. Continue by skipping this toss.`,
                             time: ev.globalBeat
                         });
+                        continue;
+                    } else if (toss.mode.height === 0) {
                         continue;
                     }
                     newMode = toss.mode;

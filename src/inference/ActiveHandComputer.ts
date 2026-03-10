@@ -50,7 +50,7 @@ export class ActiveHandComputer {
         const nbSteps = localBeat.sub(lastLocalBeat);
         return {
             handIdx: nbSteps.floor().divisible(2) ? lastHandIdx : (lastHandIdx + 1) % 2,
-            offbeat: nbSteps.divisible(1)
+            offbeat: !nbSteps.divisible(1)
         };
     }
 }

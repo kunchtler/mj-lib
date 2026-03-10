@@ -5,6 +5,7 @@ import { BallEvent, BallTimeline } from "../model/timelines/BallTimeline";
 import { BallSoundDescription } from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { LocalBeatConverter } from "./LocalBeatConverter";
+import { HAND_MAX_TIME_FOR_ACTION } from "../model";
 
 //TODO : Rename this file to SchedulerToTimeline.
 //TODO : Rework MusicScoreConverter...
@@ -191,16 +192,22 @@ export function createModelTimelines({
     for (const [jugglerName, { events, tableID, localBeatConverter }] of jugglers) {
         for (let evIdx = 0; evIdx < events.length; evIdx++) {
             const ev = events[evIdx];
-            console.log(evIdx);
             const evTime = globalBeatConverter
                 .convertAbsoluteBeatToSeconds(ev.globalBeat)
                 .valueOf();
             const jugglerTimeline = jugglerTimelines.get(jugglerName)!;
 
-            const prevTimelineTime = Math.max(
-                jugglerTimeline[0].rBegin().pointer[0],
-                jugglerTimeline[1].rBegin().pointer[0]
-            );
+            
+            function getPrevHandTime(): number | null {
+                const timelineLeftEnd = jugglerTimeline[0].rBegin();
+                const timelineRightEnd = jugglerTimeline[1].rBegin();
+                const prevTimelineTime = Math.max(
+                    timelineLeftEnd.isAccessible() ? timelineLeftEnd.pointer[0] : -Infinity,
+                    timelineRightEnd.isAccessible() ? timelineRightEnd.pointer[0] : -Infinity
+                );
+                return prevTimelineTime === -Infinity ? null : prevTimelineTime;
+            }
+
 
             // if (ev.setupHands !== undefined) {
             //     // First, identify exactly what the target hand is. TODO.
@@ -286,8 +293,6 @@ export function createModelTimelines({
                 // 2. Add hand movements to the timeline.
                 // For now, I opted for a minimal approach : make hands go to a "ufo" spot.
                 // Make balls ascend and then descend.
-                const availableTime = evTime - prevTimelineTime;
-
                 const ballMovesIdx = [
                     ...ballsToPutOnTable[0],
                     ...ballsToPutOnTable[1],
@@ -308,6 +313,9 @@ export function createModelTimelines({
                 // - 1 to have hands go do what they should do.
                 //   + for the next catch or toss, we swap ball spots to recreate prestate.
                 const nbMoves = ballMovesIdx.length + 4;
+
+                const prevTimelineTime = getPrevHandTime() ?? evTime - nbMoves * MAX_UFO_TIME;
+                const availableTime = evTime - prevTimelineTime;
                 const timePerMove = Math.min(availableTime / nbMoves, MAX_UFO_TIME);
 
                 // Create the hands movements so they go on the spot.
@@ -436,7 +444,7 @@ export function createModelTimelines({
                     convertHandToSpotIndices(ev.catches.preHandState[1])
                 ];
                 addEventsToCreateHeldState(
-                    prevTimelineTime,
+                    getPrevHandTime() ?? evTime - HAND_MAX_TIME_FOR_ACTION,
                     evTime,
                     truePreCatchHandSpots,
                     ballTimelines

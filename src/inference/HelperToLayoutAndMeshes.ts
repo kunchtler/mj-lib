@@ -1,7 +1,7 @@
 import { DeepRequired } from "../utils";
 import {
     HandMeshDescription,
-    HandMiseEnSceneDescription,
+    HandLayoutDescription,
     PerformanceLayout,
     PerformanceMeshesDescription,
     SpotDescription
@@ -110,16 +110,18 @@ export function createLayoutAndMeshesDescriptionFromHelper(
 
         // Complete transform information
         // Used for the position and rotation.
-        const alpha = i / (helper.jugglers.length - 1);
-        const angle = (((1 - alpha) * 9) / 10) * Math.PI + ((alpha * 11) / 10) * Math.PI;
-        const newJugglerPosition = juggler.position ?? [
-            4 + 4 * Math.cos(angle),
-            0,
-            4 * Math.cos(angle)
-        ];
-        const newJugglerRotation =
-            juggler.rotation ??
-            (juggler.position === undefined ? [0, 0, 0] : [0, -(angle - Math.PI), 0]);
+        const newJugglerPosition = juggler.position ?? [i, 0, 0];
+        const newJugglerRotation = juggler.rotation ?? [0, 0, 0];
+        // const alpha = i / (helper.jugglers.length - 1);
+        // const angle = (((1 - alpha) * 9) / 10) * Math.PI + ((alpha * 11) / 10) * Math.PI;
+        // const newJugglerPosition = juggler.position ?? [
+        //     4 + 4 * Math.cos(angle),
+        //     0,
+        //     4 * Math.cos(angle)
+        // ];
+        // const newJugglerRotation =
+        //     juggler.rotation ??
+        //     (juggler.position === undefined ? [0, 0, 0] : [0, -(angle - Math.PI), 0]);
         const newScale = juggler.scale ?? [1, 1, 1];
 
         // Complete hands information.
@@ -152,11 +154,11 @@ export function createLayoutAndMeshesDescriptionFromHelper(
                 });
             }
         }
-        const newRightHandLayout: DeepRequired<HandMiseEnSceneDescription> = {
+        const newRightHandLayout: DeepRequired<HandLayoutDescription> = {
             ...newRightSpots,
             heldSpots: newHeldSpots
         };
-        const newLeftHandLayout: DeepRequired<HandMiseEnSceneDescription> = {
+        const newLeftHandLayout: DeepRequired<HandLayoutDescription> = {
             ...newLeftSpots,
             heldSpots: newHeldSpots
         };

@@ -6,7 +6,7 @@ import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import styles from "./simulator.module.css";
 import { LineMaterial } from "three/examples/jsm/Addons.js";
 import { Wrapper } from "../src/react/Performance";
-import { Clock } from "../src";
+import { BodyMesh, Clock } from "../src";
 import { pattern } from "./pattern";
 extend(LineMaterial);
 //TODO : styles ?
@@ -23,7 +23,7 @@ export function App() {
         <>
             {/* TODO : At some point, use invalidate. */}
             <Canvas frameloop="always" camera={{ position: [3, 2, 0] }}>
-                {/* <CanvasContents clock={clock} /> */}
+                <CanvasContents clock={clock} />
             </Canvas>
             <div className={styles.timecontrols}>
                 <TimeControls clock={clock} />

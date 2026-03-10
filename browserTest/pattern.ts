@@ -16,12 +16,13 @@ export const pattern: PerformanceDescriptionHelper = {
         {
             name: "Kylian",
             // defaultTableID: "KylianT",
-            position: [0, -1, 0],
+            position: [-1, 0, 0],
             ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" }, { name: "Mi" }]],
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: 0 },
-                    pattern: "R35003 35003 35003 42334 05003 35003 35003 42334 0300"
+                    pattern: "L3"
+                    // pattern: "R35003 35003 35003 42334 05003 35003 35003 42334 0300"
                 }
             ]
         }

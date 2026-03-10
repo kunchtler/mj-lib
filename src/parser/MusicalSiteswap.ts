@@ -122,13 +122,13 @@ export class MJSVisitor extends MJSiteswapParserVisitor<any> {
     };
 
     visitTossVanilla = (ctx: TossVanillaContext): ParserToss => {
-        const ballNameOrID: string | undefined = ctx.NAME()?.getText();
+        const ballNameOrID: string | undefined = ctx.NAME()?.getText() as string | undefined;
         const toHand = ctx.X_MOD() !== null ? "x" : undefined;
         const height = this.visit(ctx.height()) as number;
         return {
             from: {},
             to: { hand: toHand },
-            ball: { nameOrID: ballNameOrID },
+            ball: ballNameOrID === undefined ? undefined : { nameOrID: ballNameOrID },
             mode: { type: "Height", height: height }
         };
     };

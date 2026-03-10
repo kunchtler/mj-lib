@@ -1,3 +1,4 @@
+import { setDifference, setIntersection } from "./SetOperations";
 import { DeepFuse } from "./utilityTypes";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -7,7 +8,6 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 // TODO : Document.
 // This function follows the type as described in ./utilityTypes.
 export function deepFuse<A, B>(a: A, b: B): DeepFuse<A, B> {
-    
     if (a instanceof Map && b instanceof Map) {
         throw Error("Maps not implemented.");
         // const result = new Map();
@@ -61,21 +61,17 @@ export function deepFuse<A, B>(a: A, b: B): DeepFuse<A, B> {
     // ─── OBJECT ────────────────────────────
     if (isPlainObject(a) && isPlainObject(b)) {
         const result: Record<string, unknown> = {};
+        const aKeys = new Set<string>(Object.keys(a));
+        const bKeys = new Set<string>(Object.keys(b));
 
-        for (const key of Object.keys(a)) {
-            if (key in Object.keys(b)) {
-                result[key] = deepFuse(a[key], b[key]);
-            } else {
-                result[key] = a[key];
-            }
+        for (const key of setIntersection(aKeys, bKeys)) {
+            result[key] = deepFuse(a[key], b[key]);
         }
-        for (const key of Object.keys(b)) {
-            if (key in Object.keys(a)) {
-                // Previously handled.
-                continue;
-            } else {
-                result[key] = b[key];
-            }
+        for (const key of setDifference(aKeys, bKeys)) {
+            result[key] = a[key];
+        }
+        for (const key of setDifference(bKeys, aKeys)) {
+            result[key] = b[key];
         }
 
         return result as DeepFuse<A, B>;

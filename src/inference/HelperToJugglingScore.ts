@@ -125,7 +125,7 @@ export function createJugglingScoreFromHelper(
                     } else if (ball.id !== undefined) {
                         ballID = ball.id;
                     } else {
-                        const ballID = createBallID(
+                        ballID = createBallID(
                             ball.name,
                             juggler.name,
                             ballTemplateNames,

@@ -68,8 +68,8 @@ export type PerformanceLayout = {
         position: [number, number, number];
         rotation: [number, number, number];
         scale: [number, number, number];
-        leftHand: DeepRequired<HandMiseEnSceneDescription>;
-        rightHand: DeepRequired<HandMiseEnSceneDescription>;
+        leftHand: DeepRequired<HandLayoutDescription>;
+        rightHand: DeepRequired<HandLayoutDescription>;
     }[];
     tables: {
         id: string;
@@ -152,7 +152,7 @@ export type SpotDescription = {
     rotation?: [number, number, number]; // Rotation indicates with its "y" axis where the up is, and therefore how the ball should be put on top of the spot.
 };
 
-export type HandMiseEnSceneDescription = {
+export type HandLayoutDescription = {
     // TODO : have hand spot templates to avoid redundancy.
     // TODO : find a way to make optional.
     tossSpot: SpotDescription; // Relative to juggler origin. //P

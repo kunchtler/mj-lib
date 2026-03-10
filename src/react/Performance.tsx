@@ -40,6 +40,10 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
+    const x = model!.balls.getSurely("Do?Kylian?0");
+    const y = x.timeline.toArray();
+    x.positionAtTime(0);
+    console.log(y);
     if (model === undefined) {
         return <></>;
     }
@@ -197,15 +201,13 @@ export function Performance({
     // }, [clock]);
 
     useFrame(() => {
-        const time = clock.getTime();
-
-        for (const [id, { mesh }] of ballsRef.current) {
-            // Update the balls' positions.
-            if (mesh !== undefined) {
-                mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
-            }
-        }
-
+        // const time = clock.getTime();
+        // for (const [id, { mesh }] of ballsRef.current) {
+        //     // Update the balls' positions.
+        //     if (mesh !== undefined) {
+        //         mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
+        //     }
+        // }
         // for (const { name: jugglerName } of description.jugglersData) {
         //     const {
         //         bodyMesh: body,
@@ -241,6 +243,7 @@ export function Performance({
                 if (meshInfo === undefined) {
                     return;
                 }
+                console.log("Juggler");
                 return (
                     <Juggler
                         key={jugglerName}

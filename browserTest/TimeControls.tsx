@@ -39,7 +39,6 @@ export function TimeControls({ clock }: { clock: Clock }) {
             bounds[1] = DEFAULT_BOUNDS[1];
             clock.setBounds({ upperBound: DEFAULT_BOUNDS[1] });
         }
-        console.log(bounds);
         return bounds as [number, number];
     });
     const [time, setTime] = useState(clock.getTime());
@@ -47,7 +46,6 @@ export function TimeControls({ clock }: { clock: Clock }) {
     const [loop, setLoop] = useState(clock.getLoop());
 
     function animate() {
-        console.log("animate");
         setTime(clock.getTime());
         if (clock.isTicking()) {
             requestAnimationFrame(animate);
@@ -58,7 +56,6 @@ export function TimeControls({ clock }: { clock: Clock }) {
         // Adds event listeners.
         const onStart = () => {
             setStatus("playing");
-            console.log("play");
             requestAnimationFrame(animate);
         };
         const onPause = () => {
@@ -122,7 +119,6 @@ export function TimeControls({ clock }: { clock: Clock }) {
     }, [clock]);
 
     function onButtonClick() {
-        console.log("a");
         if (status === "playing") {
             clock.pause();
         } else if (status === "paused") {

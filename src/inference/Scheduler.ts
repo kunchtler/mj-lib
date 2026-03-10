@@ -268,7 +268,7 @@ export class Scheduler {
             });
         }
 
-        // Return ealry as there is nothing to do.
+        // Return early as there is nothing to do.
         if (this.jugglers.size === 0) {
             return schedulerResults;
         }
@@ -351,7 +351,7 @@ export class Scheduler {
                 break;
             }
 
-            // For each juggler that may watch a ball (ie, the ones of nextBeatJugglers),
+            // For each juggler that may catch a ball (ie, the ones of nextBeatJugglers),
             // gather the balls they catch and complete their respective toss information.
             for (const { name: jugglerName, isEvent } of nextBeatJugglers) {
                 const { manager, cache } = this.jugglers.get(jugglerName)!;
@@ -363,26 +363,10 @@ export class Scheduler {
                 cache.state = res.state;
 
                 if (res.catches !== undefined) {
-                    // Add to the scheduler's timeline output.
-                    addInfoToJugglerTimeline(
-                        jugglerName,
-                        nextBeatOfInterest,
-                        manager,
-                        res.state,
-                        cache.nextEventIdx - 1,
-                        {
-                            catches: {
-                                preHandState: res.catches.preHandState,
-                                postHandState: res.catches.postHandState,
-                                info: [] // We'll add the detailed caught balls just below.
-                            }
-                        }
-                    );
-
-                    // Complete toss and catch info.
-                    const timeline = schedulerResults.get(jugglerName)!.events;
-                    const catchingJugglerEvent = timeline[timeline.length - 1];
-                    for (const { ballID, spotIdx: ballIdx, handIdx } of res.catches.info) {
+                    // Complete the information from res.catches with the one recorded in airborneBalls.
+                    // (to put together information about tosses and catches).
+                    const catches: SymbolicToss<Fraction>[] = [];
+                    for (const { ballID, spotIdx, handIdx } of res.catches.info) {
                         const { toss, resultsIdx } = airborneBalls.get(ballID)!;
                         airborneBalls.delete(ballID);
 
@@ -393,13 +377,13 @@ export class Scheduler {
                             to: {
                                 juggler: toss.to.juggler,
                                 handIdx: handIdx,
-                                spotIdx: ballIdx,
+                                spotIdx: spotIdx,
                                 beat: toss.to.beat
                             },
                             mode: toss.mode
                         };
 
-                        // Add the toss to the tossing juggler.
+                        // To the juggler that tossed it in the past, complete the toss information.
                         const tossingJugglerEvent = schedulerResults.get(toss.from.juggler)!.events[
                             resultsIdx
                         ];
@@ -408,71 +392,71 @@ export class Scheduler {
                         }
                         tossingJugglerEvent.tosses.info.push(tossInfo);
 
-                        // Add the toss to the catching juggler (the one we are iterating on).
-                        if (catchingJugglerEvent.catches === undefined) {
-                            throw Error("Shouldn't happen.");
-                        }
-                        catchingJugglerEvent.catches.info.push(tossInfo);
+                        // Record the catch.
+                        catches.push(tossInfo);
                     }
 
-                    // Then, if the juggler had an event, handle it.
-                    if (isEvent) {
-                        const res = manager.processEvent(cache.nextEventIdx, cache.state);
-
-                        // Update the cache.
-                        cache.nextEventIdx++; // Bump the relevant event index.
-                        cache.state = res.state; // Update the juggler's state.
-
-                        // Add to the scheduler's timeline output.
-                        if (res.setupHands !== undefined) {
-                            addInfoToJugglerTimeline(
-                                jugglerName,
-                                nextBeatOfInterest,
-                                manager,
-                                res.state,
-                                cache.nextEventIdx - 1,
-                                {
-                                    setupHands: res.setupHands
-                                }
-                            );
+                    // Add to the juggler timeline that he caught balls on that beat.
+                    // Note how his hands were before and after the catch, as well as the
+                    // information about each ball caught (namely, in what hand subspot).
+                    addInfoToJugglerTimeline(jugglerName, nextBeatOfInterest, res.state, {
+                        catches: {
+                            preHandState: res.catches.preHandState,
+                            postHandState: res.catches.postHandState,
+                            info: catches
                         }
-                        if (res.tosses !== undefined) {
+                    });
+                }
+
+                // Balls have been caught for this beat, so we can handle all juggler events
+                // (ball changes, tosses, ...)
+                if (isEvent) {
+                    const res = manager.processEvent(cache.nextEventIdx, cache.state);
+
+                    // Update the cache.
+                    cache.nextEventIdx++; // Bump the relevant event index.
+                    cache.state = res.state; // Update the juggler's state.
+
+                    // If the juggler changed the balls they hold, record the change in their timeline.
+                    if (res.setupHands !== undefined) {
+                        addInfoToJugglerTimeline(jugglerName, nextBeatOfInterest, res.state, {
+                            setupHands: res.setupHands
+                        });
+                    }
+                    // If the juggler tossed balls, record that in their timeline.
+                    // But there is on issue : we want to provide complete information about the toss.
+                    // (including when and where it would fall), which we can only gather later.
+                    if (res.tosses !== undefined) {
+                        addInfoToJugglerTimeline(jugglerName, nextBeatOfInterest, res.state, {
+                            tosses: {
+                                preHandState: res.tosses.preHandState,
+                                postHandState: res.tosses.postHandState,
+                                info: [] //We'll complete it when the ball is caught.
+                            }
+                        });
+
+                        // We now reditribute each tossed ball to their destined jugglers.
+                        for (const toss of res.tosses.info) {
+                            // Add the tossed balls to the catching juggler's airborne state.
+                            const { manager: tossManager, cache: tossCache } = this.jugglers.get(
+                                toss.to.juggler
+                            )!;
+                            const res = tossManager.addTossToState(toss, tossCache.state);
+                            // Update the cache's state.
+                            tossCache.state = res.state;
+                            // Update the scheduler's output with the new state.
                             addInfoToJugglerTimeline(
-                                jugglerName,
+                                toss.to.juggler,
                                 nextBeatOfInterest,
-                                manager,
-                                res.state,
-                                cache.nextEventIdx - 1,
-                                {
-                                    tosses: {
-                                        preHandState: res.tosses.preHandState,
-                                        postHandState: res.tosses.postHandState,
-                                        info: [] //We'll complete it when the ball is caught.
-                                    }
-                                }
+                                res.state
                             );
 
-                            for (const toss of res.tosses.info) {
-                                // Add the tossed balls to the catching juggler's airborne state.
-                                const { manager: tossManager, cache: tossCache } =
-                                    this.jugglers.get(toss.to.juggler)!;
-                                const res = tossManager.addTossToState(toss, tossCache.state);
-                                // Update the cache's state.
-                                tossCache.state = res.state;
-                                // Update the scheduler's output with the new state.
-                                addInfoToJugglerTimeline(
-                                    toss.to.juggler,
-                                    nextBeatOfInterest,
-                                    tossManager,
-                                    res.state,
-                                    tossCache.nextEventIdx - 1
-                                );
-
-                                // Remember the ball's info to complete it when it will be caught.
-                                const resultsIdx = schedulerResults.get(toss.from.juggler)!.events
-                                    .length;
-                                airborneBalls.set(toss.ballID, { toss, resultsIdx });
-                            }
+                            // Remember the ball's info to complete it when it will be caught.
+                            airborneBalls.set(toss.ballID, {
+                                toss,
+                                resultsIdx:
+                                    schedulerResults.get(toss.from.juggler)!.events.length - 1
+                            });
                         }
                     }
                 }
@@ -489,9 +473,7 @@ export class Scheduler {
         function addInfoToJugglerTimeline(
             jugglerName: string,
             beat: Fraction,
-            manager: JugglerManager,
             state: JugglerState,
-            prevEventIdx: number,
             info?: Partial<Omit<SymbolicEvent<Fraction>, "state" | "beat" | "unitTime">>
         ) {
             const jugglerTimeline = schedulerResults.get(jugglerName)!.events;

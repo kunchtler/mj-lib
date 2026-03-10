@@ -107,9 +107,9 @@ export function performanceDescriptionToModel(
     }).validatePattern();
 
     // 5b. Console logs.
-    console.log("Global Errors :\n");
-    errorLogger.printErrorsInConsole();
-    console.log("\n");
+    // console.log("Global Errors :\n");
+    // errorLogger.printErrorsInConsole();
+    // console.log("\n");
     // for (const [jugglerName, { errorLogger, events: timeline }] of schedulerOutput) {
     //     console.log(`Juggler ${jugglerName} :\n`);
     // const tmp = new FracTimeline<{ state?: JugglerState; event?: SymbolicEvent<Fraction> }>();
@@ -345,7 +345,7 @@ export function checkScoreNamesAndIDs(
             errorMessage: `Duplicate ball ID: "${id}".`,
             errorLogger: errorLogger
         });
-        ballIDs.set(templateName, { template: templateName, soundOnCatch, soundOnToss });
+        ballIDs.set(id, { template: templateName, soundOnCatch, soundOnToss });
     }
 
     // Check that no ball name is also an ID and conversely.
@@ -486,7 +486,7 @@ export function checkScoreNamesAndIDs(
                 // Uniqueness of ball IDs.
                 handleIfStringDuplicate({
                     name: ballID,
-                    namesList: ballIDs,
+                    namesList: foundBallIDs,
                     errorMessage: `Duplicate ball ID: "${ballID}".`,
                     errorLogger: errorLogger
                 });
@@ -533,7 +533,7 @@ export function checkScoreNamesAndIDs(
                         // Uniqueness of ball IDs.
                         handleIfStringDuplicate({
                             name: ball.id,
-                            namesList: ballIDs,
+                            namesList: foundBallIDs,
                             errorMessage: `Duplicate ball ID: "${ball.id}".`,
                             errorLogger: errorLogger
                         });
@@ -579,7 +579,7 @@ export function checkScoreNamesAndIDs(
                     // Uniqueness of ball IDs.
                     handleIfStringDuplicate({
                         name: ball.id,
-                        namesList: ballIDs,
+                        namesList: foundBallIDs,
                         errorMessage: `Duplicate ball ID: "${ball.id}".`,
                         errorLogger: errorLogger
                     });

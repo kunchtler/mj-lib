@@ -20,8 +20,8 @@ export const DEFAULT_CIRCLE_HAND_WIDTH_SEGMENT = 8;
 export const DEFAULT_CIRCLE_HAND_HEIGHT_SEGMENT = 4;
 
 // Hand - global properties
-export const DEFAULT_HAND_COLOR = 0xffdbac;
-export const DEFAULT_HAND_VISIBILITY = false;
+export const DEFAULT_HAND_COLOR = /*DEFAULT_CUBE_BODY_COLOR;*/ 0xffdbac;
+export const DEFAULT_HAND_VISIBILITY = true;
 
 ////////// Ball //////////
 
