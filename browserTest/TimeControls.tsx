@@ -2,10 +2,11 @@
 /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 // TODO : Find a way to remove those warnings.
 // See : https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Clock } from "../src";
 import { ActionIcon, Group, Slider, Text } from "@mantine/core";
 import { IconPlayerPauseFilled, IconPlayerPlayFilled, IconRotate } from "@tabler/icons-react";
+import { set } from "immutable";
 
 //TODO : Handle loading state ?
 //TODO : Bounds in UI or in COnductor ?
@@ -28,37 +29,45 @@ export function TimeControls({ clock }: { clock: Clock }) {
     const [statusBeforeSliderChange, setStatusBeforeSliderChange] = useState<TimeState | undefined>(
         undefined
     );
-    const [bounds, setBounds] = useState<[number, number]>([
-        clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-        clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
-    ]);
+    const [bounds, setBounds] = useState<[number, number]>(() => {
+        const bounds = clock.getBounds();
+        if (bounds[0] === undefined) {
+            bounds[0] = DEFAULT_BOUNDS[0];
+            clock.setBounds({ lowerBound: DEFAULT_BOUNDS[0] });
+        }
+        if (bounds[1] === undefined) {
+            bounds[1] = DEFAULT_BOUNDS[1];
+            clock.setBounds({ upperBound: DEFAULT_BOUNDS[1] });
+        }
+        console.log(bounds);
+        return bounds as [number, number];
+    });
     const [time, setTime] = useState(clock.getTime());
     const [playbackRate, setPlaybackRate] = useState(clock.getPlaybackRate());
     const [loop, setLoop] = useState(clock.getLoop());
 
-    useEffect(() => {
-        // Sets the various states in case the timeConductor has changed.
-        setStatus(clock.isStopped() ? "paused" : "playing");
-        setStatusBeforeSliderChange(undefined);
-        setBounds([
-            clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
-            clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
-        ]);
+    function animate() {
+        console.log("animate");
         setTime(clock.getTime());
-        setPlaybackRate(clock.getPlaybackRate());
-        setLoop(clock.getLoop());
+        if (clock.isTicking()) {
+            requestAnimationFrame(animate);
+        }
+    }
 
+    useEffect(() => {
         // Adds event listeners.
-        const onPlay = () => {
+        const onStart = () => {
             setStatus("playing");
+            console.log("play");
+            requestAnimationFrame(animate);
         };
         const onPause = () => {
             setStatus("paused");
         };
-        const onReachedEnd = () => {
+        const onEnded = () => {
             setStatus("reachedEnd");
         };
-        const onTimeUpdate = () => {
+        const onManualTimeUpdate = () => {
             setTime(clock.getTime());
         };
         const onPlaybackRateChange = () => {
@@ -74,19 +83,38 @@ export function TimeControls({ clock }: { clock: Clock }) {
             setLoop(clock.getLoop());
         };
 
-        clock.addEventListener("play", onPlay);
+        clock.addEventListener("start", onStart);
         clock.addEventListener("pause", onPause);
-        clock.addEventListener("reachedEnd", onReachedEnd);
-        clock.addEventListener("timeUpdate", onTimeUpdate);
+        clock.addEventListener("ended", onEnded);
+        // clock.addEventListener("timeUpdate", onTimeUpdate);
+        clock.addEventListener("manualTimeUpdate", onManualTimeUpdate);
         clock.addEventListener("playbackRateChange", onPlaybackRateChange);
         clock.addEventListener("boundsChange", onBoundsChange);
         clock.addEventListener("loopChange", onLoopChange);
+
+        // Update UI with the current clock values.
+        setStatus(clock.isStopped() ? "paused" : "playing");
+        setStatusBeforeSliderChange(undefined);
+        setBounds([
+            clock.getBounds()[0] ?? DEFAULT_BOUNDS[0],
+            clock.getBounds()[1] ?? DEFAULT_BOUNDS[1]
+        ]);
+        setTime(clock.getTime());
+        setPlaybackRate(clock.getPlaybackRate());
+        setLoop(clock.getLoop());
+
+        // Start animation if needed
+        if (clock.isTicking()) {
+            animate();
+        }
+
         // Return a function to remove all event listeners.
         return () => {
-            clock.removeEventListener("play", onPlay);
+            clock.removeEventListener("start", onStart);
             clock.removeEventListener("pause", onPause);
-            clock.removeEventListener("reachedEnd", onReachedEnd);
-            clock.removeEventListener("timeUpdate", onTimeUpdate);
+            clock.removeEventListener("ended", onEnded);
+            // clock.removeEventListener("timeUpdate", onTimeUpdate);
+            clock.removeEventListener("manualTimeUpdate", onManualTimeUpdate);
             clock.removeEventListener("playbackRateChange", onPlaybackRateChange);
             clock.removeEventListener("boundsChange", onBoundsChange);
             clock.removeEventListener("loopChange", onLoopChange);
@@ -94,17 +122,14 @@ export function TimeControls({ clock }: { clock: Clock }) {
     }, [clock]);
 
     function onButtonClick() {
+        console.log("a");
         if (status === "playing") {
             clock.pause();
         } else if (status === "paused") {
-            clock.start().catch((error: unknown) => {
-                console.warn(error);
-            });
+            clock.start();
         } else {
             clock.setTime(bounds[0]);
-            clock.start().catch((error: unknown) => {
-                console.warn(error);
-            });
+            clock.start();
         }
     }
 
@@ -123,9 +148,7 @@ export function TimeControls({ clock }: { clock: Clock }) {
     function onSliderChangeEnd(value: number) {
         clock.setTime(value);
         if (statusBeforeSliderChange === "reachedEnd" || statusBeforeSliderChange === "playing") {
-            clock.start().catch((error: unknown) => {
-                console.warn(error);
-            });
+            clock.start();
         }
         setStatusBeforeSliderChange(undefined);
     }
@@ -176,14 +199,14 @@ function formatTime(time: number, minDigitsMinutes: number = 0, showMilliseconds
     for (let i = nbMinutes.toString.length; i <= minDigitsMinutes; i++) {
         text += "0";
     }
-    text += nbMinutes.toString();
+    text += nbMinutes.toString() + ":";
     const nbSeconds = Math.floor(time);
     if (nbSeconds < 10) {
         text += "0";
     }
     text += nbSeconds.toString();
     if (showMilliseconds) {
-        text += Math.floor((time - nbSeconds) * 1000).toString();
+        text += ":" + Math.floor((time - nbSeconds) * 1000).toString();
     }
     return text;
 }

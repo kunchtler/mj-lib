@@ -23,7 +23,7 @@ export function App() {
         <>
             {/* TODO : At some point, use invalidate. */}
             <Canvas frameloop="always" camera={{ position: [3, 2, 0] }}>
-                <CanvasContents clock={clock} />
+                {/* <CanvasContents clock={clock} /> */}
             </Canvas>
             <div className={styles.timecontrols}>
                 <TimeControls clock={clock} />

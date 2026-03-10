@@ -77,7 +77,7 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      */
     private _createEndTimeout(): void {
         // If there is no bound in the direction the clock is ticking, there is no end to reach.
-        const endBound = this._bounds[this._endBoundIdx()]; 
+        const endBound = this._bounds[this._endBoundIdx()];
         if (endBound === undefined) {
             return;
         }
@@ -266,8 +266,8 @@ export class Clock extends EventDispatcher<ClockEvents> /*implements TimeControl
      * Sets the bounds of the clock.
      * @param bounds a 2-element array with the start time and the end time in seconds. They may be undefined.
      */
-    setBounds(bounds: [number | undefined, number | undefined]) {
-        this._bounds = bounds;
+    setBounds({ upperBound, lowerBound }: { upperBound?: number; lowerBound?: number }) {
+        this._bounds = [lowerBound ?? this._bounds[0], upperBound ?? this._bounds[1]];
         // If we were playing, we need to recreate the handle end timeout.
         this._recalibrateEndTimeout();
         this.dispatchEvent("boundsChange");
