@@ -125,89 +125,29 @@ export function Performance({
         };
     }, [listener, model, clock, buffersMap]);
 
-    // Bind some of the audio to the clock.
-    // useEffect(() => {
-    //     const onStart = () => {
-    //         audioControls.current.unpause();
-    //     };
-    //     const onPause = () => {
-    //         audioControls.current.pause();
-    //     };
-    //     const onEnded = () => {
-    //         // Do nothing, we want the sounds to keep playing even when the simulation stops at the end.
-    //         return;
-    //     };
-    //     const onManualTimeUpdate = () => {
-    //         // Load each ball with its sound at the right time.
-    //         for (const ballID of audioControls.current.ballIDs()) {
-    //             // Get the model.
-    //             const ballModel = model.balls.get(ballID);
-    //             if (ballModel === undefined) {
-    //                 continue;
-    //             }
-    //             // Figure out what is the previous sound the ball should have made, (accounting for the clock ticking forwards or backwards).
-    //             // TODO : For now, only forward.
-    //             const [prevEvTime, prevEv] = ballModel.timeline.prevEvent(clock.getTime());
-    //             if (
-    //                 prevEvTime !== null &&
-    //                 previousTime.current < prevEvTime &&
-    //                 prevEv.sound !== undefined
-    //             ) {
-    //                 // Check if a ball has changed jugglers to change its gain.
-    //                 if (
-    //                     prevEv.location.type === "held" &&
-    //                     prevEv.location.jugglerName !== audioControls.current.getBallJuggler(ballID)
-    //                 )
-    //                     audioControls.current.changeBallJuggler(
-    //                         ballID,
-    //                         prevEv.location.jugglerName
-    //                     );
-    //                 // Make the ball sound.
-    //                 audioControls.current.prevEv.sound.loop
-    //             }
-    //                 // TO CONTINUE : Have a way to load the sound the ball should play, but not playing it instantly, by modifying PerformanceAudio
-    //                 !clock.isStopped()
-    //             ) {
-    //                 performanceAudio.playBallSound(id, buffersMap.get(id)!);
-    //             }
-    //         }
-    //     };
-    //     const onPlaybackRateChange = () => {
-    //         // Change the playback so that the pitch is shifted.
-    //         // TODO : Is this the behaviour we want ? Or no pitch shift and normal sound.
-    //         // TODO : Test if works in reverse.
-    //         audioControls.current.setPlaybackRate(clock.getPlaybackRate());
-    //     };
-
-    //     clock.addEventListener("start", onStart);
-    //     clock.addEventListener("pause", onPause);
-    //     clock.addEventListener("ended", onEnded);
-    //     clock.addEventListener("manualTimeUpdate", onManualTimeUpdate);
-    //     clock.addEventListener("playbackRateChange", onPlaybackRateChange);
-    //     clock.addEventListener("boundsChange", onBoundsChange);
-    //     clock.addEventListener("loopChange", onLoopChange);
-
-    //     clock.addEventListener("playbackRateChange");
-    //     clock.addEventListener("play", onPlay);
-    //     clock.addEventListener("pause", onPause);
-    //     clock.addEventListener("reachedEnd", onReachedEnd);
-
-    //     // Return a function to remove all event listeners.
-    //     return () => {
-    //         clock.removeEventListener("play", onPlay);
-    //         clock.removeEventListener("pause", onPause);
-    //         clock.removeEventListener("reachedEnd", onReachedEnd);
-    //     };
-    // }, [clock]);
-
     useFrame(() => {
-        // const time = clock.getTime();
-        // for (const [id, { mesh }] of ballsRef.current) {
-        //     // Update the balls' positions.
-        //     if (mesh !== undefined) {
-        //         mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
-        //     }
-        // }
+        const time = clock.getTime();
+        for (const [id, { mesh }] of ballsRef.current) {
+            // Update the balls' positions.
+            if (mesh !== undefined) {
+                mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
+            }
+
+            for (const [name, { leftHandMesh, rightHandMesh }] of jugglersRef.current) {
+                if (leftHandMesh !== undefined) {
+                    leftHandMesh.position.copy(
+                        model.jugglers.get(name)!.leftHand.localPositionAndRotationAtTime(time)
+                            .position
+                    );
+                }
+                if (rightHandMesh !== undefined) {
+                    rightHandMesh.position.copy(
+                        model.jugglers.get(name)!.rightHand.localPositionAndRotationAtTime(time)
+                            .position
+                    );
+                }
+            }
+        }
         // for (const { name: jugglerName } of description.jugglersData) {
         //     const {
         //         bodyMesh: body,
