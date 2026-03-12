@@ -97,14 +97,12 @@ class BallAudio {
             this.clearTimeout();
         };
         const onManualTimeUpdate = () => {
-            this.clearTimeout();
-            this.createTimeout(0);
+            this.reload();
         };
         // If the playback rate changes, we need to recompute the delay.
         // TODO : Create a method in the clock to create a callback at some given point ? So that we do not need to account for that.
         const onPlayBackRateChange = () => {
-            this.clearTimeout();
-            this.createTimeout(0); // TODO : Test. May cause sound jitter by stopping and replaying current sound.
+            this.reload();
         };
 
         // Remember about callbacks to delete them on dismount.
@@ -126,7 +124,7 @@ class BallAudio {
         }
     }
 
-    changeModel() {
+    reload() {
         this.clearTimeout();
         if (this._audioEngine.getClock()?.isTicking()) {
             this.createTimeout(0);
@@ -332,7 +330,7 @@ export class AudioEngine {
 
     setPerformanceModel(model: PerformanceModel | undefined) {
         for (const ball of this._balls.values()) {
-            ball.changeModel();
+            ball.reload();
         }
         this._model = model;
     }
