@@ -53,54 +53,85 @@ export function convertSpot(ballSpotIdx: number, handSize: number) {
 }
 
 // TODO : make it customizable with custom layouts, on a per juggler basis (should be added to juggler's definition)
-export function convertHandToSpotIndices(hand: (string | undefined)[]): Map<string, number> {
-    const ballsSpotIdxMap = new Map<string, number>();
+export function tossOrderToTrueSpots(hand: (string | undefined)[]): string[][] {
+    const newHand: string[][] = [];
     // Match each ball in hands to its spot number.
     for (let handIdx = 0; handIdx < hand.length; handIdx++) {
         const ball = hand[handIdx];
         if (ball === undefined) {
             continue;
         }
-        ballsSpotIdxMap.set(ball, convertSpot(handIdx, hand.length));
+        const newSpot = convertSpot(handIdx, hand.length);
+        // If the spot doesn't exist yet in the hand, create it.
+        if (newSpot >= newHand.length) {
+            for (let i = newHand.length; i <= newSpot; i++) {
+                newHand.push([]);
+            }
+        }
+        newHand[newSpot].push(ball);
     }
-    return ballsSpotIdxMap;
+    return newHand;
+}
+
+function findBallIdx(trueHand: string[][], ballName: string): number | undefined {
+    for (let spotIdx = 0; spotIdx < trueHand.length; spotIdx++) {
+        for (const ball of trueHand[spotIdx]) {
+            if (ball === ballName) {
+                return spotIdx;
+            }
+        }
+    }
+    return undefined;
 }
 
 // Note : this function should ONLY be used for endTime >= startTime >= the last
 // ball event.
 // Modifies the balls timelines directly.
+// TODO : Rework the timings ??? 
 function addEventsToCreateHeldState(
     startTime: number,
     endTime: number,
-    trueSpots: [Map<string, number>, Map<string, number>],
+    trueSpots: [string[][], string[][]],
     ballTimelines: Map<string, BallTimeline>
 ): void {
+    // NOTE : THE FOLLOWING COMMENT IS NOT VALID ANYMORE.
     // Choose t1 and t2 such that
     // - transition starts some time after t1.
     // - leaves some time before t2.
     // - doesn't take more than 0.3 to perform ball movements in hand.
-    const t1 = startTime + Math.min(0.2, (1 / 5) * (endTime - startTime));
-    const t2 = t1 + Math.min(0.3, (3 / 5) * (endTime - startTime));
+    // const t1 = startTime + Math.min(0.2, (1 / 5) * (endTime - startTime));
+    // const t2 = t1 + Math.min(0.3, (3 / 5) * (endTime - startTime));
+    const t1 = Math.max(endTime - 0.3, startTime);
+    const t2 = endTime;
     for (let handIdx = 0; handIdx < 2; handIdx++) {
-        for (const [ball, spot] of trueSpots[handIdx]) {
-            const ballTimeline = ballTimelines.get(ball)!;
-            const prevBallEv = ballTimeline.rBegin().pointer[1];
-            // Sanity check
-            if (prevBallEv.location.type !== "held") {
-                console.error("Shouldn't happen");
-                continue;
+        for (let spotIdx = 0; spotIdx < trueSpots[handIdx].length; spotIdx++) {
+            for (const ball of trueSpots[handIdx][spotIdx]) {
+                const ballTimeline = ballTimelines.get(ball)!;
+                const prevBallEv = ballTimeline.rBegin().pointer[1];
+                // Sanity check
+                if (prevBallEv.location.type !== "held") {
+                    console.error("Shouldn't happen");
+                    throw Error("Shouldn't happen.");
+                    continue;
+                }
+                // The ball is already in the right place, and is not moving.
+                if (
+                    prevBallEv.location.spotIdx === spotIdx &&
+                    prevBallEv.transition.type === "keep"
+                ) {
+                    continue;
+                }
+                // Have the ball start sliding from its old spot.
+                ballTimeline.addEvent(t1, {
+                    location: prevBallEv.location,
+                    transition: { type: "slideInHand" }
+                });
+                // Have the ball arrive in its new spot and remain there.
+                ballTimeline.addEvent(t2, {
+                    location: { ...prevBallEv.location, spotIdx: spotIdx },
+                    transition: { type: "keep" }
+                });
             }
-            if (prevBallEv.location.spotIdx === spot && prevBallEv.transition.type === "keep") {
-                continue;
-            }
-            ballTimeline.addEvent(t1, {
-                location: prevBallEv.location,
-                transition: { type: "slideInHand" }
-            });
-            ballTimeline.addEvent(t2, {
-                location: { ...prevBallEv.location, spotIdx: spot },
-                transition: { type: "keep" }
-            });
         }
     }
 }
@@ -150,6 +181,7 @@ export function createModelTimelines({
 
     // Handle the initial state ball's location.
     // The initial state is the state of the first event.
+    // TODO : Give more time to setup hands at the beginning if needed.
     for (const [jugglerName, { events, tableID }] of jugglers) {
         if (events.length === 0) {
             continue;
@@ -161,6 +193,7 @@ export function createModelTimelines({
         for (let handIdx = 0; handIdx < 2; handIdx++) {
             for (let ballIdx = 0; ballIdx < initialState.held[handIdx].length; ballIdx++) {
                 const ballID = initialState.held[handIdx][ballIdx];
+                // The ball is held, and should remain in its subspot.
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     location: {
                         type: "held",
@@ -174,12 +207,14 @@ export function createModelTimelines({
         }
         if (initialState.table !== undefined && tableID !== undefined) {
             for (const [spotName, ballID] of initialState.table.namedSpot) {
+                // The ball is on the table (on a known spot)0 and shouldn't move.
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     location: { type: "onTable", tableID, spot: spotName },
                     transition: { type: "keep" }
                 });
             }
             for (const ballID of initialState.table.unknown.keys()) {
+                // The ball is on the table (on an unknown spot) and shouldn't move.
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     location: { type: "onTable", tableID, spot: null },
                     transition: { type: "keep" }
@@ -197,7 +232,6 @@ export function createModelTimelines({
                 .valueOf();
             const jugglerTimeline = jugglerTimelines.get(jugglerName)!;
 
-            
             function getPrevHandTime(): number | null {
                 const timelineLeftEnd = jugglerTimeline[0].rBegin();
                 const timelineRightEnd = jugglerTimeline[1].rBegin();
@@ -207,7 +241,6 @@ export function createModelTimelines({
                 );
                 return prevTimelineTime === -Infinity ? null : prevTimelineTime;
             }
-
 
             // if (ev.setupHands !== undefined) {
             //     // First, identify exactly what the target hand is. TODO.
@@ -257,13 +290,13 @@ export function createModelTimelines({
                 // TODO : Better code structure / variable names to separate :
                 // - the ball idx stored in a hand's state (from oldest to newest in hand)
                 // - the spot idx in which the ball is, which depends on the amount of balls in the hand.
-                const truePreHandSpots: [Map<string, number>, Map<string, number>] = [
-                    convertHandToSpotIndices(ev.setupHands.preHandState[0]),
-                    convertHandToSpotIndices(ev.setupHands.preHandState[1])
+                const truePreHandSpots: [string[][], string[][]] = [
+                    tossOrderToTrueSpots(ev.setupHands.preHandState[0]),
+                    tossOrderToTrueSpots(ev.setupHands.preHandState[1])
                 ];
-                const truePostHandSpots: [Map<string, number>, Map<string, number>] = [
-                    convertHandToSpotIndices(ev.setupHands.postHandState[0]),
-                    convertHandToSpotIndices(ev.setupHands.postHandState[1])
+                const truePostHandSpots: [string[][], string[][]] = [
+                    tossOrderToTrueSpots(ev.setupHands.postHandState[0]),
+                    tossOrderToTrueSpots(ev.setupHands.postHandState[1])
                 ];
 
                 for (let moveIdx = 0; moveIdx < ev.setupHands.moves.length; moveIdx++) {
@@ -273,8 +306,8 @@ export function createModelTimelines({
                             if (ball.from.handIdx !== ball.to.handIdx) {
                                 ballsToSwapHands[ball.from.handIdx].push(moveIdx);
                             } else if (
-                                truePreHandSpots[ball.from.handIdx].get(ball.id) !==
-                                truePostHandSpots[ball.to.handIdx].get(ball.id)
+                                findBallIdx(truePreHandSpots[ball.from.handIdx], ball.id) !==
+                                findBallIdx(truePostHandSpots[ball.to.handIdx], ball.id)
                             ) {
                                 ballsToMoveInHand[ball.from.handIdx].push(moveIdx);
                             }
@@ -321,15 +354,19 @@ export function createModelTimelines({
                 // Create the hands movements so they go on the spot.
                 for (let handIdx = 0; handIdx < 2; handIdx++) {
                     // TODO : here or handle in sim ?
+                    // The hand takes 1 move to go to the swap spot, and remains there.
                     jugglerTimeline[handIdx].addEvent(prevTimelineTime + timePerMove, {
                         type: "swap"
                     });
                     // Handle this one here :)
-                    jugglerTimeline[handIdx].addEvent(
-                        prevTimelineTime + (nbMoves - 2) * timePerMove,
-                        { type: "swap" }
-                    );
+                    // TODO : USELESS ?
+                    // jugglerTimeline[handIdx].addEvent(
+                    //     prevTimelineTime + (nbMoves - 2) * timePerMove,
+                    //     { type: "swap" }
+                    // );
                     // TODO : here or handle in sim ?
+                    // The hand remains on its swap spot until all balls have been moved,
+                    // with a 1 move padding at the end.
                     jugglerTimeline[handIdx].addEvent(
                         prevTimelineTime + (nbMoves - 1) * timePerMove,
                         { type: "swap" }
@@ -364,7 +401,7 @@ export function createModelTimelines({
                                 type: "held",
                                 jugglerName: jugglerName,
                                 rightHand: ball.from.handIdx === 1,
-                                spotIdx: truePreHandSpots[ball.from.handIdx].get(ball.id)!
+                                spotIdx: findBallIdx(truePreHandSpots[ball.from.handIdx], ball.id)!
                             },
                             transition: { type: "ufo" }
                         };
@@ -372,6 +409,7 @@ export function createModelTimelines({
                         // Sanity check
                         if (tableID === undefined) {
                             console.error("Shouldn't happen");
+                            throw Error("Shouldn't happen.");
                             continue;
                         }
                         ballStartEv = {
@@ -386,6 +424,7 @@ export function createModelTimelines({
                             transition: { type: "ufo" }
                         };
                     }
+                    // TODO : Document
                     ballTimelines.get(ball.id)!.addEvent(moveStartTime, ballStartEv);
 
                     // Add to ball timeline the end of the transition.
@@ -396,7 +435,7 @@ export function createModelTimelines({
                                 type: "held",
                                 jugglerName: jugglerName,
                                 rightHand: ball.to.handIdx === 1,
-                                spotIdx: truePostHandSpots[ball.to.handIdx].get(ball.id)!
+                                spotIdx: findBallIdx(truePostHandSpots[ball.to.handIdx], ball.id)!
                             },
                             transition: { type: "ufo" }
                         };
@@ -404,6 +443,7 @@ export function createModelTimelines({
                         // Sanity check
                         if (tableID === undefined) {
                             console.error("Shouldn't happen");
+                            throw Error("Shouldn't happen.");
                             continue;
                         }
                         ballEndEv = {
@@ -416,11 +456,13 @@ export function createModelTimelines({
                             transition: { type: "keep" }
                         };
                     }
+                    // TODO : Document
                     ballTimelines.get(ball.id)!.addEvent(moveEndTime, ballEndEv);
 
                     // Add to juggler timeline its position for the transition.
-                    jugglerTimeline[0].addEvent(moveStartTime, { type: "swap" });
-                    jugglerTimeline[1].addEvent(moveStartTime, { type: "swap" });
+                    // TODO : Useless ?
+                    // jugglerTimeline[0].addEvent(moveStartTime, { type: "swap" });
+                    // jugglerTimeline[1].addEvent(moveStartTime, { type: "swap" });
                     // Sanity check
                     // let handIdx: number;
                     // if (ball.from.type === "held") {
@@ -439,9 +481,9 @@ export function createModelTimelines({
 
             if (ev.catches !== undefined) {
                 // Make sure balls are in the correct hand pos to perform catches.
-                const truePreCatchHandSpots: [Map<string, number>, Map<string, number>] = [
-                    convertHandToSpotIndices(ev.catches.preHandState[0]),
-                    convertHandToSpotIndices(ev.catches.preHandState[1])
+                const truePreCatchHandSpots: [string[][], string[][]] = [
+                    tossOrderToTrueSpots(ev.catches.preHandState[0]),
+                    tossOrderToTrueSpots(ev.catches.preHandState[1])
                 ];
                 addEventsToCreateHeldState(
                     getPrevHandTime() ?? evTime - HAND_MAX_TIME_FOR_ACTION,
@@ -453,18 +495,34 @@ export function createModelTimelines({
                 // Add the catches to the timeline.
                 for (const cat of ev.catches.info) {
                     // Catches happen exactly on beat.
+                    // Sanity check
+                    const ballSpot = convertSpot(
+                        cat.to.spotIdx,
+                        ev.catches.preHandState[cat.to.handIdx].length
+                    );
+                    if (
+                        ev.catches.postHandState[cat.to.handIdx].findIndex(
+                            (ball) => ball === cat.ballID
+                        ) !== ballSpot
+                    ) {
+                        console.error("Shouldn't happen.");
+                        throw Error("Shouldn't happen.");
+                    }
+                    // The ball is caught in its new hand, and should remain there.
                     ballTimelines.get(cat.ballID)?.addEvent(evTime, {
                         location: {
                             type: "held",
                             jugglerName: cat.to.juggler,
                             rightHand: cat.to.handIdx === 1,
-                            spotIdx: convertSpot(cat.to.spotIdx, ev.catches.preHandState.length)
+                            spotIdx: ballSpot
                         },
                         transition: { type: "keep" },
                         sound: soundDescriptionToInstance(
                             ballIDToSound.get(cat.ballID)?.soundOnCatch
                         )
                     });
+                    // The juggler's hand moves to the catch spot. TODO : time for the hand to move.
+                    // TODO : Document
                     jugglerTimelines.get(cat.to.juggler)![cat.to.handIdx].addEvent(evTime, {
                         type: "catch",
                         ballID: cat.ballID
@@ -495,11 +553,11 @@ export function createModelTimelines({
                 const tossTime = evTime + dwellTimeBeforeToss;
 
                 // Make sure balls are in the correct hand pos to perform catches.
-                const truePreCatchHandSpots: [Map<string, number>, Map<string, number>] = [
-                    convertHandToSpotIndices(ev.tosses.preHandState[0]),
-                    convertHandToSpotIndices(ev.tosses.preHandState[1])
+                const truePreTossHandSpots: [string[][], string[][]] = [
+                    tossOrderToTrueSpots(ev.tosses.preHandState[0]),
+                    tossOrderToTrueSpots(ev.tosses.preHandState[1])
                 ];
-                addEventsToCreateHeldState(evTime, tossTime, truePreCatchHandSpots, ballTimelines);
+                addEventsToCreateHeldState(evTime, tossTime, truePreTossHandSpots, ballTimelines);
 
                 // Compute dwell times for a toss.
                 // x----DwellToss----x-----------Airtime-----------x----DwellCatch----x
@@ -513,12 +571,24 @@ export function createModelTimelines({
                 // step ? TODO ? Or everything at simulation time ?
                 // Add the catches to the timeline.
                 for (const toss of ev.tosses.info) {
+                    const ballSpot = convertSpot(
+                        toss.from.spotIdx,
+                        ev.tosses.preHandState[toss.from.handIdx].length
+                    );
+                    if (
+                        findBallIdx(truePreTossHandSpots[toss.from.handIdx], toss.ballID) !==
+                        ballSpot
+                    ) {
+                        console.error("Shouldn't happen.");
+                        throw Error("Shouldn't happen.");
+                    }
+                    // The ball is tossed to its new hand, and should remain there.
                     ballTimelines.get(toss.ballID)?.addEvent(tossTime, {
                         location: {
                             type: "held",
                             jugglerName: toss.from.juggler,
                             rightHand: toss.from.handIdx === 1,
-                            spotIdx: convertSpot(toss.to.spotIdx, ev.tosses.preHandState.length)
+                            spotIdx: ballSpot
                         },
                         transition: {
                             type: "airborne",
@@ -529,6 +599,7 @@ export function createModelTimelines({
                             ballIDToSound.get(toss.ballID)?.soundOnToss
                         )
                     });
+                    // TODO : Document.
                     jugglerTimelines.get(toss.from.juggler)![toss.from.handIdx].addEvent(evTime, {
                         type: "toss",
                         ballID: toss.ballID
@@ -537,6 +608,15 @@ export function createModelTimelines({
             }
         }
     }
+
+    ballTimelines.forEach((timeline, ballID) => {
+        console.log(`${ballID} :\n${timeline.stringify(undefined, JSON.stringify)}`);
+    });
+    jugglerTimelines.forEach((timeline, name) => {
+        console.log(
+            `${name} Left :\n${timeline[0].stringify(undefined, JSON.stringify)}\n${name} Right :\n${timeline[1].stringify(undefined, JSON.stringify)}`
+        );
+    });
 
     return { jugglers: jugglerTimelines, balls: ballTimelines };
 }
