@@ -2,7 +2,7 @@ import Fraction from "fraction.js";
 import { SymbolicEvent } from "./Scheduler";
 import { HandEvent, HandTimeline } from "../model/timelines/HandTimeline";
 import { BallEvent, BallTimeline } from "../model/timelines/BallTimeline";
-import { BallSoundDescription } from "./PerformanceDescription";
+import { BallSoundDescription, JugglingScore } from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { LocalBeatConverter } from "./LocalBeatConverter";
 import { HAND_MAX_TIME_FOR_ACTION } from "../model";
@@ -151,12 +151,14 @@ export type CreateModelTimelinesParams = {
         }
     >;
     globalBeatConverter: GlobalBeatConverter;
+    tableDescriptions: JugglingScore["tables"]; // TODO : Remove after scheduler rewrite.
 };
 
 export function createModelTimelines({
     jugglers,
     ballIDToSound,
-    globalBeatConverter
+    globalBeatConverter,
+    tableDescriptions // TODO : Remove after scheduler rewrite, when tables will be spearated from jugglers.
 }: CreateModelTimelinesParams): PerformanceTimelines {
     // TODO WHEN COMING BACK :
     // 1. Setup hands. Look what ball are swapped, remain in hand, go on table, are taken from table.
@@ -183,6 +185,7 @@ export function createModelTimelines({
     // Handle the initial state ball's location.
     // The initial state is the state of the first event.
     // TODO : Give more time to setup hands at the beginning if needed.
+    let minTime: number = Infinity;
     for (const [jugglerName, { events, tableID }] of jugglers) {
         if (events.length === 0) {
             continue;
@@ -195,6 +198,7 @@ export function createModelTimelines({
         const initialTime = globalBeatConverter
             .convertAbsoluteBeatToSeconds(events[0].globalBeat)
             .valueOf();
+        minTime = Math.min(minTime, initialTime);
         for (let handIdx = 0; handIdx < 2; handIdx++) {
             for (let spotIdx = 0; spotIdx < initialHeld[handIdx].length; spotIdx++) {
                 for (const ballID of initialHeld[handIdx][spotIdx]) {
@@ -211,21 +215,30 @@ export function createModelTimelines({
                 }
             }
         }
-        if (initialTable !== undefined && tableID !== undefined) {
-            for (const [spotName, ballID] of initialTable.namedSpot) {
-                // The ball is on the table (on a known spot)0 and shouldn't move.
-                ballTimelines.get(ballID)!.addEvent(initialTime, {
-                    location: { type: "onTable", tableID, spot: spotName },
+    }
+    // TODO : For now, the scheduler includes the tables as part of the juggler's state.
+    // This should change in the future but in the meantime, we rely on the table's initial state
+    // To setup everything.
+    if (minTime === Infinity) {
+        // It means we had no jugglers, but we still need to put objects on the table.
+        // TODO : Handle clock bounds when model has no event.
+        minTime = 0;
+    }
+    for (const table of tableDescriptions) {
+        for (const spot of table.spots) {
+            if (spot.ballAtStart !== undefined) {
+                ballTimelines.get(spot.ballAtStart)?.addEvent(minTime, {
+                    location: { type: "onTable", tableID: table.id, spot: spot.name },
                     transition: { type: "keep" }
                 });
             }
-            for (const ballID of initialTable.unknown.keys()) {
-                // The ball is on the table (on an unknown spot) and shouldn't move.
-                ballTimelines.get(ballID)!.addEvent(initialTime, {
-                    location: { type: "onTable", tableID, spot: null },
-                    transition: { type: "keep" }
-                });
-            }
+        }
+        for (const ballID of table.unknownSpot.ballIDs) {
+            // The ball is on the table (on an unknown spot) and shouldn't move.
+            ballTimelines.get(ballID)!.addEvent(minTime, {
+                location: { type: "onTable", tableID: table.id, spot: null },
+                transition: { type: "keep" }
+            });
         }
     }
 

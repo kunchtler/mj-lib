@@ -157,7 +157,8 @@ export function performanceDescriptionToModel(
     const timelines = createModelTimelines({
         jugglers: timelineJugglersParam,
         ballIDToSound: ballIDs,
-        globalBeatConverter
+        globalBeatConverter,
+        tableDescriptions: score.tables
     });
 
     // 7. Combine timelines with positions to create models.
