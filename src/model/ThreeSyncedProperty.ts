@@ -1,4 +1,4 @@
-import { Euler, Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 
 // TODO : DOcument that all of this is used for STATIC PROPERTIES OF THE PERFORMANCE.
 // TODO : Document that they SHOULDN T BE SET BY THE CLASSES COMPUTING THE POSITIONS AND VELOCITIES.
@@ -17,7 +17,13 @@ export class ThreeSyncedPosition {
     }
 
     setGlobal(pos: Vector3) {
-        this.setLocal(this._object.worldToLocal(pos.clone()));
+        if (this._object.parent === null) {
+            // The object has no parent, so it is already in the global system.
+            this.setLocal(pos);
+        } else {
+            const localPos = this._object.parent.worldToLocal(pos.clone());
+            this.setLocal(localPos);
+        }
     }
 
     getLocal(): Vector3 {
@@ -25,7 +31,7 @@ export class ThreeSyncedPosition {
     }
 
     getGlobal(): Vector3 {
-        return this._object.localToWorld(this.getLocal());
+        return this._object.getWorldPosition(new Vector3());
     }
 }
 
@@ -39,26 +45,58 @@ export class ThreeSyncedRotation {
         }
     }
 
+    // TODO : TEST
     setLocal(rot: Euler) {
         this._object.rotation.copy(rot);
     }
 
+    // TODO : TEST
     setGlobal(rot: Euler) {
         // To test, given by chatGPT
         if (this._object.parent === null) {
             this.setLocal(rot);
         } else {
+            // const parent = this._object.parent;
+            // parent.remove(this._object);
+            // this.setLocal(rot);
+            // parent.attach(this._object);
+            // this._object.parent.updateMatrixWorld(true); // ensure parent world matrix is correct
             const rotWorldQuat = new Quaternion().setFromEuler(rot);
             const parentWorldQuat = this._object.parent.getWorldQuaternion(new Quaternion());
             const localQuat = parentWorldQuat.invert().multiply(rotWorldQuat);
-            this._object.setRotationFromQuaternion(localQuat);
+            this._object.quaternion.copy(localQuat);
+            // this._object.updateWorldMatrix(true, false);
+
+            //     const parentMatrixWorld = new Matrix4();
+            //     parentMatrixWorld.copy(this._object.parent.matrixWorld);
+
+            //     const worldMatrix = new Matrix4();
+            //     worldMatrix.compose(
+            //         this._object.getWorldPosition(new Vector3()),
+            //         rotWorldQuat,
+            //         this._object.getWorldScale(new Vector3())
+            //     );
+
+            //     const localMatrix = new Matrix4()
+            //         .copy(parentMatrixWorld)
+            //         .invert()
+            //         .multiply(worldMatrix);
+
+            //     localMatrix.decompose(
+            //         this._object.position,
+            //         this._object.quaternion,
+            //         this._object.scale
+            //     );
         }
+        // this._object.updateMatrixWorld(true); // update object world matrix
     }
 
+    // TODO : TEST
     getLocal(): Euler {
         return this._object.rotation.clone();
     }
 
+    // TODO : TEST
     getGlobal(): Euler {
         return new Euler().setFromQuaternion(this._object.getWorldQuaternion(new Quaternion()));
     }
@@ -74,10 +112,12 @@ export class ThreeSyncedScale {
         }
     }
 
+    // TODO : TEST
     setLocal(scale: Vector3) {
         this._object.scale.copy(scale);
     }
 
+    // TODO : TEST
     setGlobal(scale: Vector3) {
         // To test, given by gpt.
         if (this._object.parent === null) {
@@ -89,10 +129,12 @@ export class ThreeSyncedScale {
         }
     }
 
+    // TODO : TEST
     getLocal(): Vector3 {
         return this._object.scale.clone();
     }
 
+    // TODO : TEST
     getGlobal(): Vector3 {
         return this._object.getWorldScale(new Vector3());
     }
