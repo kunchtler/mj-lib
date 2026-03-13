@@ -32,10 +32,10 @@ export type JugglingScoreHelper = {
     }[];
     tables?: {
         id: string;
-        spots: {
-            name: string;
-            acceptedBallName: string; // TODO : Support undefined acceptedBallName ?
-            ball?: boolean | { name: string; id?: string };
+        spots?: {
+            name?: string;
+            acceptedBallName: string; // TODO : Support undefined acceptedBallName ? + // TODO : Rename to acceptedBallTemplate.
+            ball?: boolean | string;
         }[];
         unknownSpot?: { balls: { name: string; id?: string }[] };
     }[];
@@ -80,8 +80,8 @@ export type PerformanceLayoutAndMeshHelper = {
         width?: number;
         depth?: number;
         scale?: [number, number, number];
-        spots: {
-            name: string;
+        spots?: {
+            name?: string;
             position: [number, number, number];
             rotation?: [number, number, number];
         }[];

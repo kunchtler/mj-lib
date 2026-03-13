@@ -13,7 +13,7 @@ import {
 import { formatJugglerPhrasesForScheduler } from "./ParserToScheduler";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { createModelTimelines, CreateModelTimelinesParams } from "./SchedulerToTimelines";
-import { BallModel, HandModel, JugglerModel } from "../model";
+import { BallModel, HandModel, JugglerModel, TableModel } from "../model";
 import { Euler, Vector3 } from "three";
 import { toVector } from "../utils/three/Vector";
 import { SpotModelParams, toSpotParam } from "../model/SpotModel";
@@ -38,7 +38,7 @@ import { SpotModelParams, toSpotParam } from "../model/SpotModel";
 
 export function performanceDescriptionToModel(
     score: JugglingScore,
-    miseEnScene: PerformanceLayout,
+    layout: PerformanceLayout,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceModel | undefined {
     const jugglersMap = new Map<
@@ -166,14 +166,14 @@ export function performanceDescriptionToModel(
     for (const [ballID, timeline] of timelines.balls) {
         const ballModel = new BallModel({
             id: ballID,
-            radius: miseEnScene.balls.find((ball) => ball.id === ballID)!.radius,
+            radius: layout.balls.find((ball) => ball.id === ballID)!.radius,
             timeline: timeline
         });
         performanceModel.balls.set(ballID, ballModel);
     }
     //TODO : HANDLE SCALE LATER (need to adjust spot position correctly ?)
     //TODO : + need to have in ThreeSyncedProp scale as a Vector3 and not a single number.
-    for (const juggler of miseEnScene.jugglers) {
+    for (const juggler of layout.jugglers) {
         const handModels: HandModel[] = [];
         const handsDescription = [juggler.leftHand, juggler.rightHand];
         for (let handIdx = 0; handIdx < handsDescription.length; handIdx++) {
@@ -216,6 +216,28 @@ export function performanceDescriptionToModel(
             hands: handModels as [HandModel, HandModel]
         });
         performanceModel.jugglers.set(juggler.name, jugglerModel);
+    }
+
+    for (const table of layout.tables) {
+        const spotsParams = new Map<string, SpotModelParams>();
+        for (const spot of table.spots) {
+            spotsParams.set(spot.name, {
+                position: new Vector3(...spot.position),
+                rotation: new Euler(...spot.rotation)
+            });
+        }
+        const tableModel = new TableModel({
+            id: table.id,
+            position: new Vector3(...table.position),
+            rotation: new Euler(...table.rotation),
+            scale: new Vector3(...table.scale),
+            spotsParams: spotsParams,
+            unkownSpot: {
+                position: new Vector3(...table.unknownSpot.position),
+                rotation: new Euler(...table.unknownSpot.rotation)
+            }
+        });
+        performanceModel.tables.set(table.id, tableModel);
     }
 
     return performanceModel;

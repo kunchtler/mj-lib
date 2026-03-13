@@ -15,13 +15,14 @@ export function descriptionFromHelper(
     helper: PerformanceDescriptionHelper,
     errorLogger: TimedErrorLogger<Fraction>
 ): PerformanceDescription {
-    const { score, ballGeneratedIDs, ballUserIDs } = createJugglingScoreFromHelper(
+    const { score, ballGeneratedIDs, ballUserIDs, tableSpotNames } = createJugglingScoreFromHelper(
         helper,
         errorLogger
     );
     const { layout, meshesDescription } = createLayoutAndMeshesDescriptionFromHelper(
         helper,
-        new Map<string, string>([...ballGeneratedIDs, ...ballUserIDs])
+        new Map<string, string>([...ballGeneratedIDs, ...ballUserIDs]),
+        tableSpotNames
     );
     return constructPerformanceFromParts(score, layout, meshesDescription, errorLogger);
 }

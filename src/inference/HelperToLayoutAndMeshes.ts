@@ -1,4 +1,4 @@
-import { DeepRequired } from "../utils";
+import { DeepRequired, ElementOf } from "../utils";
 import {
     HandMeshDescription,
     HandLayoutDescription,
@@ -72,7 +72,8 @@ export function createHandSpots(params: {
 
 export function createLayoutAndMeshesDescriptionFromHelper(
     helper: PerformanceLayoutAndMeshHelper,
-    ballIDs: Map<string, string>
+    ballIDs: Map<string, string>,
+    tableSpotNames: Map<string, string[]> // spots should be ordered the same way there and for juggling score.
 ): { layout: PerformanceLayout; meshesDescription: PerformanceMeshesDescription } {
     const newLayout: PerformanceLayout = { balls: [], jugglers: [], tables: [] };
     const newMeshesDescription: PerformanceMeshesDescription = {
@@ -162,7 +163,7 @@ export function createLayoutAndMeshesDescriptionFromHelper(
                     rotation: [0, 0, 0]
                 },
                 {
-                    position: [newHandLength / 2, newHandDepth / 2 + (maxRadius * 5) / 6, 0],
+                    position: [newHandLength / 2, newHandDepth / 2 + (maxRadius * 2 * 5) / 6, 0],
                     rotation: [0, 0, 0]
                 }
             ];
@@ -210,12 +211,20 @@ export function createLayoutAndMeshesDescriptionFromHelper(
         const newTableHeight = table.height ?? DEFAULT_TABLE_HEIGHT;
         const newTableWidth = table.width ?? DEFAULT_TABLE_WIDTH;
         const newTableDepth = table.depth ?? DEFAULT_TABLE_DEPTH;
-        const newSpots = table.spots.map((spot) => {
-            return {
-                ...spot,
-                rotation: spot.rotation ?? [0, 0, 0]
-            };
-        });
+        const newSpots: ElementOf<PerformanceLayout["tables"]>["spots"] = [];
+        if (table.spots !== undefined) {
+            for (let spotIdx = 0; spotIdx < table.spots.length; spotIdx++) {
+                const tableSpots = tableSpotNames.get(table.id);
+                if (tableSpots === undefined) {
+                    throw Error("No matching table in helper and tableSpotNames.");
+                }
+                newSpots.push({
+                    name: tableSpots[spotIdx],
+                    position: table.spots[spotIdx].position,
+                    rotation: table.spots[spotIdx].rotation ?? [0, 0, 0]
+                });
+            }
+        }
         const newUnknownSpot = {
             position: table.unknownSpot?.position ?? [0, newTableHeight, 0],
             rotation: table.unknownSpot?.rotation ?? [0, 0, 0]
