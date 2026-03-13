@@ -602,7 +602,7 @@ export function createModelTimelines({
                         )
                     });
                     // TODO : Document.
-                    jugglerTimelines.get(toss.from.juggler)![toss.from.handIdx].addEvent(evTime, {
+                    jugglerTimelines.get(toss.from.juggler)![toss.from.handIdx].addEvent(tossTime, {
                         type: "toss",
                         ballID: toss.ballID
                     });

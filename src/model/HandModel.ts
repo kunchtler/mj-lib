@@ -14,7 +14,7 @@ import { MapCallbacks } from "./MapCallbacks";
 import { getLastInsertedKey } from "../utils/Operations";
 import { changePositionCoordinateSystem, localToWorldVector, worldToLocalPosition } from "../utils";
 import { JugglerModel } from "./JugglerModel";
-import { ballVelocityAtToss } from "./BallPhysics";
+import { ballVelocityAtCatch, ballVelocityAtToss } from "./BallPhysics";
 import { BallEvent } from "./timelines/BallTimeline";
 import { SpotDescription } from "../inference";
 
@@ -352,12 +352,16 @@ export class HandModel {
                 catchEv = ballModel.timeline.getElementByKey(evTime) ?? null;
                 [tossTime, tossEv] = ballModel.timeline.prevEvent(evTime, true);
             }
-            const tossPos = ballModel.positionAtEvent(evTime, tossEv ?? null);
+            const tossPos = ballModel.positionAtEvent(tossTime, tossEv ?? null);
             const catchPos = ballModel.positionAtEvent(catchTime, catchEv);
             if (tossPos === null || catchPos === null || catchTime === null || tossTime === null) {
                 return new Vector3(0, 0, 0);
             }
-            return ballVelocityAtToss(tossPos, tossTime, catchPos, catchTime);
+            if (ev.type === "toss") {
+                return ballVelocityAtToss(tossPos, tossTime, catchPos, catchTime);
+            } else {
+                return ballVelocityAtCatch(tossPos, tossTime, catchPos, catchTime);
+            }
         } else {
             // The hands come at a stop when exchanging a ball with the other hand ot the table.
             return new Vector3(0, 0, 0);
