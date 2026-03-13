@@ -143,7 +143,7 @@ export function createLayoutAndMeshesDescriptionFromHelper(
         const newHeldSpots: DeepRequired<SpotDescription>[] = [];
         if (juggler.handBuilder?.heldSpots === undefined) {
             newHeldSpots.push({
-                position: [0, newHandDepth / 2, newHandLength / 2],
+                position: [newHandLength / 2, newHandDepth / 2, 0],
                 rotation: [0, 0, 0]
             });
         } else {
