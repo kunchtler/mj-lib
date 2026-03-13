@@ -19,6 +19,10 @@ export type CatchHandEvent = {
     // posIdx: number;
 };
 
+export type RestHandEvent = {
+    type: "rest";
+};
+
 // export type TableHandEvent = {
 //     type: "table";
 //     ballID: string;
@@ -41,7 +45,7 @@ export type BallSwapHandEvent = {
     // isGivingHand: boolean;
 };
 
-export type HandEvent = TossHandEvent | CatchHandEvent | BallSwapHandEvent;
+export type HandEvent = TossHandEvent | CatchHandEvent | BallSwapHandEvent | RestHandEvent;
 
 export class HandTimeline extends MultiTimeline<number, HandEvent> {}
 

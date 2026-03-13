@@ -1,6 +1,6 @@
 import Fraction from "fraction.js";
 import { SymbolicEvent } from "./Scheduler";
-import { HandTimeline } from "../model/timelines/HandTimeline";
+import { HandEvent, HandTimeline } from "../model/timelines/HandTimeline";
 import { BallEvent, BallTimeline } from "../model/timelines/BallTimeline";
 import { BallSoundDescription } from "./PerformanceDescription";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
@@ -14,6 +14,7 @@ import { HAND_MAX_TIME_FOR_ACTION } from "../model";
 export const MAX_FLY_TIME_SS_HEIGHT_1 = 0.1;
 export const MAX_UFO_TIME = 0.5;
 export const MAX_BALL_SLIDE_IN_HAND_TIME = 0.3;
+export const EPSILON = 0.000000000001;
 
 export type PerformanceTimelines = {
     jugglers: Map<string, [HandTimeline, HandTimeline]>;
@@ -501,8 +502,9 @@ export function createModelTimelines({
                         ev.catches.preHandState[cat.to.handIdx].length
                     );
                     if (
-                        ev.catches.postHandState[cat.to.handIdx].findIndex(
-                            (ball) => ball === cat.ballID
+                        findBallIdx(
+                            tossOrderToTrueSpots(ev.catches.postHandState[cat.to.handIdx]),
+                            cat.ballID
                         ) !== ballSpot
                     ) {
                         console.error("Shouldn't happen.");
@@ -609,6 +611,95 @@ export function createModelTimelines({
         }
     }
 
+    // Add rest state to jugglers if needed at the beginning / end.
+    for (const [, handTimelines] of jugglerTimelines) {
+        for (const handTimeline of handTimelines) {
+            if (handTimeline.size() === 0) {
+                // Add a single rest state.
+                // TODO
+            } else {
+                // Check there is a rest event at the begninning and end of the timelines.
+                const [startTime, startEv] = handTimeline.begin().pointer;
+                if (!isHandEventValidRest(startEv)) {
+                    handTimeline.addEvent(startTime - HAND_MAX_TIME_FOR_ACTION, { type: "rest" });
+                }
+                const [endTime, endEv] = handTimeline.rBegin().pointer;
+                if (!isHandEventValidRest(endEv)) {
+                    handTimeline.addEvent(endTime + HAND_MAX_TIME_FOR_ACTION, { type: "rest" });
+                }
+            }
+        }
+    }
+
+    // Go again through the timelines to handle transitions that would be too long.
+    // For balls :
+    // - if it slides for too long.
+    // For jugglers :
+    // - if there is too much time between two consecutive moves, go to the rest spot.
+    for (const [, handTimelines] of jugglerTimelines) {
+        for (const handTimeline of handTimelines) {
+            if (handTimeline.size() < 2) {
+                // Return early.
+                break;
+            }
+            // We iterate on a copy of the timeline to add to it without affecting the iterator.
+            const itCopy = new HandTimeline({ container: [...handTimeline] }).begin().next();
+            while (itCopy.isAccessible()) {
+                const [prevTime, prevEv] = itCopy.pre().pointer;
+                const [nextTime, nextEv] = itCopy.next().pointer;
+                if (
+                    nextTime - prevTime > HAND_MAX_TIME_FOR_ACTION &&
+                    !(isHandEventValidRest(prevEv) && isHandEventValidRest(nextEv)) &&
+                    !(isHandEventValidSwap(prevEv) && isHandEventValidSwap(nextEv))
+                ) {
+                    // If the difference between the prev and next time, is really short,
+                    // we don't want the hand go the rest spot and immediately leave.
+                    // Hence, we divide nextTime - prevTime by 3 and not by 2.
+                    const moveTime = Math.min((nextTime - prevTime) / 3, HAND_MAX_TIME_FOR_ACTION);
+                    handTimeline.addEvent(prevTime + moveTime, { type: "rest" });
+                    handTimeline.addEvent(nextTime - moveTime, { type: "rest" });
+                }
+                // Move the iterator one step forward.
+                itCopy.next();
+            }
+        }
+    }
+
+    // Repass through the timelines, and filter any time there are three "rest"s or "swap"s in a row.
+    for (const [, handTimelines] of jugglerTimelines) {
+        for (const handTimeline of handTimelines) {
+            if (handTimeline.size() < 3) {
+                // No need to keep going.
+                break;
+            }
+            // We iterate on a copy of the timeline to add to it without affecting the iterator.
+            const itCopy = new HandTimeline({ container: [...handTimeline] }).begin().next().next();
+            while (itCopy.isAccessible()) {
+                const ev1 = itCopy.pre().pre().pointer[1];
+                const [time2, ev2] = itCopy.next().pointer;
+                const ev3 = itCopy.next().pointer[1];
+                if (
+                    (isHandEventValidRest(ev1) &&
+                        isHandEventValidRest(ev2) &&
+                        isHandEventValidRest(ev3)) ||
+                    (isHandEventValidSwap(ev1) &&
+                        isHandEventValidSwap(ev2) &&
+                        isHandEventValidSwap(ev3))
+                ) {
+                    // Three events follow each other with rest or swap. Delete the middle one.
+                    handTimeline.deleteEvent(time2);
+                }
+                // Move the iterator one step forward.
+                itCopy.next();
+            }
+        }
+    }
+
+    // TODO : Handle intial state for balls only at the end.
+    // TODO : Handle final state for balls only at the end.
+    // TODO : Filter useless ball events.
+    // TODO : Set time limits on ball transitions on ball events.
+
     ballTimelines.forEach((timeline, ballID) => {
         console.log(`${ballID} :\n${timeline.stringify(undefined, JSON.stringify)}`);
     });
@@ -619,6 +710,34 @@ export function createModelTimelines({
     });
 
     return { jugglers: jugglerTimelines, balls: ballTimelines };
+}
+
+export function isHandEventValid(ev: HandEvent[]): boolean {
+    // The only valid events are :
+    // - the multi event is made only of 1 swap event.
+    // - the multi event is made only of 1 rest event.
+    // - the multi event is made only of catches and tosses.
+    return isHandEventValidTossCatch(ev) || isHandEventValidRest(ev) || isHandEventValidSwap(ev);
+}
+
+export function isHandEventValidRest(ev: HandEvent[]) {
+    return ev.length === 1 && ev[0].type === "rest";
+}
+
+export function isHandEventValidSwap(ev: HandEvent[]) {
+    return ev.length === 1 && ev[0].type === "swap";
+}
+
+export function isHandEventValidTossCatch(ev: HandEvent[]) {
+    if (ev.length === 0) {
+        return false;
+    }
+    for (const singleEv of ev) {
+        if (singleEv.type !== "catch" && singleEv.type !== "toss") {
+            return false;
+        }
+    }
+    return true;
 }
 
 function soundDescriptionToInstance(soundDescription: BallSoundDescription | undefined) {
