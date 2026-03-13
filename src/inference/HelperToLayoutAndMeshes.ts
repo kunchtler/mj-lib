@@ -81,19 +81,24 @@ export function createLayoutAndMeshesDescriptionFromHelper(
         tables: []
     };
 
+    //TODO : Delete later. This is just to have a ball radius to generate the fourth spot.
+    let maxRadius: number = DEFAULT_BALL_RADIUS;
+
     for (const [ballID, ballTemplate] of ballIDs) {
         const template = helper.ballTemplates.find(
             (template) => template.name === ballTemplate
         ) ?? { name: "", color: undefined, radius: undefined };
+        const newRadius = template.radius ?? DEFAULT_BALL_RADIUS;
         newLayout.balls.push({
             id: ballID,
-            radius: template.radius ?? DEFAULT_BALL_RADIUS
+            radius: newRadius
         });
         newMeshesDescription.balls.push({
             id: ballID,
             color: template.color ?? DEFAULT_BALL_COLOR,
-            radius: template.radius ?? DEFAULT_BALL_RADIUS
+            radius: newRadius
         });
+        maxRadius = Math.max(maxRadius, newRadius);
     }
 
     for (let i = 0; i < helper.jugglers.length; i++) {
@@ -140,12 +145,27 @@ export function createLayoutAndMeshesDescriptionFromHelper(
         const newRightSpots = createHandSpots({ ...params, isRightHand: true });
         const newLeftSpots = createHandSpots({ ...params, isRightHand: false });
 
-        const newHeldSpots: DeepRequired<SpotDescription>[] = [];
+        let newHeldSpots: DeepRequired<SpotDescription>[] = [];
         if (juggler.handBuilder?.heldSpots === undefined) {
-            newHeldSpots.push({
-                position: [newHandLength / 2, newHandDepth / 2, 0],
-                rotation: [0, 0, 0]
-            });
+            // TODO : For now, arbitrary positions. Add nice way to generate them later.
+            newHeldSpots = [
+                {
+                    position: [newHandLength, newHandDepth / 2, -newHandWidth],
+                    rotation: [0, 0, 0]
+                },
+                {
+                    position: [newHandLength / 2, newHandDepth / 2, newHandWidth],
+                    rotation: [0, 0, 0]
+                },
+                {
+                    position: [0, newHandDepth / 2, -newHandWidth],
+                    rotation: [0, 0, 0]
+                },
+                {
+                    position: [newHandLength / 2, newHandDepth / 2 + (maxRadius * 5) / 6, 0],
+                    rotation: [0, 0, 0]
+                }
+            ];
         } else {
             for (const spot of juggler.handBuilder!.heldSpots) {
                 newHeldSpots.push({

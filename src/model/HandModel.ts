@@ -164,8 +164,8 @@ export class HandModel {
             entries: holdSpotsEntries
         });
 
-        this.scale = new ThreeSyncedScale(obj, scale);
         this.performance = new PerformanceModelRef();
+        this.scale = new ThreeSyncedScale(obj, scale);
     }
 
     /**

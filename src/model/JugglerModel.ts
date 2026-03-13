@@ -79,6 +79,11 @@ export class JugglerModel {
             threeObj.add(handModel.catchSpot._object);
             threeObj.add(handModel.restSpot._object);
             threeObj.add(handModel.tossSpot._object);
+            // We need to switch the z axis for the right hand (z goes from thumb to pinky).
+            // TODO : Issue if the scale is set, won't put the -1 again.
+            if (handIdx === 1) {
+                handModel.scale.setLocal(new Vector3(1, 1, -1));
+            }
         };
         const onHandDelete = (handIdx: number, handModel?: HandModel) => {
             if (handModel !== undefined) {
