@@ -4,11 +4,9 @@ import { ballPosition as tossedBallPosition, ufoBallPosition } from "./BallPhysi
 import { PerformanceModelRef } from "./PerformanceChild";
 import { Euler, Object3D, Vector3 } from "three";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
-import { localToWorldPosition, localToWorldVector, worldToLocalPosition } from "../utils";
+import { localToWorldVector } from "../utils";
 import { SpotModel } from "./SpotModel";
 import { MAX_UFO_TIME } from "../inference";
-import { TableModel } from "./TableModel";
-import { HandModel } from "./HandModel";
 
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : What is readonly ?

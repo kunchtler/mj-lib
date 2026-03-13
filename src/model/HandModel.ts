@@ -12,11 +12,10 @@ import {
 } from "./ThreeSyncedProperty";
 import { MapCallbacks } from "./MapCallbacks";
 import { getLastInsertedKey } from "../utils/Operations";
-import { changePositionCoordinateSystem, localToWorldVector, worldToLocalPosition } from "../utils";
+import { changePositionCoordinateSystem } from "../utils";
 import { JugglerModel } from "./JugglerModel";
 import { ballVelocityAtCatch, ballVelocityAtToss } from "./BallPhysics";
 import { BallEvent } from "./timelines/BallTimeline";
-import { SpotDescription } from "../inference";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -181,7 +180,7 @@ export class HandModel {
         return (
             this.holdSpots.get(spotNumber) ??
             this.holdSpots.get(this.defaultHoldSpotNumber) ??
-            this.restSpot
+            this.restSpot // TODO : Should rather be undefined ?
         );
     }
 
