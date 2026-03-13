@@ -1440,7 +1440,7 @@ class JugglerManager {
             handMoves.push({ id: ballID, from: move.from, to: move.to });
         }
         return {
-            preState: state,
+            preState,
             handMoves: handMoves,
             postState: state
         };
