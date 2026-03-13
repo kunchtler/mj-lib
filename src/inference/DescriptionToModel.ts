@@ -304,8 +304,8 @@ function createInitialJugglerStates(
     if (table !== undefined) {
         tableState = { namedSpot: new Map(), unknown: new Set() };
         for (const spot of table.spots) {
-            if (spot.ballID !== undefined) {
-                tableState.namedSpot.set(spot.name, spot.ballID);
+            if (spot.ballAtStart !== undefined) {
+                tableState.namedSpot.set(spot.name, spot.ballAtStart);
             }
         }
         for (const ballID of table.unknownSpot.ballIDs) {
@@ -414,30 +414,31 @@ export function checkScoreNamesAndIDs(
             //     errorLogger: errorLogger
             // });
 
-            if (spot.ballID !== undefined) {
+            if (spot.ballAtStart !== undefined) {
                 // Balls on table refer to existing ball ID.
                 handleIfStringUnknown({
-                    name: spot.ballID,
+                    name: spot.ballAtStart,
                     namesList: ballIDs,
-                    errorMessage: `Unknown ball ID "${spot.ballID}" on the table ${table.id}.`,
+                    errorMessage: `Unknown ball ID "${spot.ballAtStart}" on the table ${table.id}.`,
                     errorLogger: errorLogger
                 });
 
                 // Balls are in one place only.
                 handleIfStringDuplicate({
-                    name: spot.ballID,
+                    name: spot.ballAtStart,
                     namesList: foundBallIDs,
-                    errorMessage: `Ball ${spot.ballID} has been created twice.`,
+                    errorMessage: `Ball ${spot.ballAtStart} has been created twice.`,
                     errorLogger: errorLogger
                 });
-                foundBallIDs.add(spot.ballID);
+                foundBallIDs.add(spot.ballAtStart);
 
                 // Ball is of the correct type.
-                const ballTemplate = ballIDs.get(spot.ballID)?.template ?? spot.acceptedBallName;
+                const ballTemplate =
+                    ballIDs.get(spot.ballAtStart)?.template ?? spot.acceptedBallName;
                 if (ballTemplate !== spot.acceptedBallName) {
                     errorLogger.logError({
                         severity: "Warn",
-                        message: `Ball ${spot.ballID} is on a spot that should only accept ball with template ${spot.acceptedBallName}.`
+                        message: `Ball ${spot.ballAtStart} is on a spot that should only accept ball with template ${spot.acceptedBallName}.`
                     });
                 }
             }

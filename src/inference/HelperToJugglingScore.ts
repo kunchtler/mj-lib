@@ -91,8 +91,8 @@ export function createJugglingScoreFromHelper(
     }
     for (const table of score.tables ?? []) {
         for (const spot of table.spots ?? []) {
-            if (typeof spot.ball === "string") {
-                ballUserIDs.set(spot.ball, spot.acceptedBallName);
+            if (typeof spot.ballAtStart === "string") {
+                ballUserIDs.set(spot.ballAtStart, spot.acceptedBallName);
             }
         }
         for (const ball of table.unknownSpot?.balls ?? []) {
@@ -163,7 +163,7 @@ export function createJugglingScoreFromHelper(
         }
 
         tableSpotNames.set(table.id, []);
-        for (const { ball, acceptedBallName, name } of table.spots ?? []) {
+        for (const { ballAtStart: ball, acceptedBallName, name } of table.spots ?? []) {
             // Handle the ball on the spot (can be undefined, or boolean, or {name: string; id?: string})
             if (ball === undefined || (typeof ball === "boolean" && !ball)) {
                 continue;
@@ -198,7 +198,7 @@ export function createJugglingScoreFromHelper(
                 newSpotName = name;
             }
             tableSpotNames.get(table.id)?.push(newSpotName);
-            newTable.spots.push({ name: newSpotName, acceptedBallName, ballID });
+            newTable.spots.push({ name: newSpotName, acceptedBallName, ballAtStart: ballID });
         }
         for (const ball of table.unknownSpot?.balls ?? []) {
             let ballID: string;

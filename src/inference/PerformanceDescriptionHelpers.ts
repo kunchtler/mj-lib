@@ -35,7 +35,7 @@ export type JugglingScoreHelper = {
         spots?: {
             name?: string;
             acceptedBallName: string; // TODO : Support undefined acceptedBallName ? + // TODO : Rename to acceptedBallTemplate.
-            ball?: boolean | string;
+            ballAtStart?: boolean | string;
         }[];
         unknownSpot?: { balls: { name: string; id?: string }[] };
     }[];
