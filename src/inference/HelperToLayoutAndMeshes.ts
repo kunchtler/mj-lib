@@ -150,15 +150,15 @@ export function createLayoutAndMeshesDescriptionFromHelper(
             // TODO : For now, arbitrary positions. Add nice way to generate them later.
             newHeldSpots = [
                 {
-                    position: [newHandLength, newHandDepth / 2, -newHandWidth],
+                    position: [newHandLength, newHandDepth / 2, newHandWidth],
                     rotation: [0, 0, 0]
                 },
                 {
-                    position: [newHandLength / 2, newHandDepth / 2, newHandWidth],
+                    position: [newHandLength / 2, newHandDepth / 2, -newHandWidth],
                     rotation: [0, 0, 0]
                 },
                 {
-                    position: [0, newHandDepth / 2, -newHandWidth],
+                    position: [0, newHandDepth / 2, newHandWidth],
                     rotation: [0, 0, 0]
                 },
                 {
