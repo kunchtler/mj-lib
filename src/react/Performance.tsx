@@ -40,9 +40,11 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
-    const x = model!.balls.getSurely("Do?Kylian?0");
+    // const x = model!.balls.getSurely("Do?Kylian?0");
+    // const y = x.timeline.toArray();
+    const x = model!.jugglers.get("Kylian")!.hands[1];
+    x.localPositionAndRotationAtTime(-0.5);
     const y = x.timeline.toArray();
-    x.positionAtTime(0);
     console.log(y);
     if (model === undefined) {
         return <></>;
@@ -114,6 +116,8 @@ export function Performance({
     useEffect(() => {
         // Recreate the audioEngine, and add again
         const audioEngine = new AudioEngine({ listener, model, clock, buffersMap });
+        clock.setBounds({ lowerBound: -0.5, upperBound: 3 });
+        clock.setTime(clock.getBounds()[0]!);
         ballsRef.current.forEach((ballInfo, ballID) => {
             if (ballInfo.audio !== undefined) {
                 audioEngine.setBallAudio(ballID, ballInfo.audio);
@@ -127,26 +131,35 @@ export function Performance({
 
     useFrame(() => {
         const time = clock.getTime();
+        let ballPos: THREE.Vector3 | undefined;
+        let rightHandPos: THREE.Vector3 | undefined;
+        let leftHandPos: THREE.Vector3 | undefined;
         for (const [id, { mesh }] of ballsRef.current) {
             // Update the balls' positions.
             if (mesh !== undefined) {
-                mesh.position.copy(model.balls.get(id)!.positionAtTime(time));
+                ballPos = model.balls.get(id)!.positionAtTime(time);
+                mesh.position.copy(ballPos);
             }
 
             for (const [name, { leftHandMesh, rightHandMesh }] of jugglersRef.current) {
                 if (leftHandMesh !== undefined) {
-                    leftHandMesh.position.copy(
-                        model.jugglers.get(name)!.leftHand.localPositionAndRotationAtTime(time)
-                            .position
-                    );
+                    leftHandPos = model.jugglers
+                        .get(name)!
+                        .leftHand.localPositionAndRotationAtTime(time).position;
+                    leftHandMesh.position.copy(leftHandPos);
                 }
                 if (rightHandMesh !== undefined) {
-                    rightHandMesh.position.copy(
-                        model.jugglers.get(name)!.rightHand.localPositionAndRotationAtTime(time)
-                            .position
-                    );
+                    rightHandPos = model.jugglers
+                        .get(name)!
+                        .rightHand.localPositionAndRotationAtTime(time).position;
+                    rightHandMesh.position.copy(rightHandPos);
                 }
             }
+        }
+        if (clock.isTicking()) {
+            console.log(
+                `Ball Pos : ${stringifyVec(ballPos)}\nRight Hand Pos : ${stringifyVec(rightHandPos)}\nLeft Hand Pos : ${stringifyVec(leftHandPos)}\n`
+            );
         }
         // for (const { name: jugglerName } of description.jugglersData) {
         //     const {
@@ -368,6 +381,9 @@ function updateMapRef<Elem, Key, Value extends object>(
     };
 }
 
+function stringifyVec(vec: THREE.Vector3 | undefined) {
+    return vec === undefined ? "undefined" : `[${vec.x}, ${vec.y}, ${vec.z}]`;
+}
 
 // import { JSX, RefObject, useRef } from "react";
 // import { PerformanceView } from "../view/PerformanceView";
