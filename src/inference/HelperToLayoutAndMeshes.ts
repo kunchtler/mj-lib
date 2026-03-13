@@ -50,12 +50,12 @@ export function createHandSpots(params: {
     const restSpotPos: [number, number, number] = [
         tossSpotPos[0],
         tossSpotPos[1],
-        tossSpotPos[2] + params.catchTossDistance / 2
+        tossSpotPos[2] + (sideSign * params.catchTossDistance) / 2
     ];
     const catchSpotPos: [number, number, number] = [
         tossSpotPos[0],
         tossSpotPos[1],
-        tossSpotPos[2] + params.catchTossDistance
+        tossSpotPos[2] + sideSign * params.catchTossDistance
     ];
     const swapSpotPos: [number, number, number] = [
         restSpotPos[0] + params.catchTossDistance / 2,
