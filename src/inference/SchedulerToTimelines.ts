@@ -187,34 +187,39 @@ export function createModelTimelines({
         if (events.length === 0) {
             continue;
         }
-        const initialState = events[0].state;
+        const initialTable = events[0].state.table;
+        const initialHeld = [
+            tossOrderToTrueSpots(events[0].state.held[0]),
+            tossOrderToTrueSpots(events[0].state.held[1])
+        ];
         const initialTime = globalBeatConverter
             .convertAbsoluteBeatToSeconds(events[0].globalBeat)
             .valueOf();
         for (let handIdx = 0; handIdx < 2; handIdx++) {
-            for (let ballIdx = 0; ballIdx < initialState.held[handIdx].length; ballIdx++) {
-                const ballID = initialState.held[handIdx][ballIdx];
-                // The ball is held, and should remain in its subspot.
-                ballTimelines.get(ballID)!.addEvent(initialTime, {
-                    location: {
-                        type: "held",
-                        jugglerName,
-                        spotIdx: ballIdx,
-                        rightHand: handIdx === 1
-                    },
-                    transition: { type: "keep" }
-                });
+            for (let spotIdx = 0; spotIdx < initialHeld[handIdx].length; spotIdx++) {
+                for (const ballID of initialHeld[handIdx][spotIdx]) {
+                    // The ball is held, and should remain in its subspot.
+                    ballTimelines.get(ballID)!.addEvent(initialTime, {
+                        location: {
+                            type: "held",
+                            jugglerName,
+                            spotIdx: spotIdx,
+                            rightHand: handIdx === 1
+                        },
+                        transition: { type: "keep" }
+                    });
+                }
             }
         }
-        if (initialState.table !== undefined && tableID !== undefined) {
-            for (const [spotName, ballID] of initialState.table.namedSpot) {
+        if (initialTable !== undefined && tableID !== undefined) {
+            for (const [spotName, ballID] of initialTable.namedSpot) {
                 // The ball is on the table (on a known spot)0 and shouldn't move.
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     location: { type: "onTable", tableID, spot: spotName },
                     transition: { type: "keep" }
                 });
             }
-            for (const ballID of initialState.table.unknown.keys()) {
+            for (const ballID of initialTable.unknown.keys()) {
                 // The ball is on the table (on an unknown spot) and shouldn't move.
                 ballTimelines.get(ballID)!.addEvent(initialTime, {
                     location: { type: "onTable", tableID, spot: null },

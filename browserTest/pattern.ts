@@ -17,7 +17,7 @@ export const pattern: PerformanceDescriptionHelper = {
             name: "Kylian",
             // defaultTableID: "KylianT",
             position: [-1, 0, 0],
-            ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" } /*, { name: "Mi" }*/]],
+            ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" }, { name: "Mi" }]],
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: 0 },
