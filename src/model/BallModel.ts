@@ -233,8 +233,7 @@ export class BallModel {
             } else if (
                 prevEv.location.type === "held" &&
                 nextEv.location.type === "held" &&
-                prevEv.location.jugglerName === nextEv.location.jugglerName &&
-                prevEv.location.spotIdx === nextEv.location.spotIdx
+                prevEv.location.jugglerName === nextEv.location.jugglerName
             ) {
                 // We gather the tableModel and spotModels.
                 const handModel = this.performance

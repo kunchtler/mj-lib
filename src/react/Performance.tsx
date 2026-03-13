@@ -40,10 +40,10 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
-    // const x = model!.balls.getSurely("Do?Kylian?0");
-    // const y = x.timeline.toArray();
-    const x = model!.jugglers.get("Kylian")!.hands[1];
-    x.localPositionAndRotationAtTime(-0.5);
+    const x = model!.balls.getSurely("Re?Kylian?0");
+    console.log(x.positionAtTime(0.8));
+    // const x = model!.jugglers.get("Kylian")!.hands[1];
+    // console.log(x.localPositionAndRotationAtTime(0.9));
     const y = x.timeline.toArray();
     console.log(y);
     if (model === undefined) {
