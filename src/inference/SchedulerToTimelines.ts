@@ -1,5 +1,5 @@
 import Fraction from "fraction.js";
-import { SymbolicEvent } from "./Scheduler";
+import { JugglerState, SymbolicEvent } from "./Scheduler";
 import { HandEvent, HandTimeline } from "../model/timelines/HandTimeline";
 import { BallEvent, BallTimeline } from "../model/timelines/BallTimeline";
 import { BallSoundDescription, JugglingScore } from "./PerformanceDescription";
@@ -115,6 +115,7 @@ function addEventsToCreateHeldState(
                     throw Error("Shouldn't happen.");
                     continue;
                 }
+                // TODO : Move to a filter at the end ?
                 // The ball is already in the right place, and is not moving.
                 if (
                     prevBallEv.location.spotIdx === spotIdx &&
@@ -148,11 +149,24 @@ export type CreateModelTimelinesParams = {
             events: SymbolicEvent<Fraction>[];
             tableID?: string;
             localBeatConverter: LocalBeatConverter;
+            initialState: JugglerState;
         }
     >;
     globalBeatConverter: GlobalBeatConverter;
     tableDescriptions: JugglingScore["tables"]; // TODO : Remove after scheduler rewrite.
 };
+
+function getPrevHandTime(jugglerTimeline: [HandTimeline, HandTimeline]): number | null {
+    // We look at the last event in the timelines : it is the last
+    // one that was inserted.
+    const timelineLeftEndIt = jugglerTimeline[0].rBegin();
+    const timelineRightEndIt = jugglerTimeline[1].rBegin();
+    const prevTimelineTime = Math.max(
+        timelineLeftEndIt.isAccessible() ? timelineLeftEndIt.pointer[0] : -Infinity,
+        timelineRightEndIt.isAccessible() ? timelineRightEndIt.pointer[0] : -Infinity
+    );
+    return prevTimelineTime === -Infinity ? null : prevTimelineTime;
+}
 
 export function createModelTimelines({
     jugglers,
@@ -182,28 +196,21 @@ export function createModelTimelines({
         ballTimelines.set(ballID, new BallTimeline());
     }
 
-    // Handle the initial state ball's location.
-    // The initial state is the state of the first event.
-    // TODO : Give more time to setup hands at the beginning if needed.
-    let minTime: number = Infinity;
-    for (const [jugglerName, { events, tableID }] of jugglers) {
-        if (events.length === 0) {
-            continue;
-        }
-        const initialTable = events[0].state.table;
+    // We configure the intial state by putting where balls are at -Infinity.
+    // This is only temporary. By the end, when all events are added, we'll give it a
+    // proper time.
+    // But we need to do this for the rest of the generation to work. (namely when we need to access
+    // the previous event.)
+    for (const [jugglerName, { initialState }] of jugglers) {
         const initialHeld = [
-            tossOrderToTrueSpots(events[0].state.held[0]),
-            tossOrderToTrueSpots(events[0].state.held[1])
+            tossOrderToTrueSpots(initialState.held[0]),
+            tossOrderToTrueSpots(initialState.held[1])
         ];
-        const initialTime = globalBeatConverter
-            .convertAbsoluteBeatToSeconds(events[0].globalBeat)
-            .valueOf();
-        minTime = Math.min(minTime, initialTime);
         for (let handIdx = 0; handIdx < 2; handIdx++) {
             for (let spotIdx = 0; spotIdx < initialHeld[handIdx].length; spotIdx++) {
                 for (const ballID of initialHeld[handIdx][spotIdx]) {
                     // The ball is held, and should remain in its subspot.
-                    ballTimelines.get(ballID)!.addEvent(initialTime, {
+                    ballTimelines.get(ballID)!.addEvent(-Infinity, {
                         location: {
                             type: "held",
                             jugglerName,
@@ -214,20 +221,18 @@ export function createModelTimelines({
                     });
                 }
             }
+            // TODO : For now, the scheduler includes the tables as part of the juggler's state.
+            // This should change in the future but in the meantime, we can't rely on initialState.table to
+            // initialize it (what if a table is never interacted with ?)
+            // So we directly use the table description.
         }
     }
-    // TODO : For now, the scheduler includes the tables as part of the juggler's state.
-    // This should change in the future but in the meantime, we rely on the table's initial state
-    // To setup everything.
-    if (minTime === Infinity) {
-        // It means we had no jugglers, but we still need to put objects on the table.
-        // TODO : Handle clock bounds when model has no event.
-        minTime = 0;
-    }
+
+    // TODO : Handle clock bounds when model has no event.
     for (const table of tableDescriptions) {
         for (const spot of table.spots) {
             if (spot.ballAtStart !== undefined) {
-                ballTimelines.get(spot.ballAtStart)?.addEvent(minTime, {
+                ballTimelines.get(spot.ballAtStart)?.addEvent(-Infinity, {
                     location: { type: "onTable", tableID: table.id, spot: spot.name },
                     transition: { type: "keep" }
                 });
@@ -235,7 +240,7 @@ export function createModelTimelines({
         }
         for (const ballID of table.unknownSpot.ballIDs) {
             // The ball is on the table (on an unknown spot) and shouldn't move.
-            ballTimelines.get(ballID)!.addEvent(minTime, {
+            ballTimelines.get(ballID)!.addEvent(-Infinity, {
                 location: { type: "onTable", tableID: table.id, spot: null },
                 transition: { type: "keep" }
             });
@@ -250,21 +255,6 @@ export function createModelTimelines({
                 .convertAbsoluteBeatToSeconds(ev.globalBeat)
                 .valueOf();
             const jugglerTimeline = jugglerTimelines.get(jugglerName)!;
-
-            function getPrevHandTime(): number | null {
-                const timelineLeftEnd = jugglerTimeline[0].rBegin();
-                const timelineRightEnd = jugglerTimeline[1].rBegin();
-                const prevTimelineTime = Math.max(
-                    timelineLeftEnd.isAccessible() ? timelineLeftEnd.pointer[0] : -Infinity,
-                    timelineRightEnd.isAccessible() ? timelineRightEnd.pointer[0] : -Infinity
-                );
-                return prevTimelineTime === -Infinity ? null : prevTimelineTime;
-            }
-
-            // if (ev.setupHands !== undefined) {
-            //     // First, identify exactly what the target hand is. TODO.
-            //     //
-            // }
 
             // Search for the true hand position we should take so as to not have un-needed
             // hand ball spot movements.
@@ -301,9 +291,10 @@ export function createModelTimelines({
             // 1. Identify the different moves n0eeded by hand.
 
             if (ev.setupHands !== undefined) {
+                // We categorize each move in one of 4 categories, also depending on the involved hand.
                 const ballsToPutOnTable: [number[], number[]] = [[], []];
                 const ballsToTakeFromTable: [number[], number[]] = [[], []];
-                const ballsToMoveInHand: [number[], number[]] = [[], []];
+                const ballsThatSlide: [number[], number[]] = [[], []];
                 const ballsToSwapHands: [number[], number[]] = [[], []];
 
                 // TODO : Better code structure / variable names to separate :
@@ -328,7 +319,7 @@ export function createModelTimelines({
                                 findBallIdx(truePreHandSpots[ball.from.handIdx], ball.id) !==
                                 findBallIdx(truePostHandSpots[ball.to.handIdx], ball.id)
                             ) {
-                                ballsToMoveInHand[ball.from.handIdx].push(moveIdx);
+                                ballsThatSlide[ball.from.handIdx].push(moveIdx);
                             }
                         } else {
                             ballsToPutOnTable[ball.from.handIdx].push(moveIdx);
@@ -350,8 +341,8 @@ export function createModelTimelines({
                     ...ballsToPutOnTable[1],
                     ...ballsToTakeFromTable[0],
                     ...ballsToTakeFromTable[1],
-                    ...ballsToMoveInHand[0],
-                    ...ballsToMoveInHand[1],
+                    ...ballsThatSlide[0],
+                    ...ballsThatSlide[1],
                     ...ballsToSwapHands[0],
                     ...ballsToSwapHands[1]
                 ];
@@ -366,7 +357,9 @@ export function createModelTimelines({
                 //   + for the next catch or toss, we swap ball spots to recreate prestate.
                 const nbMoves = ballMovesIdx.length + 4;
 
-                const prevTimelineTime = getPrevHandTime() ?? evTime - nbMoves * MAX_UFO_TIME;
+                // If there is no previous hand event, we have all the time we would want to perform the exchange.
+                const prevTimelineTime =
+                    getPrevHandTime(jugglerTimeline) ?? evTime - nbMoves * MAX_UFO_TIME;
                 const availableTime = evTime - prevTimelineTime;
                 const timePerMove = Math.min(availableTime / nbMoves, MAX_UFO_TIME);
 
@@ -456,7 +449,7 @@ export function createModelTimelines({
                                 rightHand: ball.to.handIdx === 1,
                                 spotIdx: findBallIdx(truePostHandSpots[ball.to.handIdx], ball.id)!
                             },
-                            transition: { type: "ufo" }
+                            transition: { type: "keep" }
                         };
                     } else {
                         // Sanity check
@@ -505,7 +498,7 @@ export function createModelTimelines({
                     tossOrderToTrueSpots(ev.catches.preHandState[1])
                 ];
                 addEventsToCreateHeldState(
-                    getPrevHandTime() ?? evTime - HAND_MAX_TIME_FOR_ACTION,
+                    getPrevHandTime(jugglerTimeline) ?? evTime - HAND_MAX_TIME_FOR_ACTION,
                     evTime,
                     truePreCatchHandSpots,
                     ballTimelines
@@ -634,12 +627,16 @@ export function createModelTimelines({
         for (const handTimeline of handTimelines) {
             if (handTimeline.size() === 0) {
                 // Add a single rest state.
-                // TODO
+                handTimeline.addEvent(0, {
+                    type: "rest"
+                });
             } else {
                 // Check there is a rest event at the begninning and end of the timelines.
                 const [startTime, startEv] = handTimeline.begin().pointer;
                 if (!isHandEventValidRest(startEv)) {
-                    handTimeline.addEvent(startTime - HAND_MAX_TIME_FOR_ACTION, { type: "rest" });
+                    handTimeline.addEvent(startTime - HAND_MAX_TIME_FOR_ACTION, {
+                        type: "rest"
+                    });
                 }
                 const [endTime, endEv] = handTimeline.rBegin().pointer;
                 if (!isHandEventValidRest(endEv)) {
@@ -711,6 +708,15 @@ export function createModelTimelines({
                 itCopy.next();
             }
         }
+    }
+
+    // For ball timelines : Move the initial state (that is infinitely far) closer to beginning.
+    for (const [, ballTimeline] of ballTimelines) {
+        const initialEv = ballTimeline.begin().pointer[1];
+        ballTimeline.eraseElementByPos(0);
+        const it = ballTimeline.begin();
+        const initialTime = it.isAccessible() ? it.pointer[0] - HAND_MAX_TIME_FOR_ACTION : 0;
+        ballTimeline.addEvent(initialTime, initialEv);
     }
 
     // TODO : Handle intial state for balls only at the end.

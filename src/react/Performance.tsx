@@ -40,12 +40,12 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
-    const x = model!.balls.getSurely("Re?Kylian?0");
-    console.log(x.positionAtTime(0.8));
+    // const x = model!.balls.getSurely();
+    // console.log(x.positionAtTime(0.8));
     // const x = model!.jugglers.get("Kylian")!.hands[1];
     // console.log(x.localPositionAndRotationAtTime(0.9));
-    const y = x.timeline.toArray();
-    console.log(y);
+    // const y = x.timeline.toArray();
+    // console.log(y);
     if (model === undefined) {
         return <></>;
     }
@@ -116,8 +116,6 @@ export function Performance({
     useEffect(() => {
         // Recreate the audioEngine, and add again
         const audioEngine = new AudioEngine({ listener, model, clock, buffersMap });
-        clock.setBounds({ lowerBound: -0.5, upperBound: 3 });
-        clock.setTime(clock.getBounds()[0]!);
         ballsRef.current.forEach((ballInfo, ballID) => {
             if (ballInfo.audio !== undefined) {
                 audioEngine.setBallAudio(ballID, ballInfo.audio);
@@ -128,6 +126,23 @@ export function Performance({
             audioControls.current?.dispose();
         };
     }, [listener, model, clock, buffersMap]);
+
+    // Chenge the clock's range when there is a new model.
+    useEffect(() => {
+        let [lowerBound, upperBound] = model.patternTimeBounds();
+        if (lowerBound === null || upperBound === null) {
+            lowerBound = 0;
+            upperBound = 5;
+        } else if (lowerBound - upperBound < 4) {
+            // Make it so the difference between the bounds is at least 5 seconds.
+            upperBound = lowerBound + 7;
+        } else {
+            // Make sure to add time so that the final sound has enough time to play.
+            upperBound = upperBound + 3;
+        }
+        clock.setBounds({ lowerBound, upperBound });
+        clock.restart();
+    }, [clock, model]);
 
     useFrame(() => {
         const time = clock.getTime();
@@ -157,9 +172,9 @@ export function Performance({
             }
         }
         if (clock.isTicking()) {
-            console.log(
-                `Ball Pos : ${stringifyVec(ballPos)}\nRight Hand Pos : ${stringifyVec(rightHandPos)}\nLeft Hand Pos : ${stringifyVec(leftHandPos)}\n`
-            );
+            // console.log(
+            //     `Ball Pos : ${stringifyVec(ballPos)}\nRight Hand Pos : ${stringifyVec(rightHandPos)}\nLeft Hand Pos : ${stringifyVec(leftHandPos)}\n`
+            // );
         }
         // for (const { name: jugglerName } of description.jugglersData) {
         //     const {
