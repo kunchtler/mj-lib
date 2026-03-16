@@ -117,6 +117,7 @@ export type Hands<ContentType> = [ContentType[], ContentType[]];
 export type SchedulerRes = Map<
     string,
     {
+        initialState: JugglerState;
         events: SymbolicEvent<Fraction>[];
         errorLogger: FracTimedErrorLogger;
     }
@@ -261,9 +262,10 @@ export class Scheduler {
 
         // Setup the returned value.
         const schedulerResults: SchedulerRes = new Map();
-        for (const [jugglerName, { manager }] of this.jugglers) {
+        for (const [jugglerName, { manager, initialState }] of this.jugglers) {
             schedulerResults.set(jugglerName, {
                 events: [],
+                initialState,
                 errorLogger: manager.errorLogger
             });
         }
@@ -273,48 +275,48 @@ export class Scheduler {
             return schedulerResults;
         }
 
-        // Add to the returned value the initial state before any toss or other event is made.
-        // Compute the beat of the first ever event.
-        let startingGlobalBeat: Fraction | null = null;
-        for (const [, { cache, manager }] of this.jugglers) {
-            const firstJugglerBeat = manager.nextBeatOfInterest(0, cache.state);
-            if (
-                firstJugglerBeat !== null &&
-                (startingGlobalBeat === null || firstJugglerBeat.beat.lt(startingGlobalBeat))
-            ) {
-                startingGlobalBeat = firstJugglerBeat.beat;
-            }
-        }
-        if (startingGlobalBeat === null) {
-            // Should only happen when there is no jugglers, in which case we've returned early.
-            throw Error("Sanity check, Shouldn't happen.");
-            // // If there is no first event at all, have 0 as first beat.
-            // for (const [jugglerName, { cache }] of this.jugglers) {
-            //     schedulerResults.get(jugglerName)?.timeline.push({
-            //         beat: new Fraction(0),
-            //         state: cache.state,
-            //         unitTime: new Fraction(1)
-            //     });
-            // }
-        }
-        // Have as first juggler state beat one in tempo, which is <= the first global beat.
-        // (We need to be before the global state as a jugler may receive a ball before
-        // their first event is processed).
-        for (const [jugglerName, { manager, cache, localBeatConverter }] of this.jugglers) {
-            if (manager.events.length === 0) {
-                throw Error("Shouldn't happen");
-            }
-            const jugglerStartingLocalBeat = localBeatConverter
-                .convertGlobalBeatToLocalBeat(manager.events[0].globalBeat)
-                .sub(1)
-                .floor();
-            const jugglerStartingGlobalBeat =
-                localBeatConverter.convertLocalBeatToGlobalBeat(jugglerStartingLocalBeat);
-            schedulerResults.get(jugglerName)?.events.push({
-                globalBeat: jugglerStartingGlobalBeat,
-                state: cache.state
-            });
-        }
+        // // Add to the returned value the initial state before any toss or other event is made.
+        // // Compute the beat of the first ever event.
+        // let startingGlobalBeat: Fraction | null = null;
+        // for (const [, { cache, manager }] of this.jugglers) {
+        //     const firstJugglerBeat = manager.nextBeatOfInterest(0, cache.state);
+        //     if (
+        //         firstJugglerBeat !== null &&
+        //         (startingGlobalBeat === null || firstJugglerBeat.beat.lt(startingGlobalBeat))
+        //     ) {
+        //         startingGlobalBeat = firstJugglerBeat.beat;
+        //     }
+        // }
+        // if (startingGlobalBeat === null) {
+        //     // Should only happen when there is no jugglers, in which case we've returned early.
+        //     throw Error("Sanity check, Shouldn't happen.");
+        //     // // If there is no first event at all, have 0 as first beat.
+        //     // for (const [jugglerName, { cache }] of this.jugglers) {
+        //     //     schedulerResults.get(jugglerName)?.timeline.push({
+        //     //         beat: new Fraction(0),
+        //     //         state: cache.state,
+        //     //         unitTime: new Fraction(1)
+        //     //     });
+        //     // }
+        // }
+        // // Have as first juggler state beat one in tempo, which is <= the first global beat.
+        // // (We need to be before the global state as a jugler may receive a ball before
+        // // their first event is processed).
+        // for (const [jugglerName, { manager, cache, localBeatConverter }] of this.jugglers) {
+        //     if (manager.events.length === 0) {
+        //         throw Error("Shouldn't happen");
+        //     }
+        //     const jugglerStartingLocalBeat = localBeatConverter
+        //         .convertGlobalBeatToLocalBeat(manager.events[0].globalBeat)
+        //         .sub(1)
+        //         .floor();
+        //     const jugglerStartingGlobalBeat =
+        //         localBeatConverter.convertLocalBeatToGlobalBeat(jugglerStartingLocalBeat);
+        //     schedulerResults.get(jugglerName)?.events.push({
+        //         globalBeat: jugglerStartingGlobalBeat,
+        //         state: cache.state
+        //     });
+        // }
 
         // Create a map of balls that have been tossed but not caught.
         // Once caught (notably, once catch information have been computed),

@@ -169,9 +169,9 @@ export function TimeControls({ clock }: { clock: Clock }) {
                 value={time}
                 onChange={onSliderChange}
                 onChangeEnd={onSliderChangeEnd}
-                label={formatTime(time)}
+                label={formatTime(time, undefined, true)}
             ></Slider>
-            <Text>{`${formatTime(time)} / ${formatTime(bounds[1])}`}</Text>
+            <Text>{`${formatTime(time, undefined, true)} / ${formatTime(bounds[1], undefined, true)}`}</Text>
         </Group>
     );
 }
@@ -202,7 +202,15 @@ function formatTime(time: number, minDigitsMinutes: number = 0, showMilliseconds
     }
     text += nbSeconds.toString();
     if (showMilliseconds) {
-        text += ":" + Math.floor((time - nbSeconds) * 1000).toString();
+        text += ":";
+        const nbMilliseconds = Math.floor((time - nbSeconds) * 1000);
+        if (nbMilliseconds < 10) {
+            text += "0";
+        }
+        if (nbMilliseconds < 100) {
+            text += "0";
+        }
+        text += nbMilliseconds.toString();
     }
     return text;
 }

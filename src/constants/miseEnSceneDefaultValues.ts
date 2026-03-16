@@ -26,8 +26,8 @@ export const DEFAULT_HAND_VISIBILITY = true;
 ////////// Ball //////////
 
 export const DEFAULT_BALL_RADIUS = 0.1;
-export const DEFAULT_BALL_WIDTH_SEGMENT = 8;
-export const DEFAULT_BALL_HEIGHT_SEGMENT = 8;
+export const DEFAULT_BALL_WIDTH_SEGMENT = 16;
+export const DEFAULT_BALL_HEIGHT_SEGMENT = 16;
 export const DEFAULT_BALL_COLOR = "red";
 
 ////////// Table //////////

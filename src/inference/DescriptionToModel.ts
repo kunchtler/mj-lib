@@ -145,13 +145,14 @@ export function performanceDescriptionToModel(
     //TODO : More conviniently create this from a fusion of score and mise en scene.
     //TODO : Also check for errors.
     const timelineJugglersParam: CreateModelTimelinesParams["jugglers"] = new Map();
-    for (const [jugglerName, { events }] of schedulerOutput) {
+    for (const [jugglerName, { events, initialState }] of schedulerOutput) {
         const { localBeatConverter } = schedulerJugglers.get(jugglerName)!;
         const { defaultTableID } = jugglersMap.get(jugglerName)!;
         timelineJugglersParam.set(jugglerName, {
             events,
             localBeatConverter,
-            tableID: defaultTableID
+            tableID: defaultTableID,
+            initialState
         });
     }
     const timelines = createModelTimelines({
