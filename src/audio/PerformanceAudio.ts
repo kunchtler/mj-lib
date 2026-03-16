@@ -96,12 +96,9 @@ class BallAudio {
             this.audio.stop(); // TODO : Should call pause ?
             this.clearTimeout();
         };
-        const onManualTimeUpdate = () => {
-            this.reload();
-        };
         // If the playback rate changes, we need to recompute the delay.
         // TODO : Create a method in the clock to create a callback at some given point ? So that we do not need to account for that.
-        const onPlayBackRateChange = () => {
+        const reload = () => {
             this.reload();
         };
 
@@ -109,8 +106,9 @@ class BallAudio {
         this._clockListeners = [
             { event: "start", callback: onStart },
             { event: "pause", callback: onPause },
-            { event: "manualTimeUpdate", callback: onManualTimeUpdate },
-            { event: "playbackRateChange", callback: onPlayBackRateChange }
+            { event: "manualTimeUpdate", callback: reload },
+            { event: "playbackRateChange", callback: reload },
+            { event: "ended", callback: onPause }
         ];
 
         // Link callbacks to clock.
