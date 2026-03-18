@@ -163,25 +163,26 @@ export function createJugglingScoreFromHelper(
         }
 
         tableSpotNames.set(table.id, []);
-        for (const { ballAtStart: ball, acceptedBallName, name } of table.spots ?? []) {
+        for (const { ballAtStart, acceptedBallName, name } of table.spots ?? []) {
             // Handle the ball on the spot (can be undefined, or boolean, or {name: string; id?: string})
-            if (ball === undefined || (typeof ball === "boolean" && !ball)) {
-                continue;
-            }
             const ballTemplate = acceptedBallName;
-            let ballID: string | undefined = undefined;
-            if (typeof ball === "boolean") {
-                // If the ball had no ID, create one and register it.
-                ballID = createBallID(
-                    ballTemplate,
-                    table.id,
-                    ballTemplateNames,
-                    ballUserIDs,
-                    ballGeneratedIDs
-                );
-                ballGeneratedIDs.set(ballID, ballTemplate);
+            let ballID: string | undefined;
+            if (typeof ballAtStart === "boolean") {
+                if (!ballAtStart) {
+                    ballID = undefined;
+                } else {
+                    // If the ball had no ID, create one and register it.
+                    ballID = createBallID(
+                        ballTemplate,
+                        table.id,
+                        ballTemplateNames,
+                        ballUserIDs,
+                        ballGeneratedIDs
+                    );
+                    ballGeneratedIDs.set(ballID, ballTemplate);
+                }
             } else {
-                ballID = ball;
+                ballID = ballAtStart;
             }
 
             // Handle the spotName is it doesn' exist.
