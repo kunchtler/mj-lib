@@ -58,7 +58,7 @@ export function createHandSpots(params: {
         tossSpotPos[2] + sideSign * params.catchTossDistance
     ];
     const swapSpotPos: [number, number, number] = [
-        restSpotPos[0] + params.catchTossDistance / 2,
+        restSpotPos[0] + params.catchTossDistance,
         restSpotPos[1] + params.catchTossDistance / 2,
         restSpotPos[2]
     ];

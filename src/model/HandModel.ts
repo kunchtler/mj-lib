@@ -262,10 +262,15 @@ export class HandModel {
                 position: this.tossSpot.position.getLocal(),
                 rotation: this.tossSpot.rotation.getLocal()
             };
-        } else {
+        } else if (ev.type === "rest") {
             return {
                 position: this.restSpot.position.getLocal(),
                 rotation: this.restSpot.rotation.getLocal()
+            };
+        } else {
+            return {
+                position: this.swapSpot.position.getLocal(),
+                rotation: this.swapSpot.rotation.getLocal()
             };
         }
         // } else if (ev.type === "table") {
