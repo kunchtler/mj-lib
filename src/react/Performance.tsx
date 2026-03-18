@@ -131,14 +131,14 @@ export function Performance({
     useEffect(() => {
         let [lowerBound, upperBound] = model.patternTimeBounds();
         if (lowerBound === null || upperBound === null) {
+            // Put arbitrary time bounds since the model has no events.
             lowerBound = 0;
             upperBound = 5;
-        } else if (lowerBound - upperBound < 4) {
-            // Make it so the difference between the bounds is at least 5 seconds.
-            upperBound = lowerBound + 7;
         } else {
-            // Make sure to add time so that the final sound has enough time to play.
-            upperBound = upperBound + 3;
+            // Leave enough time for sound to finish playing at the end.
+            upperBound += 2;
+            // Leave at least 5 seconds of plat time so that it isn't too short.
+            upperBound = Math.max(lowerBound + 5, upperBound);
         }
         clock.setBounds({ lowerBound, upperBound });
         clock.restart();

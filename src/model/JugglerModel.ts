@@ -159,7 +159,7 @@ export class JugglerModel {
         let endTime: number | null = null;
         for (const hand of this.hands) {
             const [handStartTime, handEndTime] = hand.timeline.timeBounds();
-            if (startTime === null || (handStartTime !== null && startTime > handStartTime)) {
+            if (startTime === null || (handStartTime !== null && startTime < handStartTime)) {
                 startTime = handStartTime;
             }
             if (endTime === null || (handEndTime !== null && endTime > handEndTime)) {

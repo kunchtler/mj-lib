@@ -154,12 +154,8 @@ export class PerformanceModel {
                 endTime = handEndTime;
             }
         }
-        // TODO : FIX HAND MOVEMENT AT THE END HAPPENING AFTER THE END.
         // @ts-expect-error startTime is null if and only if endTime is null too.
-        return [
-            startTime === null ? startTime : startTime - 2,
-            endTime === null ? endTime : endTime + 2
-        ];
+        return [startTime, endTime];
     }
 
     // addBall(): BallModel {}
