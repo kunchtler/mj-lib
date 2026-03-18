@@ -226,7 +226,11 @@ export function createLayoutAndMeshesDescriptionFromHelper(
             }
         }
         const newUnknownSpot = {
-            position: table.unknownSpot?.position ?? [0, newTableHeight, 0],
+            position: table.unknownSpot?.position ?? [
+                -newTableDepth / 2,
+                newTableHeight,
+                -newTableWidth / 2
+            ],
             rotation: table.unknownSpot?.rotation ?? [0, 0, 0]
         };
         let newTablePosition: [number, number, number];
