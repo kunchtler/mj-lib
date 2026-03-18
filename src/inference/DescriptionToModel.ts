@@ -554,15 +554,6 @@ export function checkScoreNamesAndIDs(
                             errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
                             errorLogger: errorLogger
                         });
-
-                        // Uniqueness of ball IDs.
-                        handleIfStringDuplicate({
-                            name: ball.id,
-                            namesList: foundBallIDs,
-                            errorMessage: `Duplicate ball ID: "${ball.id}".`,
-                            errorLogger: errorLogger
-                        });
-                        foundBallIDs.add(ball.id);
                     }
                 }
             }
@@ -601,14 +592,6 @@ export function checkScoreNamesAndIDs(
                         errorLogger: errorLogger
                     });
 
-                    // Uniqueness of ball IDs.
-                    handleIfStringDuplicate({
-                        name: ball.id,
-                        namesList: foundBallIDs,
-                        errorMessage: `Duplicate ball ID: "${ball.id}".`,
-                        errorLogger: errorLogger
-                    });
-                    foundBallIDs.add(ball.id);
                 }
             }
         }
