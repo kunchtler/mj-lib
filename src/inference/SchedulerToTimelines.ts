@@ -337,14 +337,14 @@ export function createModelTimelines({
                 // For now, I opted for a minimal approach : make hands go to a "ufo" spot.
                 // Make balls ascend and then descend.
                 const ballMovesIdx = [
-                    ...ballsToPutOnTable[0],
-                    ...ballsToPutOnTable[1],
-                    ...ballsToTakeFromTable[0],
-                    ...ballsToTakeFromTable[1],
                     ...ballsThatSlide[0],
                     ...ballsThatSlide[1],
                     ...ballsToSwapHands[0],
-                    ...ballsToSwapHands[1]
+                    ...ballsToSwapHands[1],
+                    ...ballsToPutOnTable[0],
+                    ...ballsToPutOnTable[1],
+                    ...ballsToTakeFromTable[0],
+                    ...ballsToTakeFromTable[1]
                 ];
 
                 // Note : How many moves we have :
