@@ -137,8 +137,6 @@ export function Performance({
         } else {
             // Leave enough time for sound to finish playing at the end.
             upperBound += 2;
-            // Leave at least 5 seconds of plat time so that it isn't too short.
-            upperBound = Math.max(lowerBound + 5, upperBound);
         }
         clock.setBounds({ lowerBound, upperBound });
         clock.restart();
@@ -211,7 +209,6 @@ export function Performance({
                 if (meshInfo === undefined) {
                     return;
                 }
-                console.log("Juggler");
                 return (
                     <Juggler
                         key={jugglerName}

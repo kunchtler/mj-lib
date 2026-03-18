@@ -221,7 +221,7 @@ export class BallModel {
                 ev = nextEv;
                 // When timeRatio = 0, ball is on the spot.
                 // When timeRatio = 1, ball is in the air.
-                timeRatio = 1 - easeOutBack((time - midTime) / (nextTime - midTime));
+                timeRatio = 1 - easeOutCubic((time - midTime) / (nextTime - midTime));
             }
             if (ev === null) {
                 // Return early because the ball just disappears.

@@ -17,13 +17,21 @@ export const pattern: PerformanceDescriptionHelper = {
             name: "Kylian",
             // defaultTableID: "KylianT",
             position: [-1, 0, 0],
-            ballsHeldAtStart: [[], []],
+            ballsHeldAtStart: [
+                [
+                    // { name: "Re", id: "Re?0" },
+                    { name: "Do", id: "Do?0" }
+                ],
+                []
+            ],
             // ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" }, { name: "Mi" }, { name: "Fa" }]],
-            defaultTableID: "KylianT",
+            defaultTableID: "table",
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: 0 },
-                    setupHands: { haveBalls: [[{ type: "byName", name: "Do" }], []] },
+                    setupHands: {
+                        haveBalls: [[], [{ type: "byID", id: "Do?1" }]]
+                    },
                     pattern: "L1"
                     // pattern: "R35003 35003 35003 42334 05003 35003 35003 42334 0300"
                 }
@@ -32,17 +40,11 @@ export const pattern: PerformanceDescriptionHelper = {
     ],
     tables: [
         {
-            id: "KylianT",
+            id: "table",
             height: 0.7,
             depth: 0.5,
             width: 1.5,
-            spots: [
-                { acceptedBallName: "Do", ballAtStart: true, position: [0, 0.7, -0.5] },
-                { acceptedBallName: "Re", ballAtStart: true, position: [0, 0.7, -0.25] },
-                { acceptedBallName: "Mi", ballAtStart: true, position: [0, 0.7, 0] },
-                { acceptedBallName: "Fa", ballAtStart: true, position: [0, 0.7, 0.25] },
-                { acceptedBallName: "Sol", ballAtStart: true, position: [0, 0.7, 0.5] }
-            ]
+            spots: [{ acceptedBallName: "Do", ballAtStart: "Do?1", position: [0, 0.7, -0.5] }]
         }
     ],
     globalBeat: { type: "constant", beatsPerMinute: 180 }

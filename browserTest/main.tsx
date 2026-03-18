@@ -9,6 +9,7 @@ import { enableMapSet } from "immer";
 
 enableMapSet();
 
+// TODO : PUT BACK STRICT MODE TO DEBUG !!!
 createRoot(document.getElementById("root")!).render(
     // <StrictMode>
     <MantineProvider theme={theme}>
