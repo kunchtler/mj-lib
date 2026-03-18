@@ -940,6 +940,7 @@ class JugglerManager {
     // and document the convention that left cell = left, right cell = right.
     // TODO : Unify some of the behaviour here with tossBalls ?
     //TODO : CHECK WE HANDLE BALLS FROM END OF LIST TO START (same order as toss).
+    // TODO : FIX THIS MESS (having do in hand and switching it with do on table is impossible for now...)
     swapBalls(
         beat: Fraction,
         state: JugglerState,
@@ -1114,7 +1115,7 @@ class JugglerManager {
         // 2. If no new hands are specified, we stop there. TODO
         if (handsSetup.haveBalls === undefined) {
             // Prepare the returned state.
-            state = updateHeldOfState(state, movedBalls, handsSetup);
+            state = updateHeldOfState(state, movedBalls, handsSetup, ballsLocation);
             state = updateTableOfState(state, movedBalls);
             const handMoves: MoveBall[] = [];
             for (const [ballID, move] of movedBalls) {
@@ -1210,84 +1211,6 @@ class JugglerManager {
                 because: "have"
             });
         };
-
-        function updateTableOfState(
-            state: JugglerState,
-            movedBalls: Map<
-                string,
-                {
-                    from: LocType;
-                    to: LocType;
-                    because: "place" | "have";
-                }
-            >
-        ): JugglerState {
-            state = cloneState(state);
-            if (state.table !== undefined) {
-                for (const [ballID, move] of movedBalls) {
-                    if (move.from.type === "onTableSpot") {
-                        state.table.namedSpot.delete(move.from.spotName);
-                    } else if (move.from.type === "onTableUnknownSpot") {
-                        state.table.unknown.delete(ballID);
-                    }
-                    if (move.to.type === "onTableSpot") {
-                        state.table.namedSpot.set(move.to.spotName, ballID);
-                    } else if (move.to.type === "onTableUnknownSpot") {
-                        state.table.unknown.add(ballID);
-                    }
-                }
-            }
-            return state;
-        }
-
-        // TODO : Rework the "id" in ball As it is error-prone if ball.id === undefined from an earlier wrong copy :X
-        function updateHeldOfState(
-            state: JugglerState,
-            movedBalls: Map<
-                string,
-                {
-                    from: LocType;
-                    to: LocType;
-                    because: "place" | "have";
-                }
-            >,
-            handsSetup: HandsInstructions
-        ): JugglerState {
-            state = cloneState(state);
-            if (handsSetup.haveBalls === undefined) {
-                // We've only placed balls on the table.
-                state.held = ballsLocation.reconstructHeldState();
-                return state;
-            }
-            // Construct the new hands with ball IDs, to contruct the whole new state.
-            // We will add one by one the ball IDs in their respective spot.
-            const newHeldState: PartialHeldState = [
-                Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined),
-                Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined)
-            ];
-            for (const [ballID, move] of movedBalls) {
-                if (move.to.type === "held") {
-                    newHeldState[move.to.handIdx][move.to.spotIdx] = ballID;
-                }
-            }
-            // If some spot is still left undefined, it means we haven't provided it with a ballID.
-            // so we need to filter it out and adjust subsequent ball indices.
-            state.held = [[], []];
-            for (let handIdx = 0; handIdx < 2; handIdx++) {
-                let ballIdx = 0;
-                for (const ballID of newHeldState[handIdx]) {
-                    if (ballID !== undefined) {
-                        state.held[handIdx].push(ballID);
-                        const move = movedBalls.get(ballID)!; // All balls in newhands have moved.
-                        if (move.to.type === "held") {
-                            move.to.spotIdx = ballIdx;
-                        }
-                        ballIdx++;
-                    }
-                }
-            }
-            return state;
-        }
 
         // 3.1 Handle all balls specified by their ID.
         for (const have of unhandledBallsInNewHands) {
@@ -1435,7 +1358,7 @@ class JugglerManager {
         }
 
         // Construct the table state.
-        state = updateHeldOfState(state, movedBalls, handsSetup);
+        state = updateHeldOfState(state, movedBalls, handsSetup, ballsLocation);
         state = updateTableOfState(state, movedBalls);
         const handMoves: MoveBall[] = [];
         for (const [ballID, move] of movedBalls) {
@@ -1867,3 +1790,82 @@ Two events apart by less than 0.0001 s are considered to be the same.
 //     for (element of map);
 //     return element;
 // }
+
+function updateTableOfState(
+    state: JugglerState,
+    movedBalls: Map<
+        string,
+        {
+            from: LocType;
+            to: LocType;
+            because: "place" | "have";
+        }
+    >
+): JugglerState {
+    state = cloneState(state);
+    if (state.table !== undefined) {
+        for (const [ballID, move] of movedBalls) {
+            if (move.from.type === "onTableSpot") {
+                state.table.namedSpot.delete(move.from.spotName);
+            } else if (move.from.type === "onTableUnknownSpot") {
+                state.table.unknown.delete(ballID);
+            }
+            if (move.to.type === "onTableSpot") {
+                state.table.namedSpot.set(move.to.spotName, ballID);
+            } else if (move.to.type === "onTableUnknownSpot") {
+                state.table.unknown.add(ballID);
+            }
+        }
+    }
+    return state;
+}
+
+// TODO : Rework the "id" in ball As it is error-prone if ball.id === undefined from an earlier wrong copy :X
+function updateHeldOfState(
+    state: JugglerState,
+    movedBalls: Map<
+        string,
+        {
+            from: LocType;
+            to: LocType;
+            because: "place" | "have";
+        }
+    >,
+    handsSetup: HandsInstructions,
+    ballsLocation: BallsLocation
+): JugglerState {
+    state = cloneState(state);
+    if (handsSetup.haveBalls === undefined) {
+        // We've only placed balls on the table.
+        state.held = ballsLocation.reconstructHeldState();
+        return state;
+    }
+    // Construct the new hands with ball IDs, to contruct the whole new state.
+    // We will add one by one the ball IDs in their respective spot.
+    const newHeldState: PartialHeldState = [
+        Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined),
+        Array<string | undefined>(handsSetup.haveBalls[0].length).fill(undefined)
+    ];
+    for (const [ballID, move] of movedBalls) {
+        if (move.to.type === "held") {
+            newHeldState[move.to.handIdx][move.to.spotIdx] = ballID;
+        }
+    }
+    // If some spot is still left undefined, it means we haven't provided it with a ballID.
+    // so we need to filter it out and adjust subsequent ball indices.
+    state.held = [[], []];
+    for (let handIdx = 0; handIdx < 2; handIdx++) {
+        let ballIdx = 0;
+        for (const ballID of newHeldState[handIdx]) {
+            if (ballID !== undefined) {
+                state.held[handIdx].push(ballID);
+                const move = movedBalls.get(ballID)!; // All balls in newhands have moved.
+                if (move.to.type === "held") {
+                    move.to.spotIdx = ballIdx;
+                }
+                ballIdx++;
+            }
+        }
+    }
+    return state;
+}
