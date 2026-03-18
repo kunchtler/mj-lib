@@ -12,7 +12,7 @@ import { HAND_MAX_TIME_FOR_ACTION } from "../model";
 
 // export const MAX_TABLE_UNIT_TRANSITION_TIME = 0.5;
 export const MAX_FLY_TIME_SS_HEIGHT_1 = 0.1;
-export const MAX_UFO_TIME = 0.5;
+export const MAX_UFO_TIME = 1;
 export const MAX_BALL_SLIDE_IN_HAND_TIME = 0.3;
 export const EPSILON = 0.000000000001;
 
@@ -351,23 +351,39 @@ export function createModelTimelines({
                 // - 1 to have hands go to the swap spot.
                 //   + during that time, we swap ball spots in hand to recreate correct hand setup.
                 // - 1 to have hands pause.
-                // - ballMovesIdx.length ufos.
+                // - (ballMovesIdx.length + 1) / 2 * ufos.
+                // Each action takes UFO/2 time : UP + UPDOWN + ... + UPDOWN + DOWN)
                 // - 1 to have hands pause.
                 // - 1 to have hands go do what they should do.
                 //   + for the next catch or toss, we swap ball spots to recreate prestate.
-                const nbMoves = ballMovesIdx.length + 4;
 
+                // Compute the time each hand action or ufo takes, given that :
+                //   - all events should fit between the previous one and the current time.
+                //   - each action shouldn't be greater than its max action time (defined as a constant in caps).
+                // To do so, we compute a ratio between 0 and 1 to multiply the max action times by.
+                const maxTotalTime =
+                    HAND_MAX_TIME_FOR_ACTION * 4 + ((ballMovesIdx.length + 1) / 2) * MAX_UFO_TIME;
                 // If there is no previous hand event, we have all the time we would want to perform the exchange.
-                const prevTimelineTime =
-                    getPrevHandTime(jugglerTimeline) ?? evTime - nbMoves * MAX_UFO_TIME;
+                const prevTimelineTime = getPrevHandTime(jugglerTimeline) ?? evTime - maxTotalTime;
                 const availableTime = evTime - prevTimelineTime;
-                const timePerMove = Math.min(availableTime / nbMoves, MAX_UFO_TIME);
+                const totalTime = Math.min(maxTotalTime, availableTime);
+                const ratio = totalTime / maxTotalTime; // Between 0 and 1.
+                const handActionTime = HAND_MAX_TIME_FOR_ACTION * ratio;
+                const ufoTime = MAX_UFO_TIME * ratio;
+
+                // Compute useful transition times.
+                // TODO : Change names. It is clearer above.
+                const handStartMoveTime = prevTimelineTime;
+                const handStartPauseTime = handStartMoveTime + handActionTime;
+                const ufoStartTime = handStartPauseTime + handActionTime;
+                const handEndPauseTime = ufoStartTime + ((ballMovesIdx.length + 1) / 2) * ufoTime;
+                const handEndMoveTime = handEndPauseTime + handActionTime;
 
                 // Create the hands movements so they go on the spot.
                 for (let handIdx = 0; handIdx < 2; handIdx++) {
                     // TODO : here or handle in sim ?
                     // The hand takes 1 move to go to the swap spot, and remains there.
-                    jugglerTimeline[handIdx].addEvent(prevTimelineTime + timePerMove, {
+                    jugglerTimeline[handIdx].addEvent(handStartPauseTime, {
                         type: "swap"
                     });
                     // Handle this one here :)
@@ -379,17 +395,14 @@ export function createModelTimelines({
                     // TODO : here or handle in sim ?
                     // The hand remains on its swap spot until all balls have been moved,
                     // with a 1 move padding at the end.
-                    jugglerTimeline[handIdx].addEvent(
-                        prevTimelineTime + (nbMoves - 1) * timePerMove,
-                        { type: "swap" }
-                    );
+                    jugglerTimeline[handIdx].addEvent(handEndMoveTime, { type: "swap" });
                 }
 
                 // During that time, make sure the balls are in the correct spots.
                 // Wait for some time after last event to move the ball.
                 addEventsToCreateHeldState(
-                    prevTimelineTime,
-                    prevTimelineTime + timePerMove,
+                    handStartMoveTime,
+                    handStartPauseTime,
                     truePreHandSpots,
                     ballTimelines
                 );
@@ -399,10 +412,9 @@ export function createModelTimelines({
 
                 //TODO : During the time where hands leave spot to go to next action, prepare balls for precatch.
 
-                const startTime = prevTimelineTime + 2 * timePerMove;
                 for (let i = 0; i < ballMovesIdx.length; i++) {
-                    const moveStartTime = startTime + i * timePerMove;
-                    const moveEndTime = startTime + (i + 1) * timePerMove;
+                    const moveStartTime = ufoStartTime + (i * ufoTime) / 2;
+                    const moveEndTime = moveStartTime + ufoTime;
                     const ball = ev.setupHands.moves[ballMovesIdx[i]];
 
                     // Add to ball timeline the beginning of the transition.
@@ -438,6 +450,8 @@ export function createModelTimelines({
                     }
                     // TODO : Document
                     ballTimelines.get(ball.id)!.addEvent(moveStartTime, ballStartEv);
+
+                    // TOCONTINUE <- Add ufo table to end teleport ? + keep ??? No, rather in the transition.
 
                     // Add to ball timeline the end of the transition.
                     let ballEndEv: BallEvent;

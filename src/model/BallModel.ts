@@ -1,12 +1,13 @@
 import { BallEvent } from "./timelines/BallTimeline";
 import { BallTimeline } from "./timelines/BallTimeline";
-import { ballPosition as tossedBallPosition, ufoBallPosition } from "./BallPhysics";
+import { ballPosition as tossedBallPosition } from "./BallPhysics";
 import { PerformanceModelRef } from "./PerformanceChild";
 import { Euler, Object3D, Vector3 } from "three";
 import { VERY_VERY_FAR_VEC } from "./PerformanceModel";
 import { localToWorldVector } from "../utils";
 import { SpotModel } from "./SpotModel";
 import { MAX_UFO_TIME } from "../inference";
+import { easeInBack, easeInCubic, easeOutBack, easeOutCubic } from "../utils/TweenFunctions";
 
 //TODO : Make errors thrown be console log when not in debug mode to prevent app blocking ?
 //TODO : What is readonly ?
@@ -81,11 +82,11 @@ export class BallModel {
         // return new Vector3(this.radius);
     }
 
-    positionOverSpot(spotModel: SpotModel): Vector3 {
+    positionOverSpot(spotModel: SpotModel, distance = this.radius): Vector3 {
         // We proceed in world space as local space may have a scale (thus negating the axes).
         const spotWorldPos = spotModel.position.getGlobal();
         const spotUpWorldVec = localToWorldVector(new Vector3(0, 1, 0), spotModel._object);
-        return spotWorldPos.add(spotUpWorldVec.multiplyScalar(this.radius));
+        return spotWorldPos.add(spotUpWorldVec.multiplyScalar(distance));
     }
 
     /**
@@ -188,29 +189,77 @@ export class BallModel {
                 handModel._dummyObject.unsetProperties();
                 return ballPos;
             }
-        } else if (prevEv.transition.type === "airborne" || prevEv.transition.type === "ufo") {
+        } else if (prevEv.transition.type === "airborne") {
             // If we can compute the starting and ending positions, we know
             // what trajectory to give the ball.
             const prevEvPos = this.positionAtEvent(prevEvTime, prevEv);
             const nextEvPos = this.positionAtEvent(nextEvTime, nextEv);
             // Give the correct trajectory.
-            if (prevEv.transition.type === "airborne") {
-                if (prevEvPos === null || nextEvPos === null || nextEvTime === null) {
-                    return VERY_VERY_FAR_VEC.clone();
-                }
-                return tossedBallPosition(prevEvPos, prevEvTime, nextEvPos, nextEvTime, time);
-            } else {
-                if (prevEvPos === null) {
-                    return VERY_VERY_FAR_VEC.clone();
-                }
-                return ufoBallPosition(
-                    prevEvPos,
-                    prevEvTime,
-                    VERY_VERY_FAR_VEC,
-                    prevEvTime + MAX_UFO_TIME,
-                    time
-                );
+            if (prevEvPos === null || nextEvPos === null || nextEvTime === null) {
+                return VERY_VERY_FAR_VEC.clone();
             }
+            return tossedBallPosition(prevEvPos, prevEvTime, nextEvPos, nextEvTime, time);
+        } else if (prevEv.transition.type === "ufo") {
+            // If we can compute the starting and ending positions, we know
+            // what trajectory to give the ball.
+            // const prevPos = this.positionAtEvent(prevEvTime, prevEv) ?? VERY_VERY_FAR_VEC.clone();
+            // const nextPos = this.positionAtEvent(nextEvTime, nextEv) ?? VERY_VERY_FAR_VEC.clone();
+            const prevTime = prevEvTime;
+            const nextTime = nextEvTime ?? prevEvTime + MAX_UFO_TIME;
+            // Figure out whether the ball is ascending or descending
+            const midTime = (prevTime + nextTime) / 2;
+            let cleanup: (() => void) | null = null;
+            let spot: SpotModel;
+            let ev: BallEvent | null;
+            let timeRatio: number;
+            if (time < midTime) {
+                ev = prevEv;
+                // When timeRatio = 0, ball is on the spot.
+                // When timeRatio = 1, ball is in the air.
+                timeRatio = easeInBack((time - prevTime) / (midTime - prevTime));
+            } else {
+                ev = nextEv;
+                // When timeRatio = 0, ball is on the spot.
+                // When timeRatio = 1, ball is in the air.
+                timeRatio = 1 - easeOutBack((time - midTime) / (nextTime - midTime));
+            }
+            if (ev === null) {
+                // Return early because the ball just disappears.
+                return VERY_VERY_FAR_VEC.clone();
+            }
+            if (ev.location.type === "onTable") {
+                // We gather the spot positions.
+                const tableModel = this.performance
+                    .getSurely()
+                    .tables.getSurely(ev.location.tableID);
+                spot = tableModel.getSpotModel(ev.location.spot);
+            } else {
+                const handModel = this.performance
+                    // The ball is ascending.
+                    .getSurely()
+                    .getHand(ev.location.jugglerName, ev.location.rightHand);
+                spot = handModel.getSpotModel(ev.location.spotIdx);
+
+                // We move the hand to where it is at the requested time.
+                const handPosRot = handModel.localPositionAndRotationAtTime(time);
+                handModel._dummyObject.setProperties(handPosRot);
+
+                // Add cleanup function.
+                cleanup = () => {
+                    handModel._dummyObject.unsetProperties();
+                };
+            }
+
+            // We grab the balls positions at that time and interpolate between them.
+            const ufoBeamHeight = 1.0;
+            const ballOnSpotPos = this.positionOverSpot(spot, this.radius);
+            const ballUfoPos = this.positionOverSpot(spot, this.radius + ufoBeamHeight);
+            const ballPos = ballOnSpotPos.clone().lerp(ballUfoPos, timeRatio);
+            // Finally, we undo the dummy object position's.
+            if (cleanup !== null) {
+                cleanup();
+            }
+            return ballPos;
         } else {
             // The ball slides locally. (so it needs to be on the same object)
             if (nextEvTime === null) {
