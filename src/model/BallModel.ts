@@ -164,7 +164,7 @@ export class BallModel {
                     .getSurely()
                     .getHand(nextEv.location.jugglerName, nextEv.location.rightHand);
                 const spotModel = handModel.getSpotModel(nextEv.location.spotIdx);
-                const handPosRotSca = handModel.localPositionAndRotationAtTime(nextEvTime);
+                const handPosRotSca = handModel.localPositionAndRotationAtTime(time);
                 handModel._dummyObject.setProperties(handPosRotSca);
                 const ballPos = this.positionOverSpot(spotModel);
                 handModel._dummyObject.unsetProperties();
