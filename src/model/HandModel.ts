@@ -403,23 +403,23 @@ export class HandModel {
             knots = [prevTime, nextTime];
         }
 
-        // If too much time seperates the previous from the next event,
-        // we add some time at the rest spot.
-        if (knots[1] - knots[0] > HAND_MAX_TIME_FOR_ACTION * 2) {
-            points.splice(
-                1,
-                0,
-                this.restSpot.position.getLocal(),
-                this.restSpot.position.getLocal()
-            );
-            dpoints.splice(1, 0, new Vector3(0, 0, 0), new Vector3(0, 0, 0));
-            knots.splice(
-                1,
-                0,
-                knots[0] + HAND_MAX_TIME_FOR_ACTION,
-                knots[1] - HAND_MAX_TIME_FOR_ACTION
-            );
-        }
+        // // If too much time seperates the previous from the next event,
+        // // we add some time at the rest spot.
+        // if (knots[1] - knots[0] > HAND_MAX_TIME_FOR_ACTION * 2) {
+        //     points.splice(
+        //         1,
+        //         0,
+        //         this.restSpot.position.getLocal(),
+        //         this.restSpot.position.getLocal()
+        //     );
+        //     dpoints.splice(1, 0, new Vector3(0, 0, 0), new Vector3(0, 0, 0));
+        //     knots.splice(
+        //         1,
+        //         0,
+        //         knots[0] + HAND_MAX_TIME_FOR_ACTION,
+        //         knots[1] - HAND_MAX_TIME_FOR_ACTION
+        //     );
+        // }
         return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
     }
 
