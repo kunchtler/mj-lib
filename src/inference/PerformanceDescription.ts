@@ -281,7 +281,7 @@ export type JugglingPhrase = {
     startTime: LocalBeatStartTime;
     localBaseTempo?: LocalTempo<FractionDescription>;
     localTempoMultiplier?: FractionDescription;
-    setupHands?: HandsInstructions;
+    setup?: HandsInstructions;
     pattern?: string;
 };
 

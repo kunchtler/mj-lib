@@ -25,8 +25,6 @@ Rajouter la périodicité ?
 
 Remove generateInitialState and just autogenerate it ?
 
-Rename setupHands to handsSetup.
-
 TODOs from files :
 //TODO : FOr the packages in pnpm, if they have modular install, use it !
 

@@ -76,7 +76,7 @@ export type SchedulerJuggler = {
 export type SchedulerEvent = {
     globalBeat: Fraction;
     tosses: SchedulerToss[];
-    setupHands?: HandsInstructions;
+    setup?: HandsInstructions;
 };
 
 export type SchedulerToss = {
@@ -169,7 +169,7 @@ export type PartialHeldState = [(string | undefined)[], (string | undefined)[]];
 export type SymbolicEvent<BeatType> = {
     globalBeat: BeatType;
     state: JugglerState;
-    setupHands?: {
+    setup?: {
         preHandState: PartialHeldState;
         moves: MoveBall[];
         postHandState: PartialHeldState;
@@ -417,9 +417,9 @@ export class Scheduler {
                     cache.state = res.state; // Update the juggler's state.
 
                     // If the juggler changed the balls they hold, record the change in their timeline.
-                    if (res.setupHands !== undefined) {
+                    if (res.setup !== undefined) {
                         addInfoToJugglerTimeline(jugglerName, nextBeatOfInterest, res.state, {
-                            setupHands: res.setupHands
+                            setup: res.setup
                         });
                     }
                     // If the juggler tossed balls, record that in their timeline.
@@ -1695,27 +1695,27 @@ class JugglerManager {
     ): {
         tosses?: HalfCompletedTosses;
         state: JugglerState;
-        setupHands?: {
+        setup?: {
             preHandState: PartialHeldState;
             moves: MoveBall[];
             postHandState: PartialHeldState;
         };
     } {
-        const { setupHands, globalBeat: beat } = this.events[eventIdx];
+        const { setup, globalBeat: beat } = this.events[eventIdx];
 
         // 1. prepare the hands by placing the necessary balls on the table, and
         // setting up the hands with the contents they must have.
-        let setupHandsFilled:
+        let setupFilled:
             | {
                   preHandState: PartialHeldState;
                   moves: MoveBall[];
                   postHandState: PartialHeldState;
               }
             | undefined = undefined;
-        if (setupHands !== undefined) {
-            const res1 = this.swapBalls(beat, state, setupHands);
+        if (setup !== undefined) {
+            const res1 = this.swapBalls(beat, state, setup);
             state = res1.postState;
-            setupHandsFilled = {
+            setupFilled = {
                 preHandState: res1.preState.held,
                 moves: res1.handMoves,
                 postHandState: res1.postState.held
@@ -1729,7 +1729,7 @@ class JugglerManager {
         return {
             tosses: res2.tosses,
             state: res2.state,
-            setupHands: setupHandsFilled
+            setup: setupFilled
         };
     }
 

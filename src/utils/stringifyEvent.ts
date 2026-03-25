@@ -102,9 +102,9 @@ type TossType = {
 export function stringifyEvent(ev: SymbolicTimeline<Fraction>, writeTitle = true): string {
     let text = writeTitle ? `Event Beat ${ev.beat}:\n` : "";
     text += `  Tempo: ${stringifyFraction(ev.tempo)}\n`;
-    if (ev.setupHands !== undefined) {
+    if (ev.setup !== undefined) {
         text += "  Ball changes:\n";
-        for (const move of ev.setupHands) {
+        for (const move of ev.setup) {
             text += `    Ball ${move.id} `;
             if (move.from.type === "held") {
                 text += `in ${move.from.handIdx === 0 ? "right" : "left"} hand (position ${move.from.ballIdx})`;

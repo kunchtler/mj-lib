@@ -46,7 +46,33 @@ export const pattern1: PerformanceDescriptionHelper = {
     // ],
     globalBeat: { type: "constant", beatsPerMinute: 180 }
 };
+
 export const pattern2: PerformanceDescriptionHelper = {
+    version: "0.1",
+    ballTemplates,
+    jugglers: [
+        {
+            name: "Kylian",
+            position: [-1, 0, 0],
+            ballsHeldAtStart: [
+                [
+                    { name: "Re", id: "Re?0" },
+                    { name: "Do", id: "Do?0" }
+                ],
+                [{ name: "Mi", id: "Mi?0" }]
+            ],
+            jugglingPhrases: [
+                {
+                    startTime: { type: "byGlobalBeat", beat: 0 },
+                    pattern: "L35003 35003 35003 42334 05003 35003 35003 42334 0300"
+                }
+            ]
+        }
+    ],
+    globalBeat: { type: "constant", beatsPerMinute: 180 }
+};
+
+export const pattern3: PerformanceDescriptionHelper = {
     version: "0.1",
     ballTemplates,
     jugglers: [
@@ -65,9 +91,9 @@ export const pattern2: PerformanceDescriptionHelper = {
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: 0 },
-                    // setupHands: {
-                    //     haveBalls: [[], [{ type: "byID", id: "Do?1" }]]
-                    // },
+                    setup: {
+                        haveBalls: [[], [{ type: "byID", id: "Do?1" }]]
+                    },
                     pattern: "L35003 35003 35003 42334 05003 35003 35003 42334 0300"
                 }
             ]

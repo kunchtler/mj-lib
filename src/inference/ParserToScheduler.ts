@@ -19,7 +19,7 @@ import { ActiveHandComputer } from "./ActiveHandComputer";
 type Cache1Event = {
     globalBeat: Fraction;
     localBeat: Fraction;
-    setupHands?: HandsInstructions;
+    setup?: HandsInstructions;
     tosses: ParserToss[];
 };
 
@@ -122,7 +122,7 @@ export function formatJugglerPhrasesForScheduler(
             events.push({
                 globalBeat,
                 localBeat,
-                setupHands: ev.setupHands,
+                setup: ev.setup,
                 tosses: ev.tosses ?? []
             });
             if (ev.defaultHand !== undefined) {
@@ -139,8 +139,8 @@ export function formatJugglerPhrasesForScheduler(
             if (!events[evIdx - 1].globalBeat.equals(events[evIdx].globalBeat)) {
                 events2.push(events[evIdx]);
             } else {
-                if (events[evIdx].setupHands !== undefined) {
-                    events2[events2.length - 1].setupHands = events[evIdx].setupHands;
+                if (events[evIdx].setup !== undefined) {
+                    events2[events2.length - 1].setup = events[evIdx].setup;
                 }
                 for (const toss of events[evIdx].tosses) {
                     events2[events2.length - 1].tosses.push(toss);
@@ -321,14 +321,14 @@ export function formatJugglerPhrasesForScheduler(
             // 14. Check whether or not there is useful information in the event.
             if (
                 newTosses.length === 0 &&
-                ev.setupHands?.haveBalls === undefined &&
-                ev.setupHands?.placeBalls === undefined
+                ev.setup?.haveBalls === undefined &&
+                ev.setup?.placeBalls === undefined
             ) {
                 continue;
             }
             events3.push({
                 globalBeat: ev.globalBeat,
-                setupHands: ev.setupHands,
+                setup: ev.setup,
                 tosses: newTosses
             });
         }
@@ -379,7 +379,7 @@ function flattenJugglingPhrases(
             startTime: phrase.startTime,
             localBeatTempo: phrase.localBaseTempo,
             localBeatTempoMultiplier: phrase.localTempoMultiplier,
-            setupHands: phrase.setupHands
+            setup: phrase.setup
         };
         if (phraseEvents.length === 0) {
             // We need to create an empty event first

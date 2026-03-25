@@ -343,7 +343,7 @@ export function checkScoreNamesAndIDs(
     jugglerNames: Set<string>;
 } {
     // Check to see if :
-    // - ball IDs and template names are unique (held and on table and in juggling phrases "setupHands").
+    // - ball IDs and template names are unique (held and on table and in juggling phrases "setup").
     // - table IDs are unique.
     // - ballIDs on a table and in hands refer to existing ball IDs.
     // - on a table, spot names are unique.
@@ -519,8 +519,8 @@ export function checkScoreNamesAndIDs(
             }
         }
 
-        for (const { setupHands } of jugglingPhrases) {
-            for (const ballsInHand of setupHands?.haveBalls ?? [[], []]) {
+        for (const { setup: setup } of jugglingPhrases) {
+            for (const ballsInHand of setup?.haveBalls ?? [[], []]) {
                 for (const ball of ballsInHand) {
                     if (ball.type === "byName") {
                         // All ball templates refer to existing template names.
@@ -558,7 +558,7 @@ export function checkScoreNamesAndIDs(
                 }
             }
 
-            for (const ball of setupHands?.placeBalls ?? []) {
+            for (const ball of setup?.placeBalls ?? []) {
                 if (ball.type === "byName") {
                     // All ball templates refer to existing template names.
                     handleIfStringUnknown({
@@ -591,7 +591,6 @@ export function checkScoreNamesAndIDs(
                         errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
                         errorLogger: errorLogger
                     });
-
                 }
             }
         }

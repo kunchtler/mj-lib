@@ -259,7 +259,7 @@ export function createModelTimelines({
             // Search for the true hand position we should take so as to not have un-needed
             // hand ball spot movements.
             // for (let evIdx2 = evIdx; evIdx2 < symbolicTimeline.length; evIdx2++) {
-            //     if (evIdx2 !== evIdx && symbolicTimeline[evIdx2].setupHands !== undefined) {
+            //     if (evIdx2 !== evIdx && symbolicTimeline[evIdx2].setup !== undefined) {
             //         lastHeldState = //Setup hands
             //         break;
             //     }
@@ -290,7 +290,7 @@ export function createModelTimelines({
             // TODO : Rework OnNamed/Unamed spot for loc, and instead have the spot be null or undefined ?
             // 1. Identify the different moves n0eeded by hand.
 
-            if (ev.setupHands !== undefined) {
+            if (ev.setup !== undefined) {
                 // We categorize each move in one of 4 categories, also depending on the involved hand.
                 const ballsToPutOnTable: [number[], number[]] = [[], []];
                 const ballsToTakeFromTable: [number[], number[]] = [[], []];
@@ -301,16 +301,16 @@ export function createModelTimelines({
                 // - the ball idx stored in a hand's state (from oldest to newest in hand)
                 // - the spot idx in which the ball is, which depends on the amount of balls in the hand.
                 const truePreHandSpots: [string[][], string[][]] = [
-                    tossOrderToTrueSpots(ev.setupHands.preHandState[0]),
-                    tossOrderToTrueSpots(ev.setupHands.preHandState[1])
+                    tossOrderToTrueSpots(ev.setup.preHandState[0]),
+                    tossOrderToTrueSpots(ev.setup.preHandState[1])
                 ];
                 const truePostHandSpots: [string[][], string[][]] = [
-                    tossOrderToTrueSpots(ev.setupHands.postHandState[0]),
-                    tossOrderToTrueSpots(ev.setupHands.postHandState[1])
+                    tossOrderToTrueSpots(ev.setup.postHandState[0]),
+                    tossOrderToTrueSpots(ev.setup.postHandState[1])
                 ];
 
-                for (let moveIdx = 0; moveIdx < ev.setupHands.moves.length; moveIdx++) {
-                    const ball = ev.setupHands.moves[moveIdx];
+                for (let moveIdx = 0; moveIdx < ev.setup.moves.length; moveIdx++) {
+                    const ball = ev.setup.moves[moveIdx];
                     if (ball.from.type === "held") {
                         if (ball.to.type === "held") {
                             if (ball.from.handIdx !== ball.to.handIdx) {
@@ -415,7 +415,7 @@ export function createModelTimelines({
                 for (let i = 0; i < ballMovesIdx.length; i++) {
                     const moveStartTime = ufoStartTime + (i * ufoTime) / 2;
                     const moveEndTime = moveStartTime + ufoTime;
-                    const ball = ev.setupHands.moves[ballMovesIdx[i]];
+                    const ball = ev.setup.moves[ballMovesIdx[i]];
 
                     // Add to ball timeline the beginning of the transition.
                     let ballStartEv: BallEvent;
