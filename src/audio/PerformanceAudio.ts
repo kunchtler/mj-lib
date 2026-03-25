@@ -15,6 +15,8 @@ import { CallbackFunction, Clock, ClockEvents } from "../utils";
 //         super(_decoyListener);
 //     }
 // }
+
+// TODO : Document that "loop" means "loop until next event".
 class BallAudio {
     private _jugglerGainNode: GainNode;
     jugglerGainName?: string;
@@ -187,20 +189,99 @@ class BallAudio {
                 return; // TODO ?
             }
 
-            const [prevEvTime, prevEv] = timeline.prevEvent(time);
-            //1. Play sound if needed when starting.
-            if (prevEvTime !== null) {
-                // Check if we are held by another juggler.
-                if (prevEv.location.type === "held") {
-                    this.changeJuggler(prevEv.location.jugglerName);
+            // const [prevEvTime, prevEv] = timeline.prevEvent(time);
+            // //1. Play sound if needed when starting.
+            // if (prevEvTime !== null) {
+            //     // Check if we are held by another juggler.
+            //     if (prevEv.location.type === "held") {
+            //         this.changeJuggler(prevEv.location.jugglerName);
+            //     }
+            //     this.playSound(prevEv.sound, time - prevEvTime);
+            // }
+
+            //1. Play sound if needed.
+
+            // We look for the previous event that has sound information.
+            const startIt = timeline.begin();
+            if (!startIt.isAccessible()) {
+                // There is no event at all, so there is nothing to do.
+                return;
+            }
+            // Indicates whether a sound should play.
+            let shouldPlay: boolean;
+            // Indicates whether we should mute the current playing sound (if there is one).
+            let shouldStop = false;
+            // Indicates whether when creating the timeout for the next sound, we should use
+            // the time of the next event, or the next event that has sound.
+            let timeoutNextEvent = false;
+            // TODO : In the future, have a "stop looping" event ?
+
+            const prevIt = timeline.prevEventIt(time);
+            if (prevIt.isAccessible() && prevIt.pointer[1].sound?.loop === true) {
+                // The previous event was a loop one, so we'll play the sound.
+                shouldPlay = true;
+                timeoutNextEvent = true;
+            } else {
+                const startTime = startIt.pointer[0];
+                while (
+                    prevIt.isAccessible() &&
+                    startTime < prevIt.pointer[0] &&
+                    prevIt.pointer[1].sound === undefined
+                ) {
+                    prevIt.pre();
                 }
-                this.playSound(prevEv.sound, time - prevEvTime);
+
+                if (prevIt.isAccessible()) {
+                    if (prevIt.pointer[1].sound === undefined) {
+                        // No sound event, nothing to play.
+                        shouldPlay = false;
+                    } else if (prevIt.pointer[1].sound.loop) {
+                        // The last sound event was set to loop,
+                        // but since we've met other events the sound stopped.
+                        shouldPlay = false;
+                        shouldStop = true;
+                    } else {
+                        // A non looping sound event that should play.
+                        shouldPlay = true;
+                    }
+                } else {
+                    shouldPlay = false;
+                }
             }
 
-            //2. Program to play the next sound.
-            const nextEvTime = timeline.nextEvent(time)[0];
-            if (nextEvTime !== null) {
-                const newDelay = clock.realTimeUntil(nextEvTime);
+            // If we found a suitable one, play it !
+            if (shouldPlay) {
+                const [prevEvTime, prevEv] = prevIt.pointer;
+                if (prevEv.location.type === "held") {
+                    // Check if we are held by another juggler.
+                    this.changeJuggler(prevEv.location.jugglerName);
+                }
+                this.playSound(prevEv.sound!, time - prevEvTime);
+            }
+            if (shouldStop) {
+                this.playSound(undefined);
+            }
+
+            // 2. Program to play the next sound.
+
+            // Compute when the time at which the timeout should occur.
+            let timeoutTime: number | null = null;
+            const it = timeline.nextEventIt(time);
+            if (timeoutNextEvent) {
+                // Special case if we started playing a looping sound : we need on the very next event,
+                // whether a sound is playing or not, to stop playing the looped sound.
+                timeoutTime = it.isAccessible() ? it.pointer[0] : null;
+            } else {
+                // Figure out when the next sound event is.
+                while (it.isAccessible() && it.pointer[1].sound === undefined) {
+                    it.next();
+                }
+                timeoutTime = it.isAccessible() ? it.pointer[0] : null;
+            }
+
+            // Create the timeout (factoring in the clock's playback speed).
+            if (timeoutTime !== null) {
+                const newDelay = clock.realTimeUntil(timeoutTime);
                 this.createTimeout(newDelay >= 0 ? newDelay : 0);
             } else {
                 this._timeoutIdx = undefined;

@@ -1,4 +1,4 @@
-import { OrderedMap } from "js-sdsl";
+import { OrderedMap, OrderedMapIterator } from "js-sdsl";
 import { initContainer } from "js-sdsl/dist/esm/container/ContainerBase";
 
 //TODO : Methods to create / modify / delete events without interacting with OrderedMap directly ?
@@ -36,6 +36,10 @@ export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventTyp
         return it.isAccessible() ? [...it.pointer] : [null, null];
     }
 
+    prevEventIt(time: TimeType, strict = false): OrderedMapIterator<TimeType, EventType> {
+        return strict ? this.reverseUpperBound(time) : this.reverseLowerBound(time);
+    }
+
     /**
      * Get the closest event after a given time.
      * @param time a time to search for.
@@ -48,6 +52,10 @@ export class Timeline<TimeType, EventType> extends OrderedMap<TimeType, EventTyp
     nextEvent(time: TimeType, strict = true): [TimeType, EventType] | [null, null] {
         const it = strict ? this.upperBound(time) : this.lowerBound(time);
         return it.isAccessible() ? [...it.pointer] : [null, null];
+    }
+
+    nextEventIt(time: TimeType, strict = true): OrderedMapIterator<TimeType, EventType> {
+        return strict ? this.upperBound(time) : this.lowerBound(time);
     }
 
     /**
