@@ -6,9 +6,11 @@ import {
     stringifyTable
 } from "../utils/stringifyEvent";
 import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
-import { HandsInstructions, TakeBall } from "./PerformanceDescription";
+import { HandsInstructions, SetupBall } from "./PerformanceDescription";
 import { getLastInsertedKey, getFirstInsertedKey } from "../utils/Operations";
 import { LocalBeatConverter } from "./LocalBeatConverter";
+import { DeepRequired, setDifference } from "../utils";
+import { computeMunkres } from "../utils/hungarianAlgorithm";
 
 /*
 The time between two tosses / catches of the juggler is called its unit
@@ -558,7 +560,7 @@ type TableState = {
  * @param state the state to clone.
  * @returns the clone.
  */
-function cloneState(state: JugglerState): JugglerState {
+function cloneState<T extends JugglerState | PartialJugglerState>(state: T): T {
     return {
         airborne: new Map(state.airborne),
         held: [[...state.held[0]], [...state.held[1]]],
@@ -569,8 +571,19 @@ function cloneState(state: JugglerState): JugglerState {
                       namedSpot: new Map(state.table.namedSpot),
                       unknown: new Set(state.table.unknown)
                   }
-    };
+    } as T;
 }
+
+type FromTmp =
+    | {
+          type: "table";
+          spot?: { type: "named"; name?: string } | { type: "unknown" };
+      }
+    | {
+          type: "juggler";
+          handIdx?: number;
+          spotIdx?: number;
+      };
 
 class JugglerManager {
     jugglerName: string;
@@ -935,442 +948,749 @@ class JugglerManager {
         };
     }
 
-    // TODO : document that state is not copied ?
-    // TODO : Lefthand / Righthand : make Array. It is simpler to manipulate.
-    // and document the convention that left cell = left, right cell = right.
-    // TODO : Unify some of the behaviour here with tossBalls ?
-    //TODO : CHECK WE HANDLE BALLS FROM END OF LIST TO START (same order as toss).
-    // TODO : FIX THIS MESS (having do in hand and switching it with do on table is impossible for now...)
     swapBalls(
         beat: Fraction,
         state: JugglerState,
         handsSetup: HandsInstructions
     ): { preState: JugglerState; postState: JugglerState; handMoves: MoveBall[] } {
         // TODO : Better error messages. Indicate state ?
-        // TODO : Take into consideration we may want to put multiple balls of the same name on different spots.
         // TODO : Have a spot for unknown balls common to the case where there is a table and there is not ?
 
-        // TOCONTINUE <---- from here, with partial states and love.
+        // TODO : Check balls are first taken from spots that were first defined on the table ?
 
         // preState is generated to be returned at this function's end.
         const preState = cloneState(state);
-        // this state contains each ball that hasn't been handled already.
-        state = cloneState(state);
-        // Flag to indicate if the user has a table or not.
-        const tableAllowed = state.table !== undefined;
 
-        // Keep track of all ball movements.
-        // The "because" attribute indicates if the ball was moved because of
-        // handsSetup.place or handsSetup.have. (useful to not move a ball twice).
-        const movedBalls = new Map<
+        // We build a bipartite graph, where the nodes of the first part are balls, and the second are spots.
+        // The edges between balls and spots indicate how much a spot wants to have that ball.
+        // Note : in the way we generate the graph, it is the spot that tell which ball they'd
+        // like to have, even if in the end, we see it more as : where should each ball go ?
+        // We look for the max-weight matching using the hungarian (or khun-munkres) algorithm.
+        // This matching may not be complete, but it will be of maximal weight.
+        // The weights can be seen as a priority, and computed such that the maximal matching
+        // would satisfy as many priority 0 as possible, then priority 1 as possible, ...
+        // All unmatched balls will go on the undefined table spot if there is one, or ???
+
+        // The graph maps balls, to spots, to priority.
+        // Priority 0 is the highest, then 1, then 2, ...
+        const graph: Map<string, Map<string, number>> = new Map();
+
+        // First, create an entry for each ball.
+        // We only use balls that appear in the juggler's state.
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (const ballID of state.held[handIdx]) {
+                graph.set(ballID, new Map());
+            }
+        }
+        for (const [, ballID] of state.table?.namedSpot ?? []) {
+            graph.set(ballID, new Map());
+        }
+        for (const ballID of state.table?.unknown ?? []) {
+            graph.set(ballID, new Map());
+        }
+
+        // Iterate through all spots, see what kind of ball they'd like, and
+        // create edges in the graph.
+
+        // A higher priority means the ball should more likely go to that spot.
+        // Note : since we define in the graph spots as string, we can use the getSpotName and getSpotFromName to
+        // get that unique string.
+        // TODO : Better document the use of this function, and differentiate "spot" from "spot name" (quite confusing).
+
+        const PRIORITY = {
+            // For whenever a single ball at most can be targetted (ex : specific location, or ball by ID).
+            FIRST_CHOICE_ONEOF: 20,
+
+            // Whenever the location is ambiguous, we may have, although valid, preferences as to where to look for a ball.
+            // Note that this takes precedence over simply asking for a ball template.
+            AMBIGUOUS_LOCATION_TEMPLATE_1ST_CHOICE: 19,
+            AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE: 18,
+            AMBIGUOUS_LOCATION_TEMPLATE_3RD_CHOICE: 17,
+            SAME_HELD_SPOT_TEMPLATE: 16,
+            SAME_HAND_TEMPLATE: 15,
+            OTHER_HAND_TEMPLATE: 14,
+            TABLE_NAMED_SPOT_TEMPLATE: 13,
+            TABLE_UNKNOWN_SPOT_TEMPLATE: 12,
+
+            AMBIGUOUS_LOCATION_1ST_CHOICE: 9,
+            AMBIGUOUS_LOCATION_2ND_CHOICE: 8,
+            AMBIGUOUS_LOCATION_3RD_CHOICE: 7,
+            SAME_HELD_SPOT: 6,
+            SAME_HAND: 5,
+            OTHER_HAND: 4,
+            TABLE_NAMED_SPOT: 3,
+            TABLE_UNKNOWN_SPOT: 2,
+
+            TABLE_SPOT_KEEP_BALL: -9, //TODO : We need to have spots for "unknown".
+            TABLE_SPOT_ANY_BALL_NOT_UNKNOWN: -10
+        };
+
+        const categoriesBySpot = new Map<
             string,
-            { from: LocType; to: LocType; because: "have" | "place" }
+            {
+                priority: number;
+                balls: (FromTmp & { template: string | undefined }) | string[];
+            }[]
         >();
 
-        // 1. Put all balls that have been specified to go on the table
-        if (
-            !tableAllowed &&
-            handsSetup.placeBalls !== undefined &&
-            handsSetup.placeBalls.length > 0
-        ) {
-            this.logError(
-                beat,
-                "Error",
-                `Can't put balls on a table as no table as been specified for this juggler. Continue without putting any ball.`
-            );
-        } else if (handsSetup.placeBalls !== undefined) {
-            for (const putBall of handsSetup.placeBalls) {
-                let handIdx: number;
-                let ballID: string;
-                let ballIdx: number;
-                let ballName: string;
-                let spotName: string | undefined;
+        // 1. Create the location priority. Only use from. ball may be used in case from is undefined
+        // To know if all places are equal in priority or not (same spot, same hand, other hand, named spot table, unknown spot table.)
+        // 2. Filter it depending on ball.id or template (for the first, add ballID on top.)
+        // For both, filter by the template (infered by the ID in the ID case).
+        // 3. There may be duplicate balls in duplicate categories : only use the greatest priority.
+        // 4. The priorities were integers. look at their range, and compute the true weight.
+        if (handsSetup.hands !== undefined) {
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (let spotIdx = 0; spotIdx < handsSetup.hands[handIdx].length; spotIdx++) {
+                    const spotName = getSpotName({ type: "juggler", handIdx, spotIdx });
+                    categoriesBySpot.set(spotName, []);
+                    const categories = categoriesBySpot.get(spotName)!;
+                    const have = handsSetup.hands[handIdx][spotIdx];
+                    let template: string | undefined;
 
-                if ("id" in putBall) {
-                    // An ID to find the ball has been specified.
-                    // We need to search in which hand that ball is.
-                    const ballLoc = findBallIDLocation(state, putBall.id);
-                    if (ballLoc?.type === "held") {
-                        handIdx = ballLoc.handIdx;
-                        ballIdx = ballLoc.spotIdx;
-                        ballID = putBall.id;
-                        ballName = this.ballIDMap.get(ballID)!;
+                    // First, if the ball has an ID
+                    if (have.ball === undefined) {
+                        template = undefined;
+                    } else if (have.ball.type === "template") {
+                        template = have.ball.template;
                     } else {
-                        // Ball is found is neither hands.
-                        this.logError(
-                            beat,
-                            "Error",
-                            `Can't find ball ${putBall.id} in hands to put on the table.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
-                        );
-                        continue;
+                        template = have.ball.id;
+                        // We also assign a top priority getting the ball ID.
+                        categories.push({
+                            priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                            balls: [have.ball.id]
+                        });
                     }
-                } else {
-                    // The ball is defined by its template name.
-                    const matchingBallsInHands = findBallTemplateNameInHands(
-                        state,
-                        putBall.name,
-                        this.ballIDMap
-                    );
 
-                    // Choose which ball should be put on the table : First compute the hand
-                    if (putBall.fromHand !== undefined) {
-                        handIdx = putBall.fromHand === "left" ? 0 : 1;
-                    } else if (
-                        matchingBallsInHands[0].size === 0 &&
-                        matchingBallsInHands[1].size === 0
-                    ) {
-                        // If no hand holds the requested ball, we error that situation.
-                        this.logError(
-                            beat,
-                            "Warn",
-                            `Can't put a ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as none is found in hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
+                    if (have.from === undefined) {
+                        // We look for the correct template in order of proximity to the spot.
+                        categories.push(
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.SAME_HELD_SPOT
+                                        : PRIORITY.SAME_HELD_SPOT_TEMPLATE,
+                                balls: { type: "juggler", handIdx, spotIdx, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.SAME_HAND
+                                        : PRIORITY.SAME_HAND_TEMPLATE,
+                                balls: { type: "juggler", handIdx, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.OTHER_HAND
+                                        : PRIORITY.OTHER_HAND_TEMPLATE,
+                                balls: { type: "juggler", handIdx: (handIdx + 1) % 2, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.TABLE_NAMED_SPOT
+                                        : PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                                balls: { type: "table", spot: { type: "named" }, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.TABLE_UNKNOWN_SPOT
+                                        : PRIORITY.TABLE_UNKNOWN_SPOT_TEMPLATE,
+                                balls: { type: "table", spot: { type: "unknown" }, template }
+                            }
                         );
-                        continue;
-                    } else if (
-                        matchingBallsInHands[0].size > 0 &&
-                        matchingBallsInHands[1].size > 0
-                    ) {
-                        // If the ball has been found in both hands, we arbitrarily take the left hand.
-                        handIdx = 0;
-                        this.logError(
-                            beat,
-                            "Warn",
-                            `Ambiguity while putting ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}as it is found in both hands.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by choosing the left hand.`
+                    } else if (have.from.type === "juggler") {
+                        // Compute the hand we'll look into first.
+                        let firstHandIdx: number;
+                        if (have.from.hand === undefined) {
+                            // By default, we search in the current hand.
+                            // Note : if spotIdx is specified but not handIdx, that is also the case.
+                            firstHandIdx = handIdx;
+                        } else if (have.from.hand === "same") {
+                            firstHandIdx = handIdx;
+                        } else if (have.from.hand === "other") {
+                            firstHandIdx = (handIdx + 1) % 2;
+                        } else if (have.from.hand === "left") {
+                            firstHandIdx = 0;
+                        } else {
+                            firstHandIdx = 1;
+                        }
+
+                        // Have a special case when the spotIDx is defined.
+                        if (have.from.spotIdx !== undefined) {
+                            categories.push({
+                                priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                                balls: {
+                                    type: "juggler",
+                                    handIdx: firstHandIdx,
+                                    spotIdx: have.from.spotIdx,
+                                    template
+                                }
+                            });
+                        }
+
+                        // General case : go from closest to furthest from current spot.
+                        categories.push(
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.AMBIGUOUS_LOCATION_1ST_CHOICE
+                                        : PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_1ST_CHOICE,
+                                balls: {
+                                    type: "juggler",
+                                    handIdx: firstHandIdx,
+                                    spotIdx: spotIdx,
+                                    template
+                                }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.AMBIGUOUS_LOCATION_2ND_CHOICE
+                                        : PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE,
+                                balls: { type: "juggler", handIdx: firstHandIdx, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.AMBIGUOUS_LOCATION_3RD_CHOICE
+                                        : PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_3RD_CHOICE,
+                                balls: {
+                                    type: "juggler",
+                                    handIdx: firstHandIdx + (1 % 2),
+                                    template
+                                }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.TABLE_NAMED_SPOT
+                                        : PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                                balls: { type: "table", spot: { type: "named" }, template }
+                            },
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.TABLE_UNKNOWN_SPOT
+                                        : PRIORITY.TABLE_UNKNOWN_SPOT_TEMPLATE,
+                                balls: { type: "table", spot: { type: "unknown" }, template }
+                            }
                         );
                     } else {
-                        // The ball has only been found in one hand, so we pick it.
-                        handIdx = matchingBallsInHands[0].size > 0 ? 0 : 1;
-                    }
+                        // have.from.type === "table"
 
-                    // Choose which ball should be put on the table : Now compute the ball.
-                    if (matchingBallsInHands[handIdx].size === 0) {
-                        // If the hand does not have the requested ball, issue warning and carry on.
-                        this.logError(
-                            beat,
-                            "Warn",
-                            `Can't put a ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as none is held.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue without putting that ball.`
-                        );
-                        continue;
-                    }
+                        // First, some one-offs. Look into the specific spot if it was specified.
+                        if (have.from.spot === null) {
+                            // Sure, there can be multiple balls in the unknown spot, but it was still specified.
+                            categories.push({
+                                priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                                balls: { type: "table", spot: { type: "unknown" }, template }
+                            });
+                        } else if (typeof have.from.spot === "string") {
+                            categories.push({
+                                priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                                balls: {
+                                    type: "table",
+                                    spot: { type: "named", name: have.from.spot },
+                                    template
+                                }
+                            });
+                        }
 
-                    ballID = getLastInsertedKey(matchingBallsInHands[handIdx])!;
-                    ballIdx = matchingBallsInHands[handIdx].get(ballID)!;
-                    ballName = putBall.name;
-                    if (matchingBallsInHands[handIdx].size > 1) {
-                        // If the hand has multiple balls to choose from, arbitrarily take the most recent one and issue a warning.
-                        this.logError(
-                            beat,
-                            "Warn",
-                            `Ambiguity while putting ball ${putBall.name} onto the table ${putBall.toSpot === undefined ? "" : `on spot ${putBall.toSpot} `}${putBall.fromHand === undefined ? "" : `from the ${putBall.fromHand} hand `}as it is found multiple times.\nRight hand contains : [${stringifyHand(state.held[0])}].\nLeft hand contains : [${stringifyHand(state.held[1])}].\nContinue by putting the most recently received ball, ie ${stringifyBall(ballID)}.`
+                        // Note : have.from.spot === undefined doesn't mean "no ball" but "choose any ball on the table".
+                        // General priority.
+                        categories.push(
+                            {
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.AMBIGUOUS_LOCATION_1ST_CHOICE
+                                        : PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_1ST_CHOICE,
+                                balls: { type: "table", spot: { type: "named" }, template }
+                            },
+                            {
+                                // Note : if the ball should be taken from unknown spot,
+                                // the previous if statement has higher priority.
+                                priority:
+                                    template === undefined
+                                        ? PRIORITY.AMBIGUOUS_LOCATION_2ND_CHOICE
+                                        : PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE,
+                                balls: { type: "table", spot: { type: "unknown" }, template }
+                            },
+                            {
+                                priority:
+                                    // TODO : Are we sure about that priority ?
+                                    template === undefined
+                                        ? PRIORITY.TABLE_NAMED_SPOT
+                                        : PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                                balls: { type: "juggler", template }
+                            }
                         );
                     }
                 }
+            }
+        } else {
+            // We don't have a specific handsSetup.have.
+            // But we still may place balls, so balls held may dissapear.
+            // Priority to ball in same spot, same spot +1, same spot + 2...
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (let spotIdx = 0; spotIdx < state.held[handIdx].length; spotIdx++) {
+                    const spotName = getSpotName({ type: "juggler", handIdx, spotIdx });
+                    categoriesBySpot.set(spotName, []);
+                    const categories = categoriesBySpot.get(spotName)!;
+                    for (
+                        let otherIdx = spotIdx;
+                        otherIdx < state.held[handIdx].length;
+                        otherIdx++
+                    ) {
+                        // TODO : Slightly decreasing priority each time.
+                        categories.push({
+                            priority:
+                                PRIORITY.FIRST_CHOICE_ONEOF -
+                                (otherIdx - spotIdx) / (state.held[handIdx].length - spotIdx),
+                            balls: [state.held[handIdx][otherIdx]]
+                        });
+                    }
+                }
+            }
+            // And if not that, UNDEFINED, END.
+        }
 
-                // Determine the spot to put the ball on.
-                // Find the free unoccupied requested ball spot on the table.
+        // Handle all the spots on the table and their needs.
+        // Note : there is no need here to have an else clause, as wehandle all spots a bit later.
+        if (handsSetup.tableSpots !== undefined) {
+            for (const { spot, place: have } of handsSetup.tableSpots) {
+                const spotName = getSpotName({
+                    type: "table",
+                    spot: { type: "named", name: spot }
+                });
+                categoriesBySpot.set(spotName, []);
+                const categories = categoriesBySpot.get(spotName)!;
+                let template: string;
 
-                const freeTableSpots = findFreeTableSpotsByTemplateName(state, ballName);
+                // First, if the ball has an ID
+                if (have.ball === undefined) {
+                    template = this.tableSpots.get(spot)!;
+                } else if (have.ball.type === "template") {
+                    template = have.ball.template;
+                } else {
+                    template = have.ball.id;
+                    // We also assign a top priority getting the ball ID.
+                    categories.push({
+                        priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                        balls: [have.ball.id]
+                    });
+                }
 
-                // Compute the spot on which to put the ball.
-                if (freeTableSpots.size === 0) {
-                    // If all spots the ball could be put on are occupied, put the ball in the unkown table spot.
-                    spotName = undefined;
+                // Issue warning if the template is not the one accepted by the spot.
+                const acceptedTemplate = this.tableSpots.get(spot);
+                if (acceptedTemplate === template) {
                     this.logError(
                         beat,
-                        "Warn",
-                        `All spots where ball ${stringifyBall(ballID)} could go are occupied. ${putBall.toSpot === undefined ? "" : `Can't put in on user-defined "${putBall.toSpot}" spot. `}\nContinue by putting ball anywhere on the table.`
+                        "Log",
+                        `Trying to put ball with template ${template} into spot ${spot} that only accepts balls of template ${acceptedTemplate}.`
                     );
-                } else if (putBall.toSpot !== undefined) {
-                    const ballOnSpot = ballsLocation.getBallInSpot(putBall.toSpot);
-                    if (ballOnSpot !== undefined) {
-                        // The spot has been specified by the user, but it is already occupied on the table.
-                        // Take the first available spot instead.
-                        spotName = getFirstInsertedKey(freeTableSpots)!;
-                        this.logError(
-                            beat,
-                            "Error",
-                            `Can't put ball ${stringifyBall(ballID)} on user-defined "${putBall.toSpot}" spot as it is already occupied by ball ${stringifyBall(ballOnSpot)}.\nContinue by putting it on spot "${spotName}".`
-                        );
-                    } else {
-                        // The spot has been specified by the user, and it is available.
-                        spotName = putBall.toSpot;
-                    }
-                } else {
-                    // No spot has been specified by the user, so take the first free available spot.
-                    spotName = getFirstInsertedKey(freeTableSpots)!;
                 }
 
-                // Put the ball on the table.
-                const moveFromLoc: LocType = { type: "held", spotIdx: ballIdx, handIdx: handIdx };
-                const moveToLoc: LocType =
-                    spotName === undefined
-                        ? { type: "onTableUnknownSpot" }
-                        : { type: "onTableSpot", spotName: spotName };
+                if (have.from === undefined) {
+                    // We look for the correct template in order of proximity to the spot.
 
-                movedBalls.set(ballID, { from: moveFromLoc, to: moveToLoc, because: "place" });
-                // Act the fact that the ball is on the table, but don't disturb the previous' state
-                // indices.
-                ballsLocation.putBallNoIdxChange(ballID, spotName);
+                    //TODO : Do we really want to enforce the fact that we place a ball here ?
+                    categories.push(
+                        {
+                            priority: PRIORITY.SAME_HELD_SPOT_TEMPLATE,
+                            balls: { type: "table", spot: { type: "named", name: spot }, template }
+                        },
+                        {
+                            priority: PRIORITY.SAME_HELD_SPOT_TEMPLATE,
+                            balls: { type: "table", spot: { type: "named" }, template }
+                        },
+                        {
+                            priority: PRIORITY.OTHER_HAND_TEMPLATE,
+                            balls: { type: "table", spot: { type: "unknown" }, template }
+                        },
+                        {
+                            priority: PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                            balls: { type: "juggler", template }
+                        }
+                    );
+                } else if (have.from.type === "juggler") {
+                    // Compute the hand we'll look into first.
+                    let handIdx: number | undefined;
+                    if (have.from.hand === undefined) {
+                        // Note : If spotIdx is not undefined here, we look into both hands spotIdx.
+                        // Makes little sense, but allows graceful handling.
+                        if (have.from.spotIdx !== undefined) {
+                            this.logError(
+                                beat,
+                                "Log",
+                                `Spot ${spot} asks for held spot ${have.from.spotIdx} without specifying hand.`
+                            );
+                        }
+                        handIdx = undefined;
+                    } else if (have.from.hand === "left") {
+                        handIdx = 0;
+                    } else {
+                        handIdx = 1;
+                    }
+
+                    // Have a special case when the spotIdx is defined.
+                    if (have.from.spotIdx !== undefined) {
+                        categories.push({
+                            priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                            balls: {
+                                type: "juggler",
+                                handIdx: handIdx,
+                                spotIdx: have.from.spotIdx,
+                                template
+                            }
+                        });
+                    }
+
+                    // Then just ask for the ball that would already be on the spot.
+                    categories.push({
+                        priority: PRIORITY.AMBIGUOUS_LOCATION_1ST_CHOICE,
+                        balls: { type: "table", spot: { type: "named", name: spot }, template }
+                    });
+
+                    // Go from closest to furthest from current spot.
+                    if (handIdx === undefined) {
+                        categories.push({
+                            priority: PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE,
+                            balls: {
+                                type: "juggler",
+                                template
+                            }
+                        });
+                    } else {
+                        categories.push(
+                            {
+                                priority: PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE,
+                                balls: {
+                                    type: "juggler",
+                                    handIdx: handIdx,
+                                    template
+                                }
+                            },
+                            {
+                                priority: PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_3RD_CHOICE,
+                                balls: {
+                                    type: "juggler",
+                                    handIdx: (handIdx + 1) % 2,
+                                    template
+                                }
+                            }
+                        );
+                    }
+
+                    // Finally, look into the table's balls.
+                    categories.push(
+                        {
+                            priority: PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                            balls: { type: "table", spot: { type: "named" }, template }
+                        },
+                        {
+                            priority: PRIORITY.TABLE_UNKNOWN_SPOT_TEMPLATE,
+                            balls: { type: "table", spot: { type: "unknown" }, template }
+                        }
+                    );
+                } else {
+                    // have.from.type === "table"
+
+                    // Look into the specific spot if it was specified.
+                    if (have.from.spot === null) {
+                        // Sure, there can be multiple balls in the unknown spot, but it was still specified.
+                        categories.push({
+                            priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                            balls: { type: "table", spot: { type: "unknown" }, template }
+                        });
+                    } else if (typeof have.from.spot === "string") {
+                        categories.push({
+                            priority: PRIORITY.FIRST_CHOICE_ONEOF,
+                            balls: {
+                                type: "table",
+                                spot: { type: "named", name: have.from.spot },
+                                template
+                            }
+                        });
+                    }
+
+                    // Default to own spot and then table, and then juggler.
+                    categories.push(
+                        {
+                            priority: PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_1ST_CHOICE,
+                            balls: { type: "table", spot: { type: "named", name: spot }, template }
+                        },
+                        {
+                            priority: PRIORITY.AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE,
+                            balls: { type: "table", spot: { type: "named" }, template }
+                        },
+                        {
+                            priority: PRIORITY.AMBIGUOUS_LOCATION_3RD_CHOICE,
+                            balls: { type: "table", spot: { type: "unknown" }, template }
+                        },
+                        {
+                            priority: PRIORITY.TABLE_NAMED_SPOT_TEMPLATE,
+                            balls: { type: "juggler", template }
+                        }
+                    );
+                }
             }
         }
 
-        // 2. If no new hands are specified, we stop there. TODO
-        if (handsSetup.haveBalls === undefined) {
-            // Prepare the returned state.
-            state = updateHeldOfState(state, movedBalls, handsSetup, ballsLocation);
-            state = updateTableOfState(state, movedBalls);
-            const handMoves: MoveBall[] = [];
-            for (const [ballID, move] of movedBalls) {
-                handMoves.push({ id: ballID, from: move.from, to: move.to });
-            }
-            return {
-                preState,
-                handMoves: handMoves,
-                postState: state
-            };
-        }
-
-        // 3. New hand contents has been specified. (by the ball template name or ball ID)
-        // We need to compute the IDs of all those balls.
-        // We do that by trying to minimize the "number of balls that have to move" to satisfy this new hand.
-        // More precisely, we want in order in priority to move balls :
-        // - from the table if they have a user defined "take from" spot.
-        // - don't move it if it remains in the same hand, in the same position.
-        // - from the same hand if there was one ball there already.
-        // - from the other hand if there was one ball there already.
-        // - from the table, in an existing spot if possible, else from unnamed spots.
-
-        // We also need, for all balls in old hands that do not find themselves in the new hands,
-        // to put them on the table.
-
-        // Create variables to keep track of which balls have been handled and which
-        // have not yet. "undefined" means the exact ball hasn't been computed.
-
-        //TODO : Cleanup unused variables
-        //TODO : Checks for if ball has been moved already ? / How to handle a ball that's already been moved.
-
-        // const oldHandsContents = [
-        //     Array<SimulatorTakeBall | undefined>(state.held[0].length).fill(undefined),
-        //     Array<SimulatorTakeBall | undefined>(state.held[1].length).fill(undefined)
-        // ];
-
-        // Keep track of which ball in the new hands have found their true ID ball already.
-        const unhandledBallsInNewHands = new Set<{
-            info: TakeBall;
-            handIdx: number;
-            ballIdx: number;
-        }>();
-
-        for (let handIdx = 0; handIdx < 2; handIdx++) {
-            for (let ballIdx = 0; ballIdx < handsSetup.haveBalls[handIdx].length; ballIdx++) {
-                unhandledBallsInNewHands.add({
-                    info: handsSetup.haveBalls[handIdx][ballIdx],
-                    handIdx,
-                    ballIdx
+        // handsSetup.tableSpots only gives an idea of the spots that change.
+        // we still need to consider all the remaining spots on the table.
+        // If they have a ball, they'd like to keep it. But otherwise they accept any ball.
+        for (const [spot, template] of this.tableSpots) {
+            const spotName = getSpotName({ type: "table", spot: { type: "named", name: spot } });
+            if (!categoriesBySpot.has(spotName)) {
+                categoriesBySpot.set(spotName, []);
+                const categories = categoriesBySpot.get(spotName)!;
+                const oldBallID = state.table!.namedSpot.get(spot);
+                if (oldBallID !== undefined) {
+                    categories.push({
+                        priority: PRIORITY.TABLE_SPOT_KEEP_BALL,
+                        balls: [oldBallID]
+                    });
+                }
+                categories.push({
+                    priority: PRIORITY.TABLE_SPOT_ANY_BALL_NOT_UNKNOWN,
+                    balls: { type: "juggler", template }
+                });
+                categories.push({
+                    priority: PRIORITY.TABLE_SPOT_ANY_BALL_NOT_UNKNOWN,
+                    balls: { type: "table", template }
                 });
             }
         }
 
-        // From now on, we won't move the balls in ballsLocation until we've computed where every ball comes from.
-
-        const addBallToMoves = (
-            ballID: string,
-            toLoc: LocType,
-            movedBalls: Map<
-                string,
-                {
-                    from: LocType;
-                    to: LocType;
-                    because: "place" | "have";
+        // Set the edges in the graph.
+        for (const [spotName, categories] of categoriesBySpot) {
+            for (const { priority, balls } of categories) {
+                const computedBalls = Array.isArray(balls)
+                    ? balls
+                    : getBallIDsFrom(balls, state, this.ballIDMap);
+                for (const ballID of computedBalls) {
+                    const weight = graph.get(ballID)!.get(spotName);
+                    if (weight === undefined || weight < priority) {
+                        graph.get(ballID)!.set(spotName, priority);
+                    }
                 }
-            >
-        ): void => {
-            let moveFrom: LocType;
-            if (movedBalls.has(ballID)) {
-                const move = movedBalls.get(ballID)!;
-                moveFrom = move.from;
-                if (move.because === "place") {
-                    //TODO : Handle in earlier place phase duplicate ID.
+            }
+        }
+
+        // Adjust the weights so that it is better to take on edge of priority P than all edges of priority P-1, for all P.
+        // For each priority level, count how many balls have at least one edge with that priority.
+        const weightsCount = new Map<number, number>();
+        for (const [, edges] of graph) {
+            const ballWeights = new Set(edges.values());
+            for (const weight of ballWeights) {
+                if (!weightsCount.has(weight)) {
+                    weightsCount.set(weight, 1);
+                } else {
+                    weightsCount.set(weight, weightsCount.get(weight)! + 1);
+                }
+            }
+        }
+        // Then we can compute the new weights...
+        const weightsMap = new Map<number, number>();
+        const sortedWeightsCount = [...weightsCount].sort(
+            ([weight1], [weight2]) => weight1 - weight2
+        );
+        let newWeight = 0;
+        for (const [weight, count] of sortedWeightsCount) {
+            weightsMap.set(weight, newWeight);
+            newWeight += newWeight * count + 1;
+        }
+        // ...and apply them to the graph.
+        for (const [, edges] of graph) {
+            for (const [spotName, weight] of edges) {
+                edges.set(spotName, weightsMap.get(weight)!);
+            }
+        }
+
+        // Compute the optimal bipartite graph
+        const pairs = computeMunkres(graph, true);
+
+        // From there, build the new state.
+        // Construct the new hands with ball IDs, to contruct the whole new state.
+        // We will add one by one the ball IDs in their respective spot.
+        const newState: PartialJugglerState = {
+            airborne: new Map(state.airborne),
+            held: [[], []],
+            table:
+                state.table === undefined ? undefined : { namedSpot: new Map(), unknown: new Set() }
+        };
+        for (const [ballID, spotName] of pairs) {
+            const loc = getSpotFromName(spotName);
+            if (loc.type === "juggler") {
+                const hand = newState.held[loc.handIdx];
+                // If needed, increase the size of the held state with undefined to record the new ball.
+                for (let i = hand.length; i < loc.spotIdx + 1; i++) {
+                    hand.push(undefined);
+                }
+                hand[loc.spotIdx] = ballID;
+            } else if (loc.spot.type === "named") {
+                newState.table!.namedSpot.set(loc.spot.name, ballID);
+            } else {
+                newState.table!.unknown.add(ballID);
+            }
+        }
+
+        // Handle all balls that weren't given a valid pair.
+        const matchedBalls = new Set<string>();
+        for (const [ballID] of pairs) {
+            matchedBalls.add(ballID);
+        }
+        const unmatchedBalls = setDifference(new Set(graph.keys()), matchedBalls);
+        if (unmatchedBalls.size !== 0) {
+            if (newState.table === undefined) {
+                this.logError(beat, "Error", `Can't determine where some balls should be held.`);
+            } else {
+                this.logError(
+                    beat,
+                    "Warn",
+                    `Can't determine where some balls should be (held or on table) as all spots are occupied. Continue by putting them on a default table spot.`
+                );
+                // Add all balls to the unknown spot on table if there is one.
+                for (const ballID of unmatchedBalls) {
+                    newState.table!.unknown.add(ballID);
+                }
+            }
+        }
+
+        // Now is a good time to error out if needed, by checking if each ball indeed meets
+        // all the search criteria.
+        // TODO : Custom check when handsSetup.hands is undefined that all undefined are at the end of the state.held, in a chain (else something wrong happened).
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (let spotIdx = 0; spotIdx < newState.held[handIdx].length; spotIdx++) {
+                const ballID = newState.held[handIdx][spotIdx];
+                if (ballID === undefined) {
+                    // No ball was paired in that spot.
+                    if (handsSetup.hands === undefined) {
+                        // This is not normal, the matching should return a ball everywhere.
+                        continue;
+                    }
+                    const have = handsSetup.hands[handIdx][spotIdx];
                     this.logError(
                         beat,
                         "Warn",
-                        `Ball ${ballID} was deliberately placed on the table, but is required elsewhere, so it will directly go there.`
+                        `Couldn't find a ball to put in ${handIdx === 0 ? "left" : "right"} hand that met all required conditions : ${JSON.stringify(have)}\n`
                     );
                 } else {
-                    this.logError(
-                        beat,
-                        "Error",
-                        `Ball ${ballID} is required in two different places.`
-                    );
-                }
-            } else {
-                moveFrom = ballsLocation.findBallIDLocation(ballID)!;
-            }
-
-            movedBalls.set(ballID, {
-                from: moveFrom,
-                to: toLoc,
-                because: "have"
-            });
-        };
-
-        // 3.1 Handle all balls specified by their ID.
-        for (const have of unhandledBallsInNewHands) {
-            if ("id" in have.info) {
-                addBallToMoves(
-                    have.info.id,
-                    { type: "held", spotIdx: have.ballIdx, handIdx: have.handIdx },
-                    movedBalls
-                );
-                unhandledBallsInNewHands.delete(have);
-            }
-        }
-
-        // 3.2 Handle all balls specified by name with a dedicated take from spot.
-        for (const have of unhandledBallsInNewHands) {
-            if ("fromSpot" in have.info && have.info.fromSpot !== undefined) {
-                if (!tableAllowed) {
-                    this.logError(
-                        beat,
-                        "Error",
-                        "TODO. No table has been specified for juggler to take the ball from. Continue without taking the ball from that spot."
-                    );
-                    continue;
-                }
-                const ballOnSpot = ballsLocation.getBallInSpot(have.info.fromSpot);
-                if (ballOnSpot === undefined) {
-                    this.logError(beat, "Error", "TODO. Can't take ball from designated spot.");
-                    continue;
-                }
-                addBallToMoves(
-                    ballOnSpot,
-                    { type: "held", spotIdx: have.ballIdx, handIdx: have.handIdx },
-                    movedBalls
-                );
-                unhandledBallsInNewHands.delete(have);
-            }
-        }
-
-        // 3.3 Handle all balls that have a matching ball name in the same hand.
-        for (const have of unhandledBallsInNewHands) {
-            // We voluntarily lose the "id" information as it couldn't be handled earlier.
-            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
-            for (const [heldBallID] of ballsLocation.findBallTemplateNameInHand(
-                ballName,
-                have.handIdx
-            )) {
-                if (!movedBalls.has(heldBallID)) {
-                    // We have found an available ball in hand that hasn't been processed yet.
-                    addBallToMoves(
-                        heldBallID,
-                        { type: "held", spotIdx: have.ballIdx, handIdx: have.handIdx },
-                        movedBalls
-                    );
-                    unhandledBallsInNewHands.delete(have);
-                    break;
-                }
-            }
-        }
-
-        // 3.4 Handle all balls that have a matching ball name in the other hand.
-        for (const have of unhandledBallsInNewHands) {
-            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
-            for (const [heldBallID] of ballsLocation.findBallTemplateNameInHand(
-                ballName,
-                (have.handIdx + 1) % 2
-            )) {
-                if (!movedBalls.has(heldBallID)) {
-                    // We have found an available ball in hand that hasn't been processed yet.
-                    addBallToMoves(
-                        heldBallID,
-                        { type: "held", spotIdx: have.ballIdx, handIdx: have.handIdx },
-                        movedBalls
-                    );
-                    unhandledBallsInNewHands.delete(have);
-                    break;
-                }
-            }
-        }
-
-        // 3.5 Handle the rest of the balls to be taken from the table.
-        if (tableAllowed) {
-            for (const have of unhandledBallsInNewHands) {
-                const ballName =
-                    "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
-                const tableSpots = ballsLocation.findOccupiedTableSpotsByTemplateName(ballName);
-                // First look for the balls in named spots, then for balls in unnamed spots.
-                for (const ballID of [...tableSpots.named.values(), ...tableSpots.unnamed.keys()]) {
-                    if (!movedBalls.has(ballID)) {
-                        // We have found an available ball on the table that hasn't been processed yet.
-                        addBallToMoves(
-                            ballID,
-                            { type: "held", spotIdx: have.ballIdx, handIdx: have.handIdx },
-                            movedBalls
-                        );
-                        unhandledBallsInNewHands.delete(have);
-                        break;
-                    }
-                    // If not found, we'll error out later.
-                }
-            }
-        }
-
-        // 3.6 Error out if any balls are left unhandled.
-        for (const have of unhandledBallsInNewHands) {
-            const ballName = "id" in have.info ? this.ballIDMap.get(have.info.id)! : have.info.name;
-            this.logError(
-                beat,
-                "Error",
-                `Too few balls "${ballName}" are available in hands${tableAllowed ? " and on table" : ""}, so can't have one in the ${have.handIdx === 0 ? "left" : "right"}, position ${have.ballIdx}.\nRight hand contained : [${stringifyHand(state.held[0])}].\nLeft hand contained : [${stringifyHand(state.held[1])}].${!tableAllowed ? "" : "\nTable contained: " + stringifyTable(state.table!) + "."}\nTODO : new hand ? Continue withtout taking that ball.`
-            );
-        }
-
-        // 3.7 If any balls in the old hands are unprocessed, put them on the table.
-        const heldBalls = ballsLocation.reconstructHeldState();
-        for (let handIdx = 0; handIdx < 2; handIdx++) {
-            for (const ballID of heldBalls[handIdx]) {
-                if (!movedBalls.has(ballID)) {
-                    if (!tableAllowed) {
-                        this.logError(
-                            beat,
-                            "Error",
-                            `TODO. Ball left in hands is unhandled. Skips moving it.`
-                        );
+                    if (handsSetup.hands === undefined) {
                         continue;
                     }
-                    // Find a free spot.
-                    const spotName = getFirstInsertedKey(
-                        ballsLocation.findFreeTableSpotsByTemplateName(this.ballIDMap.get(ballID)!)
-                    );
-                    let moveTo: LocType;
-                    if (spotName !== undefined) {
-                        moveTo = { type: "onTableSpot", spotName: spotName };
+                    const oldLoc = findBallIDLocation(state, ballID);
+                    if (oldLoc === undefined) {
+                        throw Error("Sanity Check, shouldn't happen.");
+                    }
+                    const have = handsSetup.hands[handIdx][spotIdx];
+
+                    // Compute the exact hand "have" was concerned by.
+                    let haveHandIdx: number | undefined;
+                    if (have.from === undefined || have.from.type === "table") {
+                        haveHandIdx = undefined;
+                    } else if (have.from.hand === undefined) {
+                        haveHandIdx = handIdx;
+                    } else if (have.from.hand === "same") {
+                        haveHandIdx = handIdx;
+                    } else if (have.from.hand === "other") {
+                        haveHandIdx = (handIdx + 1) % 2;
+                    } else if (have.from.hand === "left") {
+                        haveHandIdx = 0;
                     } else {
+                        haveHandIdx = 1;
+                    }
+
+                    // Check for error.
+                    if (
+                        (have.ball === undefined ||
+                            (have.ball.type === "ID" && have.ball.id === ballID) ||
+                            (have.ball.type === "template" &&
+                                have.ball.template === this.ballIDMap.get(ballID))) &&
+                        (have.from === undefined ||
+                            (have.from.type === "juggler" &&
+                                oldLoc.type === "juggler" &&
+                                (have.from.hand === undefined || haveHandIdx === oldLoc.handIdx) &&
+                                (have.from.spotIdx === undefined ||
+                                    have.from.spotIdx === oldLoc.handIdx)) ||
+                            (have.from.type === "table" &&
+                                oldLoc.type === "table" &&
+                                (have.from.spot === undefined ||
+                                    (have.from.spot === null && oldLoc.spot.type === "unknown") ||
+                                    (typeof have.from.spot === "string" &&
+                                        oldLoc.spot.type === "named" &&
+                                        have.from.spot === oldLoc.spot.name))))
+                    ) {
                         this.logError(
                             beat,
                             "Warn",
-                            `Can't put ball ${stringifyBall(ballID)} in a named table spot as all spots are already occupied.\nContinue by putting it at a default position on the table.`
+                            `Couldn't put a ball in ${handIdx === 0 ? "left" : "right"} hand that met all required conditions : ${JSON.stringify(have)}\nContinue by putting ${ballID} there.`
                         );
-                        moveTo = { type: "onTableUnknownSpot" };
                     }
-                    addBallToMoves(ballID, moveTo, movedBalls);
-                    ballsLocation.putBallNoIdxChange(ballID, spotName);
                 }
             }
         }
 
-        // Construct the table state.
-        state = updateHeldOfState(state, movedBalls, handsSetup, ballsLocation);
-        state = updateTableOfState(state, movedBalls);
-        const handMoves: MoveBall[] = [];
-        for (const [ballID, move] of movedBalls) {
-            handMoves.push({ id: ballID, from: move.from, to: move.to });
+        // Filter out all undefined spots in state.held, which makes newState a JugglerState.
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            const newHand: string[] = [];
+            for (const ballID of newState.held[handIdx]) {
+                if (ballID !== undefined) {
+                    newHand.push(ballID);
+                }
+            }
+            newState.held[handIdx] = newHand;
         }
-        return {
-            preState,
-            handMoves: handMoves,
-            postState: state
-        };
+
+        // Compute all the moves.
+        // TODO : Unify FromTmp and LocType
+        function convertLoc(loc: DeepRequired<FromTmp>): LocType {
+            if (loc.type === "juggler") {
+                return { type: "held", handIdx: loc.handIdx, spotIdx: loc.spotIdx };
+            } else if (loc.spot.type === "named") {
+                return { type: "onTableSpot", spotName: loc.spot.name };
+            } else {
+                return { type: "onTableUnknownSpot" };
+            }
+        }
+        const handMoves: MoveBall[] = [];
+        for (let handIdx = 0; handIdx < 2; handIdx++) {
+            for (let spotIdx = 0; spotIdx < state.held[handIdx].length; spotIdx++) {
+                const ballID = state.held[handIdx][spotIdx];
+                const oldLoc: LocType = { type: "held", handIdx, spotIdx };
+                const newLocTmp = findBallIDLocation(newState, ballID);
+                if (newLocTmp === undefined) {
+                    continue;
+                }
+                const newLoc: LocType = convertLoc(newLocTmp);
+                handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+            }
+        }
+        if (state.table !== undefined && newState.table !== undefined) {
+            for (const [spot, ballID] of state.table.namedSpot) {
+                const oldLoc: LocType = { type: "onTableSpot", spotName: spot };
+                const newLocTmp = findBallIDLocation(newState, ballID);
+                if (newLocTmp === undefined) {
+                    continue;
+                }
+                const newLoc: LocType = convertLoc(newLocTmp);
+                handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+            }
+            for (const ballID of state.table.unknown) {
+                const oldLoc: LocType = { type: "onTableUnknownSpot" };
+                const newLocTmp = findBallIDLocation(newState, ballID);
+                if (newLocTmp === undefined) {
+                    continue;
+                }
+                const newLoc: LocType = convertLoc(newLocTmp);
+                handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+            }
+        }
+
+        return { preState, postState: newState as JugglerState, handMoves };
     }
 
     // TODO : Document that descendAirborneBalls must have been called before.
@@ -1439,275 +1759,149 @@ class JugglerManager {
     }
 }
 
+function getBallIDsFrom(
+    from: FromTmp & { template: string | undefined },
+    state: JugglerState,
+    ballIDMap: Map<string, string>
+): string[] {
+    const balls: string[] = [];
+
+    if (from.type === "juggler") {
+        if (from.handIdx === undefined) {
+            return [
+                ...getBallIDsFrom(
+                    {
+                        type: "juggler",
+                        handIdx: 0,
+                        spotIdx: from.spotIdx,
+                        template: from.template
+                    },
+                    state,
+                    ballIDMap
+                ),
+                ...getBallIDsFrom(
+                    {
+                        type: "juggler",
+                        handIdx: 1,
+                        spotIdx: from.spotIdx,
+                        template: from.template
+                    },
+                    state,
+                    ballIDMap
+                )
+            ];
+        }
+
+        // Look into the appropriate spots.
+        if (from.spotIdx === undefined) {
+            // Any held ball is valid.
+            for (const ballID of state.held[from.handIdx]) {
+                balls.push(ballID);
+            }
+        } else {
+            // Just the ball in the spot.
+            if (from.spotIdx < state.held[from.handIdx].length) {
+                balls.push(state.held[from.handIdx][from.spotIdx]);
+            }
+        }
+    } else {
+        // from.type === "table"
+        if (from.spot === undefined) {
+            // Any spot will do.
+            return [
+                ...getBallIDsFrom(
+                    {
+                        type: "table",
+                        spot: { type: "named" },
+                        template: from.template
+                    },
+                    state,
+                    ballIDMap
+                ),
+                ...getBallIDsFrom(
+                    {
+                        type: "table",
+                        spot: { type: "unknown" },
+                        template: from.template
+                    },
+                    state,
+                    ballIDMap
+                )
+            ];
+        }
+        if (from.spot.type === "named") {
+            if (from.spot.name === undefined) {
+                for (const [, ballID] of state.table?.namedSpot ?? []) {
+                    balls.push(ballID);
+                }
+            } else {
+                const ballID = state.table?.namedSpot.get(from.spot.name);
+                if (ballID !== undefined) {
+                    balls.push(ballID);
+                }
+            }
+        } else {
+            for (const ballID of state.table?.unknown ?? []) {
+                balls.push(ballID);
+            }
+        }
+    }
+
+    // Filter the balls so they math the template.
+    if (from.template === undefined) {
+        return balls;
+    } else {
+        return balls.filter((ballID) => ballIDMap.get(ballID) === from.template);
+    }
+}
+
+        const uniqueSpotNameChar = "§";
+
+        // Returns a unique string to identify a spot (whether held or on table).
+        // Useful as map keys.
+        function getSpotName(spot: DeepRequired<FromTmp>): string {
+            if (spot.type === "juggler") {
+                return `Held${uniqueSpotNameChar}${spot.handIdx}${uniqueSpotNameChar}${spot.spotIdx}`;
+            } else if (spot.spot.type === "named") {
+                return `Table${uniqueSpotNameChar}${spot.spot.name}`;
+            } else {
+                return `TableUnnamed${uniqueSpotNameChar}`;
+            }
+        }
+
+        // Does the opposite from the above function.
+        function getSpotFromName(spotName: string): DeepRequired<FromTmp> {
+            const spotSplitInfo = spotName.split(uniqueSpotNameChar);
+            if (spotSplitInfo.length === 0) {
+                throw Error("Unrecognized name.");
+            }
+            if (spotSplitInfo[0] === "Held" && spotSplitInfo.length === 3) {
+                return {
+                    type: "juggler",
+                    handIdx: parseInt(spotSplitInfo[1]),
+                    spotIdx: parseInt(spotSplitInfo[2])
+                };
+            } else if (spotSplitInfo[0] === "Table" && spotSplitInfo.length === 2) {
+                return { type: "table", spot: { type: "named", name: spotSplitInfo[1] } };
+            } else if (spotSplitInfo[0] === "TableUnnamed") {
+                return { type: "table", spot: { type: "unknown" } };
+            }
+            throw Error("Unrecognized name.");
+        }
+
 export type SpotName = string;
 export type BallTemplateName = string;
-
-// type TmpBallLoc = {
-//     tableSpots: {
-//         occupied: {
-//             named: Map<SpotName, BallID>;
-//             unnamed: Set<BallID>;
-//         };
-//         unoccupied: Set<SpotName>;
-//     };
-//     oldHands: [Map<BallID, number>, Map<BallID, number>];
-//     // airborne: Map<
-//     //     string,
-//     //     {
-//     //         toRightHand: boolean;
-//     //         catchBeat: Fraction;
-//     //         tossBeat: Fraction;
-//     //     }
-//     // >;
-// };
-
-// class BallsLocation {
-//     /**
-//      * A map where keys are accepted ball templates and values are made of
-//      * - tableSpots.named : a map of all spots existing on the table and whether they contain a ball or not.
-//      * - tableSpots.unnamed: a list of all balls that are not on a spot.
-//      * - oldHands: a list
-//      */
-//     private ballLocationBySound = new Map<BallTemplateName, TmpBallLoc>();
-//     private handsState: PartialHeldState;
-//     private ballIDMap: Map<BallID, BallTemplateName>;
-//     private tableSpots: Map<SpotName, BallTemplateName>;
-
-//     constructor(
-//         state: JugglerState,
-//         ballIDMap: Map<string, string>,
-//         tableSpots: Map<string, string>
-//     ) {
-//         this.ballIDMap = ballIDMap;
-//         this.tableSpots = tableSpots;
-//         this.handsState = [[...state.held[0]], [...state.held[1]]];
-
-//         // Fill in hands map.
-//         for (let handIdx = 0; handIdx < 2; handIdx++) {
-//             for (let ballIdx = 0; ballIdx < state.held[handIdx].length; ballIdx++) {
-//                 const ballID = state.held[handIdx][ballIdx];
-//                 const ballTemplateName = ballIDMap.get(ballID)!;
-//                 if (!this.ballLocationBySound.has(ballTemplateName)) {
-//                     this.ballLocationBySound.set(ballTemplateName, this.createEmptyEntry());
-//                 }
-//                 this.ballLocationBySound
-//                     .get(ballTemplateName)!
-//                     .oldHands[handIdx].set(ballID, ballIdx);
-//             }
-//         }
-
-//         // Fill in airborne map.
-//         // for (const [ballID, airborneInfo] of state.airborne) {
-//         //     const ballTemplateName = ballIDMap.get(ballID)!;
-//         //     if (!this.ballLocationBySound.has(ballTemplateName)) {
-//         //         this.ballLocationBySound.set(ballTemplateName, this.createEmptyEntry());
-//         //     }
-//         //     this.ballLocationBySound.get(ballTemplateName)!.airborne.set(ballID, airborneInfo);
-//         // }
-
-//         // Fill in table map with named spots.
-//         if (state.table === undefined) {
-//             return;
-//         }
-//         for (const [spotName, acceptedBallTemplate] of tableSpots) {
-//             const ballOnSpot = state.table.namedSpot.get(spotName);
-//             if (!this.ballLocationBySound.has(acceptedBallTemplate)) {
-//                 this.ballLocationBySound.set(acceptedBallTemplate, this.createEmptyEntry());
-//             }
-//             if (ballOnSpot === undefined) {
-//                 this.ballLocationBySound
-//                     .get(acceptedBallTemplate)!
-//                     .tableSpots.unoccupied.add(spotName);
-//             } else {
-//                 this.ballLocationBySound
-//                     .get(acceptedBallTemplate)!
-//                     .tableSpots.occupied.named.set(spotName, ballOnSpot);
-//             }
-//         }
-//         // Fill in table map with unnamed spots.
-//         for (const ballID of state.table.unknown) {
-//             const ballTemplateName = ballIDMap.get(ballID)!;
-//             if (!this.ballLocationBySound.has(ballTemplateName)) {
-//                 this.ballLocationBySound.set(ballTemplateName, this.createEmptyEntry());
-//             }
-//             this.ballLocationBySound.get(ballTemplateName)!.tableSpots.occupied.unnamed.add(ballID);
-//         }
-//     }
-
-//     private createEmptyEntry(): TmpBallLoc {
-//         return {
-//             tableSpots: {
-//                 occupied: { named: new Map<string, string>(), unnamed: new Set<string>() },
-//                 unoccupied: new Set<string>()
-//             },
-//             oldHands: [new Map<string, number>(), new Map<string, number>()]
-//             // airborne: new Map<
-//             //     string,
-//             //     {
-//             //         toRightHand: boolean;
-//             //         catchBeat: Fraction;
-//             //         tossBeat: Fraction;
-//             //     }
-//             // >()
-//             // newHands: [[], []]
-//         };
-//     }
-
-//     findBallIDLocation(ballID: string): LocType | null {
-//         const ballTemplateName = this.ballIDMap.get(ballID);
-//         if (ballTemplateName === undefined) {
-//             return null;
-//         }
-//         const places = this.ballLocationBySound.get(ballTemplateName);
-//         if (places === undefined) {
-//             return null;
-//         }
-//         const leftMatch = places.oldHands[0].get(ballID);
-//         if (leftMatch !== undefined) {
-//             return { type: "held", handIdx: 0, spotIdx: leftMatch };
-//         }
-//         const rightMatch = places.oldHands[1].get(ballID);
-//         if (rightMatch !== undefined) {
-//             return { type: "held", handIdx: 1, spotIdx: rightMatch };
-//         }
-//         if (places.tableSpots.occupied.unnamed.has(ballID)) {
-//             return { type: "onTableUnknownSpot" };
-//         }
-//         for (const [spotName, ballOnSpot] of places.tableSpots.occupied.named) {
-//             if (ballOnSpot === ballID) {
-//                 return { type: "onTableSpot", spotName: spotName };
-//             }
-//         }
-//         return null;
-//     }
-
-//     findBallTemplateNameInHands(
-//         ballTemplateName: string
-//     ): [Map<string, number>, Map<string, number>] {
-//         return (
-//             this.ballLocationBySound.get(ballTemplateName)?.oldHands ?? [
-//                 new Map<string, number>(),
-//                 new Map<string, number>()
-//             ]
-//         );
-//     }
-
-//     findBallTemplateNameInHand(ballTemplateName: string, handIdx: number): Map<string, number> {
-//         return (
-//             this.ballLocationBySound.get(ballTemplateName)?.oldHands[handIdx] ??
-//             new Map<string, number>()
-//         );
-//     }
-
-//     findOccupiedTableSpotsByTemplateName(ballTemplateName: string): {
-//         named: Map<string, BallID>;
-//         unnamed: Set<BallID>;
-//     } {
-//         return (
-//             this.ballLocationBySound.get(ballTemplateName)?.tableSpots.occupied ?? {
-//                 named: new Map(),
-//                 unnamed: new Set()
-//             }
-//         );
-//     }
-
-//     /**
-//      * Find all unoccupied spots on the table.
-//      * @param ballTemplateName the name of the ball template.
-//      * @returns an array of all spot names that have no ball, in the order they were defined in.
-//      */
-//     findFreeTableSpotsByTemplateName(ballTemplateName: string): Set<string> {
-//         return this.ballLocationBySound.get(ballTemplateName)?.tableSpots.unoccupied ?? new Set();
-//     }
-
-//     getBallInSpot(spotName: string): string | undefined {
-//         const ballName = this.tableSpots.get(spotName);
-//         if (ballName === undefined) {
-//             return undefined;
-//         }
-//         return this.ballLocationBySound.get(ballName)?.tableSpots.occupied.named.get(spotName);
-//     }
-
-//     // getBallInHands(handIdx: number, ballIdx: number): string | undefined {
-//     //     if (ballIdx >= this.handsState[handIdx].length) {
-//     //         return undefined;
-//     //     }
-//     //     return this.handsState[handIdx][ballIdx];
-//     // }
-
-//     //Document that this is to put balls on table without changing handIdx.
-//     putBallNoIdxChange(ballID: string, spotName?: string): void {
-//         // Handle the ballLocationBySound AND the state (they need to be kept in sync).
-
-//         const moveFrom = this.findBallIDLocation(ballID);
-//         if (moveFrom === null || moveFrom.type !== "held") {
-//             throw Error("Ball must be held to be put on table.");
-//         }
-
-//         // Put the ball in its new location.
-//         const ballName = this.ballIDMap.get(ballID)!;
-//         const templateLoc = this.ballLocationBySound.get(ballName)!;
-
-//         // Remove the ball from its previous location.
-//         templateLoc.oldHands[moveFrom.handIdx].delete(ballID);
-//         this.handsState[moveFrom.handIdx][moveFrom.spotIdx] = undefined;
-//         if (spotName !== undefined) {
-//             // Move the ball to a named spot, but check it accepts the correct type of balls.
-//             if (ballName !== this.tableSpots.get(spotName)) {
-//                 throw Error("Can't put ball in a spot that doesn't accept balls of that kind.");
-//             }
-//             templateLoc.tableSpots.unoccupied.delete(spotName);
-//             templateLoc.tableSpots.occupied.named.set(spotName, ballID);
-//         } else {
-//             templateLoc.tableSpots.occupied.unnamed.add(ballID);
-//         }
-//     }
-
-//     getBallNames(): MapIterator<string> {
-//         return this.ballLocationBySound.keys();
-//     }
-
-//     reconstructTableState(): JugglerState["table"] {
-//         const tableState = {
-//             namedSpot: new Map<string, BallID>(),
-//             unknown: new Set<BallID>()
-//         };
-
-//         for (const { tableSpots } of this.ballLocationBySound.values()) {
-//             for (const [spotName, ballID] of tableSpots.occupied.named) {
-//                 tableState.namedSpot.set(spotName, ballID);
-//             }
-//             for (const ballID of tableSpots.occupied.unnamed) {
-//                 tableState.unknown.add(ballID);
-//             }
-//         }
-//         return tableState;
-//     }
-
-//     reconstructHeldState(): JugglerState["held"] {
-//         // Since some positions may have a ball undefined (see putBallNoIdxChange method for why),
-//         // we need to filter them out.
-//         const heldState: [string[], string[]] = [[], []];
-
-//         for (let handIdx = 0; handIdx < 2; handIdx++) {
-//             for (const ballID of this.handsState[handIdx]) {
-//                 if (ballID !== undefined) {
-//                     heldState[handIdx].push(ballID);
-//                 }
-//             }
-//         }
-//         return heldState;
-//     }
-// }
-
 type PartialJugglerState = Omit<JugglerState, "held"> & { held: PartialHeldState };
 
-function findBallIDLocation(state: PartialJugglerState, ballID: string): LocType | null {
+function findBallIDLocation(
+    state: PartialJugglerState,
+    ballID: string
+): DeepRequired<FromTmp> | undefined {
     // Check if the ball is held.
     for (let handIdx = 0; handIdx < state.held.length; handIdx++) {
         for (let spotIdx = 0; spotIdx < state.held[handIdx].length; spotIdx++) {
             if (state.held[handIdx][spotIdx] === ballID) {
-                return { type: "held", handIdx, spotIdx };
+                return { type: "juggler", handIdx, spotIdx };
             }
         }
     }
@@ -1716,18 +1910,18 @@ function findBallIDLocation(state: PartialJugglerState, ballID: string): LocType
 
     // Check if the ball is on the table.
     if (state.table === undefined) {
-        return null;
+        return undefined;
     }
     for (const [spotName, ballIDOnTable] of state.table.namedSpot)
         if (ballID === ballIDOnTable) {
-            return { type: "onTableSpot", spotName };
+            return { type: "table", spot: { type: "named", name: spotName } };
         }
     for (const ballIDOnTable of state.table.unknown) {
         if (ballIDOnTable === ballID) {
-            return { type: "onTableUnknownSpot" };
+            return { type: "table", spot: { type: "unknown" } };
         }
     }
-    return null;
+    return undefined;
 }
 
 function findBallTemplateNameInHands(

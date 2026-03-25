@@ -568,20 +568,20 @@ export function computeMunkres<U, V>(matrix: Map<U, Map<V, number>>, maximize = 
     return res;
 }
 
-function convertArray(arr: (number | null)[][]): Map<string, Map<string, number>> {
-    const map = new Map<string, Map<string, number>>();
-    for (let i = 0; i < arr.length; i++) {
-        const rowMap = new Map<string, number>();
-        for (let j = 0; j < arr[i].length; j++) {
-            const weight = arr[i][j];
-            if (weight !== null) {
-                rowMap.set(j.toString(), weight);
-            }
-        }
-        map.set(i.toString(), rowMap);
-    }
-    return map;
-}
+// function convertArray(arr: (number | null)[][]): Map<string, Map<string, number>> {
+//     const map = new Map<string, Map<string, number>>();
+//     for (let i = 0; i < arr.length; i++) {
+//         const rowMap = new Map<string, number>();
+//         for (let j = 0; j < arr[i].length; j++) {
+//             const weight = arr[i][j];
+//             if (weight !== null) {
+//                 rowMap.set(j.toString(), weight);
+//             }
+//         }
+//         map.set(i.toString(), rowMap);
+//     }
+//     return map;
+// }
 
 // const test = [
 //     [1, -1, 1, 1],

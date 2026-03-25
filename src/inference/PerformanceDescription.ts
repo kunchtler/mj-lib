@@ -187,32 +187,62 @@ export type TableMeshDescription = {
     color: ColorDescription;
 };
 
-export type TakeBall =
-    | { type: "byName"; name: string; fromSpot?: string }
-    | { type: "byID"; id: string };
+export type SetupBall<HandOptions extends string> = {
+    ball?: { type: "ID"; id: string } | { type: "template"; template: string };
+    from?:
+        | { type: "table"; spot?: string | null } // if string -> named spot. If null -> unnamed spot. If undefined -> choose. // TODO : add "tableID" for multiple tables.
+        | { type: "juggler"; hand?: HandOptions; spotIdx?: number }; // TODO : add "jugglerName" for ball stealing.
+};
 
-export type PutBall =
-    | {
-          type: "byName";
-          toSpot?: string;
-          name: string; //T
-          fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
-          //handSpotNumber: number
-      }
-    | { type: "byId"; toSpot?: string; id: string };
 
+// (
+//     | { type: "byTemplate"; template: string } // "from" here narrows down the search of a ball of the right template.
+//     | { type: "byID"; id: string } // "from" here allows to check if the ball ID is really in taht position.
+//     | { type: "byLocation" } // "from" here allows to specify a detailed location to search the ball.
+// ) & { from?: SetupBallLoc };
+
+// export type SetupBallLoc =
+    
 export type HandsInstructions = {
     /**
-     * All balls that are specified as being put on a particular table spot.
-     * It happens before taking new balls in hand, before making any toss.
+     * The order of the ball in hands. Ball will be in that configuration before making any toss or catch on that beat.
      */
-    placeBalls?: PutBall[];
+    hands?: [
+        SetupBall<"left" | "right" | "same" | "other">[],
+        SetupBall<"left" | "right" | "same" | "other">[]
+    ];
     /**
-     * The balls held in hands just after having (possibly) put balls on the table,
-     * and just before tossing the balls.
+     * Any spot on the table having a new ball
      */
-    haveBalls?: [TakeBall[], TakeBall[]];
+    tableSpots?: { spot: string; place: SetupBall<"left" | "right"> }[];
 };
+
+// export type TakeBall =
+//     | { type: "byName"; name: string; fromSpot?: string }
+//     | { type: "byID"; id: string };
+
+// export type PutBall =
+//     | {
+//           type: "byName";
+//           toSpot?: string;
+//           name: string; //T
+//           fromHand?: "left" | "right"; // Needs to be specified when there are two balls with the same name. //T
+//           //handSpotNumber: number
+//       }
+//     | { type: "byId"; toSpot?: string; id: string };
+
+// export type HandsInstructions = {
+//     /**
+//      * All balls that are specified as being put on a particular table spot.
+//      * It happens before taking new balls in hand, before making any toss.
+//      */
+//     placeBalls?: PutBall[];
+//     /**
+//      * The balls held in hands just after having (possibly) put balls on the table,
+//      * and just before tossing the balls.
+//      */
+//     haveBalls?: [TakeBall[], TakeBall[]];
+// };
 
 export type JugglerBeatReference = {
     jugglerBeat: FractionDescription;
