@@ -321,8 +321,8 @@ export function formatJugglerPhrasesForScheduler(
             // 14. Check whether or not there is useful information in the event.
             if (
                 newTosses.length === 0 &&
-                ev.setup?.haveBalls === undefined &&
-                ev.setup?.placeBalls === undefined
+                ev.setup?.hands === undefined &&
+                (ev.setup?.tableSpots === undefined || ev.setup.tableSpots.length === 0)
             ) {
                 continue;
             }

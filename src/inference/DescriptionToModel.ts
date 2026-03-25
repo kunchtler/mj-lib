@@ -519,34 +519,21 @@ export function checkScoreNamesAndIDs(
             }
         }
 
-        for (const { setup: setup } of jugglingPhrases) {
-            for (const ballsInHand of setup?.haveBalls ?? [[], []]) {
-                for (const ball of ballsInHand) {
-                    if (ball.type === "byName") {
+        for (const { setup } of jugglingPhrases) {
+            if (setup?.hands === undefined) {
+                continue;
+            }
+            for (let handIdx = 0; handIdx < 2; handIdx++) {
+                for (const { ball, from } of setup.hands[handIdx]) {
+                    if (ball?.type === "template") {
                         // All ball templates refer to existing template names.
                         handleIfStringUnknown({
-                            name: ball.name,
+                            name: ball.template,
                             namesList: ballTemplates,
-                            errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
+                            errorMessage: `Unknown ball template "${ball.template}" in juggling phrases of juggler "${jugglerName}".`,
                             errorLogger: errorLogger
                         });
-                        if (ball.fromSpot !== undefined) {
-                            if (table === undefined) {
-                                errorLogger.logError({
-                                    severity: "CriticalError",
-                                    message: `Juggler "${jugglerName}" has no table, so can't use the fromSpot attribute.`
-                                });
-                            } else {
-                                // All spot names refer to existing spot names.
-                                handleIfStringUnknown({
-                                    name: ball.fromSpot,
-                                    namesList: new Set(table.spots.map((spot) => spot.name)),
-                                    errorMessage: `Unknown spot name "${ball.fromSpot}" on the table of juggler "${jugglerName}".`,
-                                    errorLogger: errorLogger
-                                });
-                            }
-                        }
-                    } else {
+                    } else if (ball?.type === "ID") {
                         // Held balls refer to existing ball IDs
                         handleIfStringUnknown({
                             name: ball.id,
@@ -555,40 +542,72 @@ export function checkScoreNamesAndIDs(
                             errorLogger: errorLogger
                         });
                     }
-                }
-            }
 
-            for (const ball of setup?.placeBalls ?? []) {
-                if (ball.type === "byName") {
-                    // All ball templates refer to existing template names.
-                    handleIfStringUnknown({
-                        name: ball.name,
-                        namesList: ballTemplates,
-                        errorMessage: `Unknown ball template name "${ball.name}" in juggling phrases of juggler "${jugglerName}".`,
-                        errorLogger: errorLogger
-                    });
-                    if (ball.toSpot !== undefined) {
+                    if (from?.type === "table") {
                         if (table === undefined) {
                             errorLogger.logError({
                                 severity: "CriticalError",
-                                message: `Juggler "${jugglerName}" has no table, so can't use the toSpot attribute.`
+                                message: `Juggler "${jugglerName}" has no table.`
                             });
-                        } else {
+                        } else if (typeof from.spot === "string") {
                             // All spot names refer to existing spot names.
                             handleIfStringUnknown({
-                                name: ball.toSpot,
+                                name: from.spot,
                                 namesList: new Set(table.spots.map((spot) => spot.name)),
-                                errorMessage: `Unknown spot name "${ball.toSpot}" in juggler's "${jugglerName}" juggling phrases.`,
+                                errorMessage: `Unknown spot name "${from.spot}" on the table of juggler "${jugglerName}".`,
                                 errorLogger: errorLogger
                             });
                         }
                     }
-                } else {
+                }
+            }
+        }
+
+        for (const { setup } of jugglingPhrases) {
+            if (setup?.tableSpots === undefined) {
+                continue;
+            }
+            if (table === undefined) {
+                errorLogger.logError({
+                    severity: "CriticalError",
+                    message: `Juggler "${jugglerName}" has no table.`
+                });
+                continue;
+            }
+            for (const {
+                spot,
+                have: { ball, from }
+            } of setup.tableSpots) {
+                handleIfStringUnknown({
+                    name: spot,
+                    namesList: new Set(table.spots.map((spot) => spot.name)),
+                    errorMessage: `Unknown spot name "${spot}" on the table of juggler "${jugglerName}".`,
+                    errorLogger: errorLogger
+                });
+                if (ball?.type === "template") {
+                    // All ball templates refer to existing template names.
+                    handleIfStringUnknown({
+                        name: ball.template,
+                        namesList: ballTemplates,
+                        errorMessage: `Unknown ball template "${ball.template}" in juggling phrases of juggler "${jugglerName}".`,
+                        errorLogger: errorLogger
+                    });
+                } else if (ball?.type === "ID") {
                     // Held balls refer to existing ball IDs
                     handleIfStringUnknown({
                         name: ball.id,
                         namesList: ballIDs,
                         errorMessage: `Unknown ball ID "${ball.id}" in juggling phrases of juggler ${jugglerName}.`,
+                        errorLogger: errorLogger
+                    });
+                }
+
+                if (from?.type === "table" && typeof from.spot === "string") {
+                    // All spot names refer to existing spot names.
+                    handleIfStringUnknown({
+                        name: from.spot,
+                        namesList: new Set(table.spots.map((spot) => spot.name)),
+                        errorMessage: `Unknown spot name "${from.spot}" on the table of juggler "${jugglerName}".`,
                         errorLogger: errorLogger
                     });
                 }
