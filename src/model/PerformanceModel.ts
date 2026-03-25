@@ -143,19 +143,34 @@ export class PerformanceModel {
      * - [startTime, endTime] otherwise.
      */
     patternTimeBounds(): [number, number] | [null, null] {
-        let startTime: number | null = null;
-        let endTime: number | null = null;
+        let minStartTime: number | null = null;
+        let maxEndTime: number | null = null;
+
+        // Iterate through the jugglers.
         for (const juggler of this.jugglers.values()) {
             const [handStartTime, handEndTime] = juggler.patternTimeBounds();
-            if (startTime === null || (handStartTime !== null && startTime > handStartTime)) {
-                startTime = handStartTime;
+            if (minStartTime === null || (handStartTime !== null && handStartTime < minStartTime)) {
+                minStartTime = handStartTime;
             }
-            if (endTime === null || (handEndTime !== null && endTime > handEndTime)) {
-                endTime = handEndTime;
+            if (maxEndTime === null || (handEndTime !== null && maxEndTime < handEndTime)) {
+                maxEndTime = handEndTime;
             }
         }
+
+        // Iterate through the balls.
+        for (const ball of this.balls.values()) {
+            const [ballStartTime, ballEndTime] = ball.timeline.timeBounds();
+            if (minStartTime === null || (ballStartTime !== null && ballStartTime < minStartTime)) {
+                minStartTime = ballStartTime;
+            }
+            if (maxEndTime === null || (ballEndTime !== null && maxEndTime < ballEndTime)) {
+                maxEndTime = ballEndTime;
+            }
+        }
+
+
         // @ts-expect-error startTime is null if and only if endTime is null too.
-        return [startTime, endTime];
+        return [minStartTime, maxEndTime];
     }
 
     // addBall(): BallModel {}
