@@ -3,7 +3,7 @@ import { parseMusicalSiteswap, ParserToss } from "../parser/MusicalSiteswap";
 import { GlobalBeatConverter } from "./GlobalBeatConverter";
 import { FracTimedErrorLogger } from "../utils/TimedErrorLogger";
 import { stringifyFraction } from "../utils/stringifyEvent";
-import { HandsInstructions, JugglerBeatReference, JugglingPhrase } from "./PerformanceDescription";
+import { PhraseSetup, JugglerBeatReference, JugglingPhrase } from "./PerformanceDescription";
 import { TossMode, SchedulerEvent, SchedulerToss } from "./Scheduler";
 import { handleIfStringUnknown } from "./DescriptionToModel";
 import { LocalBeatConverter } from "./LocalBeatConverter";
@@ -19,7 +19,7 @@ import { ActiveHandComputer } from "./ActiveHandComputer";
 type Cache1Event = {
     globalBeat: Fraction;
     localBeat: Fraction;
-    setup?: HandsInstructions;
+    setup?: PhraseSetup;
     tosses: ParserToss[];
 };
 

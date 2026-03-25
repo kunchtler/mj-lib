@@ -203,7 +203,7 @@ export type SetupBall<HandOptions extends string> = {
 
 // export type SetupBallLoc =
     
-export type HandsInstructions = {
+export type PhraseSetup = {
     /**
      * The order of the ball in hands. Ball will be in that configuration before making any toss or catch on that beat.
      */
@@ -214,7 +214,7 @@ export type HandsInstructions = {
     /**
      * Any spot on the table having a new ball
      */
-    tableSpots?: { spot: string; place: SetupBall<"left" | "right"> }[];
+    tableSpots?: { spot: string; have: SetupBall<"left" | "right"> }[];
 };
 
 // export type TakeBall =
@@ -281,7 +281,7 @@ export type JugglingPhrase = {
     startTime: LocalBeatStartTime;
     localBaseTempo?: LocalTempo<FractionDescription>;
     localTempoMultiplier?: FractionDescription;
-    setup?: HandsInstructions;
+    setup?: PhraseSetup;
     pattern?: string;
 };
 

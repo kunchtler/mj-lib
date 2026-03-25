@@ -1,7 +1,7 @@
 import Fraction from "fraction.js";
 import { indentString, stringifyBall, stringifyHand } from "../utils/stringifyEvent";
 import { FracTimedErrorLogger, Severity, TimedErrorLogger } from "../utils/TimedErrorLogger";
-import { HandsInstructions } from "./PerformanceDescription";
+import { PhraseSetup } from "./PerformanceDescription";
 import { getFirstInsertedKey } from "../utils/Operations";
 import { LocalBeatConverter } from "./LocalBeatConverter";
 import { DeepRequired, setDifference } from "../utils";
@@ -76,7 +76,7 @@ export type SchedulerJuggler = {
 export type SchedulerEvent = {
     globalBeat: Fraction;
     tosses: SchedulerToss[];
-    setup?: HandsInstructions;
+    setup?: PhraseSetup;
 };
 
 export type SchedulerToss = {
@@ -946,7 +946,7 @@ class JugglerManager {
     swapBalls(
         beat: Fraction,
         state: JugglerState,
-        handsSetup: HandsInstructions
+        handsSetup: PhraseSetup
     ): { preState: JugglerState; postState: JugglerState; handMoves: MoveBall[] } {
         // TODO : Better error messages. Indicate state ?
         // TODO : Have a spot for unknown balls common to the case where there is a table and there is not ?
@@ -1255,7 +1255,7 @@ class JugglerManager {
         // Handle all the spots on the table and their needs.
         // Note : there is no need here to have an else clause, as wehandle all spots a bit later.
         if (handsSetup.tableSpots !== undefined) {
-            for (const { spot, place: have } of handsSetup.tableSpots) {
+            for (const { spot, have: have } of handsSetup.tableSpots) {
                 const spotName = getSpotName({
                     type: "table",
                     spot: { type: "named", name: spot }
