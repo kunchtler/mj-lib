@@ -7,7 +7,7 @@ export class FracTimeline<EventType> extends Timeline<Fraction, EventType> {
     private static _stringify = (a: Fraction) => a.toString();
 
     constructor(container?: initContainer<[Fraction, EventType]>, enableIndex?: boolean) {
-        super(container, FracTimeline._cmp, enableIndex);
+        super({ container, cmpTime: FracTimeline._cmp, enableIndex });
     }
 
     stringify(
