@@ -1601,23 +1601,27 @@ class JugglerManager {
 
                     // Check for error.
                     if (
-                        (have.ball === undefined ||
-                            (have.ball.type === "ID" && have.ball.id === ballID) ||
-                            (have.ball.type === "template" &&
-                                have.ball.template === this.ballIDMap.get(ballID))) &&
-                        (have.from === undefined ||
-                            (have.from.type === "juggler" &&
-                                oldLoc.type === "juggler" &&
-                                (have.from.hand === undefined || haveHandIdx === oldLoc.handIdx) &&
-                                (have.from.spotIdx === undefined ||
-                                    have.from.spotIdx === oldLoc.handIdx)) ||
-                            (have.from.type === "table" &&
-                                oldLoc.type === "table" &&
-                                (have.from.spot === undefined ||
-                                    (have.from.spot === null && oldLoc.spot.type === "unknown") ||
-                                    (typeof have.from.spot === "string" &&
-                                        oldLoc.spot.type === "named" &&
-                                        have.from.spot === oldLoc.spot.name))))
+                        !(
+                            (have.ball === undefined ||
+                                (have.ball.type === "ID" && have.ball.id === ballID) ||
+                                (have.ball.type === "template" &&
+                                    have.ball.template === this.ballIDMap.get(ballID))) &&
+                            (have.from === undefined ||
+                                (have.from.type === "juggler" &&
+                                    oldLoc.type === "juggler" &&
+                                    (have.from.hand === undefined ||
+                                        haveHandIdx === oldLoc.handIdx) &&
+                                    (have.from.spotIdx === undefined ||
+                                        have.from.spotIdx === oldLoc.handIdx)) ||
+                                (have.from.type === "table" &&
+                                    oldLoc.type === "table" &&
+                                    (have.from.spot === undefined ||
+                                        (have.from.spot === null &&
+                                            oldLoc.spot.type === "unknown") ||
+                                        (typeof have.from.spot === "string" &&
+                                            oldLoc.spot.type === "named" &&
+                                            have.from.spot === oldLoc.spot.name))))
+                        )
                     ) {
                         this.logError(
                             beat,
@@ -1850,39 +1854,39 @@ function getBallIDsFrom(
     }
 }
 
-        const uniqueSpotNameChar = "§";
+const uniqueSpotNameChar = "§";
 
-        // Returns a unique string to identify a spot (whether held or on table).
-        // Useful as map keys.
-        function getSpotName(spot: DeepRequired<FromTmp>): string {
-            if (spot.type === "juggler") {
-                return `Held${uniqueSpotNameChar}${spot.handIdx}${uniqueSpotNameChar}${spot.spotIdx}`;
-            } else if (spot.spot.type === "named") {
-                return `Table${uniqueSpotNameChar}${spot.spot.name}`;
-            } else {
-                return `TableUnnamed${uniqueSpotNameChar}`;
-            }
-        }
+// Returns a unique string to identify a spot (whether held or on table).
+// Useful as map keys.
+function getSpotName(spot: DeepRequired<FromTmp>): string {
+    if (spot.type === "juggler") {
+        return `Held${uniqueSpotNameChar}${spot.handIdx}${uniqueSpotNameChar}${spot.spotIdx}`;
+    } else if (spot.spot.type === "named") {
+        return `Table${uniqueSpotNameChar}${spot.spot.name}`;
+    } else {
+        return `TableUnnamed${uniqueSpotNameChar}`;
+    }
+}
 
-        // Does the opposite from the above function.
-        function getSpotFromName(spotName: string): DeepRequired<FromTmp> {
-            const spotSplitInfo = spotName.split(uniqueSpotNameChar);
-            if (spotSplitInfo.length === 0) {
-                throw Error("Unrecognized name.");
-            }
-            if (spotSplitInfo[0] === "Held" && spotSplitInfo.length === 3) {
-                return {
-                    type: "juggler",
-                    handIdx: parseInt(spotSplitInfo[1]),
-                    spotIdx: parseInt(spotSplitInfo[2])
-                };
-            } else if (spotSplitInfo[0] === "Table" && spotSplitInfo.length === 2) {
-                return { type: "table", spot: { type: "named", name: spotSplitInfo[1] } };
-            } else if (spotSplitInfo[0] === "TableUnnamed") {
-                return { type: "table", spot: { type: "unknown" } };
-            }
-            throw Error("Unrecognized name.");
-        }
+// Does the opposite from the above function.
+function getSpotFromName(spotName: string): DeepRequired<FromTmp> {
+    const spotSplitInfo = spotName.split(uniqueSpotNameChar);
+    if (spotSplitInfo.length === 0) {
+        throw Error("Unrecognized name.");
+    }
+    if (spotSplitInfo[0] === "Held" && spotSplitInfo.length === 3) {
+        return {
+            type: "juggler",
+            handIdx: parseInt(spotSplitInfo[1]),
+            spotIdx: parseInt(spotSplitInfo[2])
+        };
+    } else if (spotSplitInfo[0] === "Table" && spotSplitInfo.length === 2) {
+        return { type: "table", spot: { type: "named", name: spotSplitInfo[1] } };
+    } else if (spotSplitInfo[0] === "TableUnnamed") {
+        return { type: "table", spot: { type: "unknown" } };
+    }
+    throw Error("Unrecognized name.");
+}
 
 export type SpotName = string;
 export type BallTemplateName = string;
