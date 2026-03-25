@@ -1655,6 +1655,20 @@ class JugglerManager {
                 return { type: "onTableUnknownSpot" };
             }
         }
+
+        function locEquals(loc1: LocType, loc2: LocType): boolean {
+            return (
+                (loc1.type === "held" &&
+                    loc2.type === "held" &&
+                    loc1.handIdx === loc2.handIdx &&
+                    loc1.spotIdx === loc2.spotIdx) ||
+                (loc1.type === "onTableSpot" &&
+                    loc2.type === "onTableSpot" &&
+                    loc1.spotName === loc2.spotName) ||
+                (loc1.type === "onTableUnknownSpot" && loc2.type === "onTableUnknownSpot")
+            );
+        }
+
         const handMoves: MoveBall[] = [];
         for (let handIdx = 0; handIdx < 2; handIdx++) {
             for (let spotIdx = 0; spotIdx < state.held[handIdx].length; spotIdx++) {
@@ -1676,7 +1690,9 @@ class JugglerManager {
                     continue;
                 }
                 const newLoc: LocType = convertLoc(newLocTmp);
-                handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+                if (!locEquals(oldLoc, newLoc)) {
+                    handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+                }
             }
             for (const ballID of state.table.unknown) {
                 const oldLoc: LocType = { type: "onTableUnknownSpot" };
@@ -1685,7 +1701,9 @@ class JugglerManager {
                     continue;
                 }
                 const newLoc: LocType = convertLoc(newLocTmp);
-                handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+                if (!locEquals(oldLoc, newLoc)) {
+                    handMoves.push({ id: ballID, from: oldLoc, to: newLoc });
+                }
             }
         }
 
