@@ -130,6 +130,7 @@ export function Performance({
     // Chenge the clock's range when there is a new model.
     useEffect(() => {
         let [lowerBound, upperBound] = model.patternTimeBounds();
+        console.log(lowerBound, upperBound);
         if (lowerBound === null || upperBound === null) {
             // Put arbitrary time bounds since the model has no events.
             lowerBound = 0;

@@ -738,14 +738,14 @@ export function createModelTimelines({
     // TODO : Filter useless ball events.
     // TODO : Set time limits on ball transitions on ball events.
 
-    ballTimelines.forEach((timeline, ballID) => {
-        console.log(`${ballID} :\n${timeline.stringify(undefined, JSON.stringify)}`);
-    });
-    jugglerTimelines.forEach((timeline, name) => {
-        console.log(
-            `${name} Left :\n${timeline[0].stringify(undefined, JSON.stringify)}\n${name} Right :\n${timeline[1].stringify(undefined, JSON.stringify)}`
-        );
-    });
+    // ballTimelines.forEach((timeline, ballID) => {
+    //     console.log(`${ballID} :\n${timeline.stringify(undefined, JSON.stringify)}`);
+    // });
+    // jugglerTimelines.forEach((timeline, name) => {
+    //     console.log(
+    //         `${name} Left :\n${timeline[0].stringify(undefined, JSON.stringify)}\n${name} Right :\n${timeline[1].stringify(undefined, JSON.stringify)}`
+    //     );
+    // });
 
     return { jugglers: jugglerTimelines, balls: ballTimelines };
 }

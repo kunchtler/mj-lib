@@ -35,15 +35,6 @@ export const pattern1: PerformanceDescriptionHelper = {
             ]
         }
     ],
-    // tables: [
-    //     {
-    //         id: "table",
-    //         height: 0.7,
-    //         depth: 0.5,
-    //         width: 1.5,
-    //         spots: [{ acceptedBallName: "Do", ballAtStart: "Do?1", position: [0, 0.7, -0.5] }]
-    //     }
-    // ],
     globalBeat: { type: "constant", beatsPerMinute: 180 }
 };
 export const pattern2: PerformanceDescriptionHelper = {
@@ -85,7 +76,6 @@ export const pattern3: PerformanceDescriptionHelper = {
             name: "Kylian",
             position: [-1, 0, 0],
             ballsHeldAtStart: [[], []],
-            // ballsHeldAtStart: [[{ name: "Do" }], [{ name: "Re" }, { name: "Mi" }, { name: "Fa" }]],
             defaultTableID: "table",
             jugglingPhrases: [
                 {
@@ -96,7 +86,20 @@ export const pattern3: PerformanceDescriptionHelper = {
                             [{ ball: { type: "template", template: "Do" } }]
                         ]
                     },
-                    pattern: "L35003 35003 35003 42334 05003 35003 35003 42334 0300"
+                    pattern: "00"
+                },
+                {
+                    startTime: { type: "byGlobalBeat", beat: 4 },
+                    setup: {
+                        hands: [
+                            [
+                                { from: { type: "table", spot: "Sol2" } },
+                                { ball: { type: "template", template: "Mi" } }
+                            ],
+                            []
+                        ]
+                    },
+                    pattern: "00"
                 }
             ]
         }
@@ -117,9 +120,34 @@ export const pattern3: PerformanceDescriptionHelper = {
                 { acceptedBallName: "Fa", ballAtStart: "Fa?0", position: [-0.15, 0.7, 0.25] },
                 { acceptedBallName: "Fa", ballAtStart: "Fa?1", position: [0.15, 0.7, 0.25] },
                 { acceptedBallName: "Sol", ballAtStart: "Sol?0", position: [-0.15, 0.7, 0.5] },
-                { acceptedBallName: "Sol", ballAtStart: "Sol?1", position: [0.15, 0.7, 0.5] }
+                {
+                    acceptedBallName: "Sol",
+                    ballAtStart: "Sol?1",
+                    position: [0.15, 0.7, 0.5],
+                    name: "Sol2"
+                }
             ]
         }
     ],
     globalBeat: { type: "constant", beatsPerMinute: 180 }
+};
+
+export const patternLune: PerformanceDescriptionHelper = {
+    version: "0.1",
+    ballTemplates,
+    jugglers: [
+        {
+            name: "Florent",
+            handBuilder: { visible: false },
+            position: [-1, 0, 0],
+            ballsHeldAtStart: [[{ name: "Mi" }], [{ name: "Re" }, { name: "Do" }]],
+            jugglingPhrases: [
+                {
+                    startTime: { type: "byGlobalBeat", beat: 0 },
+                    pattern: "R1 (1, 3x)! (3, 1)! 0 3 0 L3 0 R2x 2x 3x R1"
+                }
+            ]
+        }
+    ],
+    globalBeat: { type: "constant", beatsPerMinute: 100 }
 };

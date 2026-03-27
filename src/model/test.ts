@@ -1,5 +1,22 @@
-import * as THREE from "three";
-import { changePositionCoordinateSystem } from "../utils";
+import { OrderedMap } from "js-sdsl";
+
+const x = new OrderedMap<number, number>([
+    [0, 0],
+    [1, 1],
+    [2, 2]
+] as [number, number][]);
+
+const it = x.begin();
+it.next().next().next();
+// x.setElement(2.5, 2.5);
+// console.log(...it.pointer);
+// x.setElement(1.5, 1.5);
+// console.log(...it.pointer);
+// it.next();
+// console.log(...it.pointer);
+
+// import * as THREE from "three";
+// import { changePositionCoordinateSystem } from "../utils";
 
 // const x = new THREE.Object3D();
 // x.position.set(0, 1, 0);
@@ -85,11 +102,11 @@ import { changePositionCoordinateSystem } from "../utils";
 // pA.position.copy(pA_world);
 // pA.setRotationFromEuler(pA_rot);
 // pB.position.copy(pB_local);
-const eulerA = new THREE.Euler(0, 1, 0);
-const eulerB = new THREE.Euler(1, 0, 0);
-const quatA = new THREE.Quaternion().setFromEuler(eulerA);
-const quatB = new THREE.Quaternion().setFromEuler(eulerB);
-console.log(quatA, quatB);
-for (let i = 0; i <= 10; i++) {
-    console.log(new THREE.Euler().setFromQuaternion(quatA.clone().slerp(quatB, i / 10)));
-}
+// const eulerA = new THREE.Euler(0, 1, 0);
+// const eulerB = new THREE.Euler(1, 0, 0);
+// const quatA = new THREE.Quaternion().setFromEuler(eulerA);
+// const quatB = new THREE.Quaternion().setFromEuler(eulerB);
+// console.log(quatA, quatB);
+// for (let i = 0; i <= 10; i++) {
+//     console.log(new THREE.Euler().setFromQuaternion(quatA.clone().slerp(quatB, i / 10)));
+// }

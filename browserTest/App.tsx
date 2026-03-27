@@ -1,5 +1,5 @@
-import { Canvas, extend } from "@react-three/fiber";
-import { useState } from "react";
+import { Canvas, extend, useThree } from "@react-three/fiber";
+import { useEffect, useState } from "react";
 import { TimeControls } from "./TimeControls";
 import * as THREE from "three";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
@@ -7,7 +7,7 @@ import styles from "./simulator.module.css";
 import { LineMaterial } from "three/examples/jsm/Addons.js";
 import { Wrapper } from "../src/react/Performance";
 import { BodyMesh, Clock } from "../src";
-import { pattern3 as pattern } from "./pattern";
+import { pattern2 as pattern } from "./pattern";
 extend(LineMaterial);
 //TODO : styles ?
 //TODO : clock optional for performance ?
@@ -34,6 +34,28 @@ export function App() {
 
 function CanvasContents({ clock }: { clock: Clock }) {
     const [listener] = useState(new THREE.AudioListener());
+    const scene = useThree((state) => {
+        return state.scene;
+    });
+
+    useEffect(() => {
+        // cubic Bézier
+        const radius = 2;
+        const curve = new THREE.CubicBezierCurve3(
+            new THREE.Vector3(1, 0, radius * 2), // start
+            new THREE.Vector3(1 + (6 / 3) * radius, 0, radius * 2), // control‑1
+            new THREE.Vector3(1 + (6 / 3) * radius, 0, 0), // control‑2
+            new THREE.Vector3(1, 0, 0) // end
+        );
+        const points = curve.getPoints(50);
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const line = new THREE.Line(geometry, material);
+        scene.add(line);
+        return () => {
+            scene.remove(line);
+        };
+    });
 
     return (
         <>
