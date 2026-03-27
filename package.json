@@ -91,6 +91,7 @@
     "@react-three/xr": "^6.6.17",
     "@tabler/icons-react": "^3.31.0",
     "antlr4": "^4.13.2",
+    "bezier-easing": "^3.0.0",
     "fraction.js": "^5.2.1",
     "immer": "^10.1.1",
     "immutable": "^5.1.2",
