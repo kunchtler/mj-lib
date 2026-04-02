@@ -47,7 +47,7 @@ export type JugglingScore = {
         spots: {
             name: string;
             ballAtStart?: string;
-            acceptedBallName: string;
+            acceptedTemplate: string;
         }[];
         unknownSpot: {
             ballIDs: string[];

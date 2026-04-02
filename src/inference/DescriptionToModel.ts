@@ -84,7 +84,7 @@ export function performanceDescriptionToModel(
         if (table !== undefined) {
             tableSpots = new Map<string, string>();
             for (const spot of table.spots) {
-                tableSpots.set(spot.name, spot.acceptedBallName);
+                tableSpots.set(spot.name, spot.acceptedTemplate);
             }
         }
         schedulerJugglers.set(juggler.name, {
@@ -436,11 +436,11 @@ export function checkScoreNamesAndIDs(
 
                 // Ball is of the correct type.
                 const ballTemplate =
-                    ballIDs.get(spot.ballAtStart)?.template ?? spot.acceptedBallName;
-                if (ballTemplate !== spot.acceptedBallName) {
+                    ballIDs.get(spot.ballAtStart)?.template ?? spot.acceptedTemplate;
+                if (ballTemplate !== spot.acceptedTemplate) {
                     errorLogger.logError({
                         severity: "Warn",
-                        message: `Ball ${spot.ballAtStart} is on a spot that should only accept ball with template ${spot.acceptedBallName}.`
+                        message: `Ball ${spot.ballAtStart} is on a spot that should only accept ball with template ${spot.acceptedTemplate}.`
                     });
                 }
             }

@@ -199,7 +199,11 @@ export function createJugglingScoreFromHelper(
                 newSpotName = name;
             }
             tableSpotNames.get(table.id)?.push(newSpotName);
-            newTable.spots.push({ name: newSpotName, acceptedBallName, ballAtStart: ballID });
+            newTable.spots.push({
+                name: newSpotName,
+                acceptedTemplate: acceptedBallName,
+                ballAtStart: ballID
+            });
         }
         for (const ball of table.unknownSpot?.balls ?? []) {
             let ballID: string;
