@@ -996,8 +996,7 @@ class JugglerManager {
             // For whenever a single ball at most can be targetted (ex : specific location, or ball by ID).
             FIRST_CHOICE_ONEOF: 20,
 
-            // Whenever the location is ambiguous, we may have, although valid, preferences as to where to look for a ball.
-            // Note that this takes precedence over simply asking for a ball template.
+            // Whenever the location is ambiguous, the following is a list of priorities.
             AMBIGUOUS_LOCATION_TEMPLATE_1ST_CHOICE: 19,
             AMBIGUOUS_LOCATION_TEMPLATE_2ND_CHOICE: 18,
             AMBIGUOUS_LOCATION_TEMPLATE_3RD_CHOICE: 17,
@@ -1016,7 +1015,7 @@ class JugglerManager {
             TABLE_NAMED_SPOT: 3,
             TABLE_UNKNOWN_SPOT: 2,
 
-            TABLE_SPOT_KEEP_BALL: -9, //TODO : We need to have spots for "unknown".
+            TABLE_SPOT_KEEP_BALL: -9,
             TABLE_SPOT_ANY_BALL_NOT_UNKNOWN: -10
         };
 

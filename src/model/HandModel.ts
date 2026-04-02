@@ -1,9 +1,7 @@
-import { VECTOR3_STRUCTURE } from "../utils/constants";
-import { CubicHermiteSpline } from "../utils/spline/Spline";
 import { HandEvent, HandTimeline } from "./timelines/HandTimeline";
 import { PerformanceModelRef } from "./PerformanceChild";
 import { averageEulerAngle, averageVector3 } from "../utils/three/Vector";
-import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
+import { CubicBezierCurve3, Euler, Matrix4, Object3D, Plane, Quaternion, Vector3 } from "three";
 import { SpotModel, SpotModelParams } from "./SpotModel";
 import {
     ObjectPropertiesOptional as ObjectLocalTransform,
@@ -12,7 +10,7 @@ import {
 } from "./ThreeSyncedProperty";
 import { MapCallbacks } from "./MapCallbacks";
 import { getLastInsertedKey } from "../utils/Operations";
-import { changePositionCoordinateSystem } from "../utils";
+import { changePositionCoordinateSystem, V3SUB } from "../utils";
 import { JugglerModel } from "./JugglerModel";
 import { ballVelocityAtCatch, ballVelocityAtToss } from "./BallPhysics";
 import { BallEvent } from "./timelines/BallTimeline";
@@ -104,10 +102,10 @@ export class HandModel {
 
     constructor({
         catchSpot,
-        restSpot ,
-        tossSpot ,
-        swapSpot ,
-        holdSpots ,
+        restSpot,
+        tossSpot,
+        swapSpot,
+        holdSpots,
         defaultHoldSpotNumber,
         timeline,
         scale,
@@ -228,15 +226,12 @@ export class HandModel {
 
     // TODO : FIRST ROT APPROACH : oriented in direction of elbow (but not down / up)
 
-    //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
-    // "Given an event and the time it occurs in the timeline"
-    // evTime is asked only to have consistent method call with BallModel.
-    localPositionAndRotationAtEvent(
-        evTime: number | null,
-        ev: HandEvent[] | HandEvent | null
-    ): { position: Vector3; rotation: Euler } {
+    localPositionAndRotationAtEvent(ev: HandEvent[] | HandEvent | null): {
+        position: Vector3;
+        rotation: Euler;
+    } {
         // TODO : ball scale should be a NUMBER, not a VECTOR
-        if (ev === null || evTime === null) {
+        if (ev === null) {
             return {
                 position: this.restSpot.position.getLocal(),
                 rotation: this.restSpot.rotation.getLocal()
@@ -250,7 +245,7 @@ export class HandModel {
                     rotation: this.restSpot.rotation.getLocal()
                 };
             } else {
-                return this.localPositionAndRotationAtEvent(evTime, ev[ev.length - 1]);
+                return this.localPositionAndRotationAtEvent(ev[ev.length - 1]);
             }
         } else if (ev.type == "catch") {
             return {
@@ -381,13 +376,32 @@ export class HandModel {
      * @returns the spline trajectory.
      */
     getSpline(
-        prevTime: number | null,
+        prevTime: number,
         prevPos: Vector3,
         prevVel: Vector3,
-        nextTime: number | null,
+        nextTime: number,
         nextPos: Vector3,
         nextVel: Vector3
-    ): CubicHermiteSpline<Vector3> {
+    ): CubicBezierCurve3 {
+        // We want to construct the control points of the Cubic Bezier Curve.
+        
+        // To do so, we first use the next action to compute the amplitude of the trajectory.
+        // (in the plane defined by the nextVel vector at position nextPos, and the line joining prev to next pos).
+        // if they are coplanar, TODO (use the juggler's plane ???)
+        
+        const line1 = V3SUB(nextPos, prevPos);
+        const line2 = nextVel;
+        if ()
+        const normalPlaneVec = line1.clone().cross(line2)
+        if ()
+        const plane = new Plane()
+        
+
+
+        const v0 = prevPos;
+        // const v1 = ;
+        // const v2 = ;
+        const v3 = nextPos;
         const points: Vector3[] = [prevPos, nextPos];
         const dpoints: Vector3[] = [prevVel, nextVel];
         let knots: number[];
@@ -403,24 +417,7 @@ export class HandModel {
             knots = [prevTime, nextTime];
         }
 
-        // // If too much time seperates the previous from the next event,
-        // // we add some time at the rest spot.
-        // if (knots[1] - knots[0] > HAND_MAX_TIME_FOR_ACTION * 2) {
-        //     points.splice(
-        //         1,
-        //         0,
-        //         this.restSpot.position.getLocal(),
-        //         this.restSpot.position.getLocal()
-        //     );
-        //     dpoints.splice(1, 0, new Vector3(0, 0, 0), new Vector3(0, 0, 0));
-        //     knots.splice(
-        //         1,
-        //         0,
-        //         knots[0] + HAND_MAX_TIME_FOR_ACTION,
-        //         knots[1] - HAND_MAX_TIME_FOR_ACTION
-        //     );
-        // }
-        return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+        // return new CubicBezierCurve3(points, dpoints, knots);
     }
 
     interpolateRotation(
@@ -446,25 +443,121 @@ export class HandModel {
     localPositionAndRotationAtTime(time: number): { position: Vector3; rotation: Euler } {
         const [prevTime, prevEv] = this.timeline.prevEvent(time);
         const [nextTime, nextEv] = this.timeline.nextEvent(time);
-        const { position: prevPos, rotation: prevRot } = this.localPositionAndRotationAtEvent(
-            prevTime,
-            prevEv
-        );
-        const { position: nextPos, rotation: nextRot } = this.localPositionAndRotationAtEvent(
-            nextTime,
-            nextEv
-        );
+
+        // Handle edge cases : when an event is asked outside the timeline bounds.
+        if (prevEv === null && nextEv === null) {
+            return this.localPositionAndRotationAtEvent(null);
+        } else if (prevEv === null) {
+            return this.localPositionAndRotationAtEvent(nextEv);
+        } else if (nextEv === null) {
+            return this.localPositionAndRotationAtEvent(prevEv);
+        }
+
+        // Gather the transform at the next and previous events.
+        const { position: prevPos, rotation: prevRot } =
+            this.localPositionAndRotationAtEvent(prevEv);
+        const { position: nextPos, rotation: nextRot } =
+            this.localPositionAndRotationAtEvent(nextEv);
+
+        // Compute the velocity at those events
+        // Note : if a ball is caught / tossed, it may depend on the balls velocity.
         const prevVel = this.velocityAtEvent(prevTime, prevEv);
         const nextVel = this.velocityAtEvent(nextTime, nextEv);
-        const position = this.getSpline(
-            prevTime,
-            prevPos,
-            prevVel,
-            nextTime,
-            nextPos,
-            nextVel
-        ).interpolate(time);
-        const rotation = this.interpolateRotation(prevTime, prevRot, nextTime, nextRot, time);
+
+        // Compute the spline (that takes a time between 0 and 1), the time remapping, and appropriate velocities.
+        const spline = this.getSpline(prevTime, prevPos, prevVel, nextTime, nextPos, nextVel);
+
+        // The spline only gives the trajectory of the hand, but not how fast it should move.
+        // We'd like to be able to specify the velocity at the start / end of the trajectory.
+        // To achieve that, we create a remapTime function (from [0, 1] to [0, 1] such that
+        // velocity of spline at time t0 = spline(f(0)) = v0
+        // velocity of spline at time t1 = spline(f(1)) = v1
+        // This allows us to determine the derivative f should have at 0 and 1.
+        const wantedVel0 = prevVel; //TODO : Change ?
+        const wantedVel1 = nextVel; //TODO : Change ?
+        const d0 =
+            (wantedVel0.length() * (nextTime - prevTime)) /
+            (3 * new Vector3(...spline.v3).sub(spline.v2).length());
+        const d1 =
+            (wantedVel1.length() * (nextTime - prevTime)) /
+            (3 * new Vector3(...spline.v1).sub(spline.v0).length());
+        const mappedTime = remapTime(d0, d1, time - prevTime / prevTime - nextTime);
+        const position = spline.getPoint(mappedTime);
+        const rotation = this.interpolateRotation(prevTime, prevRot, nextTime, nextRot, time); // TODO : CHANGE OR MODIFY (currently unused).
         return { position, rotation };
     }
+}
+
+function remapTime(d0: number, d1: number, t: number, recursiveDepth = 0): number {
+    // d0 and d1 are the derivates at 0 and 1 respectively.
+    // t is the time we wish to compute
+    // recursiveDepth is a sanity check.
+    if (t <= 0) {
+        return 0;
+    } else if (1 <= t) {
+        return 1;
+    } else if (d0 < 0 || d1 < 0) {
+        // If the start or end derivatives are negative, we can't map [0, 1] to [0, 1].
+        throw Error("TODO");
+    } else if ((d0 < 1 && 1 < d1) || (1 < d0 && d1 < 1) || recursiveDepth >= 2) {
+        //TODO : < or <= ???
+        // We can use a quartic Bezier curve to join (0, 0) to (1, 1), where the middle control point C is given
+        // by the intersection of the two tangents at 0 and 1.
+        // The conditions on d0 and d1 guarantee we can build a function f whose graph is this curve.
+        // All the equations have been derived and checked, but the details won't appear here.
+
+        // If the recursive depth is too high, we failback here to not have the functio run indefinitely.
+        if (recursiveDepth >= 2) {
+            console.warn("DEBUG : Too much calls to remapTime.");
+        }
+        const cX = (1 - d1) / (d0 - d1);
+        const cY = cX * d0;
+
+        const inverseT = (-cX + Math.sqrt(cX ** 2 + (1 - 2 * cX) * t)) / (1 - 2 * cX);
+
+        return (1 - 2 * cY) * inverseT ** 2 + 2 * cY * inverseT;
+    } else {
+        // We defined a point P through which the function goes.
+        // We also define the derivative dP at that point such that if d0 and d1 are < 1, dP is > 1 and conversely.
+        // That way, we can call the function recursively.
+        // The pitfall is that we need to change the value of the derivatives on that callback.
+        // This namely imposes constraints on P and dP :
+        // - 0 < Px < 1 (the transition point is on the domain definition of f)
+        // - d0 * Px < Py < d1 * Px + 1 - d1 (the transition point isn't below the tangent at 0 or above the tangent at 1).
+        //   - if d0 and d1 < 1, then
+        //       - Py / Px < dP < (1 - Py) / (1 - Px) implies the recurive call with the adjusted derivatives will
+        // trigger the above if statement.
+        //       - it implies that 1 < d.
+        //   - if d0 and d1 > 1, then same inequality the other way around has the same implications.
+
+        // It just so happen than taking P = (1/2, 1/2) always provides valid values for d as long as it is correctly
+        // over or under 1 (based on d0 and d1).
+        // The following value of d has been arbitrarily chosen.
+        // But you can try changing those 3 values to see in what graphs it results.
+        const pX = 0.5;
+        const pY = 0.5;
+        const dP = 1.5;
+
+        if (t < pX) {
+            const scaleFactor = pX / pY;
+            return pY * remapTime(d0 * scaleFactor, dP * scaleFactor, t, recursiveDepth + 1);
+        } else {
+            const scaleFactor = (1 - pX) / (1 - pY);
+            return (
+                pY + (1 - pY) * remapTime(dP * scaleFactor, d1 * scaleFactor, t, recursiveDepth + 1)
+            );
+        }
+    }
+}
+
+// function tmp(d0: number, d1: number): (t: number) => number {
+//     return (t: number) => remapTime(d0, d1, t);
+// }
+
+function vecEquals(vec1: Vector3, vec2: Vector3, eps = 1e-6) {
+}
+
+function floatEquals(x: number, y: number, eps = Number.EPSILON): boolean {
+    const diff = Math.abs(x - y);
+    return x === y || diff < eps || diff <= eps * Math.min(Math.abs(x), Math.abs(y));
 }
