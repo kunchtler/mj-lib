@@ -111,5 +111,3 @@ export function ballVelocity(
     const v0 = ballVelocityAtStartEnd(pos0, t0, pos1, t1, true, gravity);
     return new THREE.Vector3(v0.x, -gravity * t + v0.y, v0.z);
 }
-
-const defaultUpVector = new THREE.Vector3(0, 1, 0);
