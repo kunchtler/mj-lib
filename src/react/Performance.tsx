@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { AudioEngine, getNoteBuffer } from "../audio";
 import { PerformanceModel } from "../model";
 import { Clock, FracTimedErrorLogger, useLazyRef } from "../utils";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
     BallMeshDescription,
     BodyMeshDescription,
@@ -96,6 +96,7 @@ export function Performance({
     // Previous time
     // const previousTime = useRef<number>(-Infinity);
 
+    const invalidate = useThree((state) => state.invalidate);
     // References to a utility class that helps with managing audio of a performance.
     // TODO : HANDLE LISTENER CHANGE ???
     const audioControls = useRef<AudioEngine | undefined>(undefined);
@@ -143,6 +144,22 @@ export function Performance({
         clock.restart();
     }, [clock, model]);
 
+    // This makes sure a new frame in the canvas is rendered whenever the clock is ticking,
+    // But stop it when it is not (this will save battery).
+    useEffect(() => {
+        const triggerRender = () => {
+            invalidate();
+        };
+
+        clock.addEventListener("start", triggerRender);
+        clock.addEventListener("manualTimeUpdate", triggerRender);
+
+        return () => {
+            clock.removeEventListener("start", triggerRender);
+            clock.removeEventListener("manualTimeUpdate", triggerRender);
+        };
+    });
+
     useFrame(() => {
         const time = clock.getTime();
         let ballPos: THREE.Vector3 | undefined;
@@ -171,6 +188,7 @@ export function Performance({
             }
         }
         if (clock.isTicking()) {
+            invalidate();
             // console.log(
             //     `Ball Pos : ${stringifyVec(ballPos)}\nRight Hand Pos : ${stringifyVec(rightHandPos)}\nLeft Hand Pos : ${stringifyVec(leftHandPos)}\n`
             // );
