@@ -44,6 +44,7 @@ export const pattern2: PerformanceDescriptionHelper = {
         {
             name: "Kylian",
             position: [-1, 0, 0],
+            handBuilder: { visible: true },
             ballsHeldAtStart: [
                 [
                     { name: "Re", id: "Re?0" },

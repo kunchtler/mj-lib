@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
 
-const zeroVector = new Vector3(0, 0, 0);
+export const zeroVector = new Vector3(0, 0, 0);
 export function areColinear(vec1: Vector3, vec2: Vector3, eps = Number.EPSILON) {
     // Check we aren't the null vector, else check the scale along the axis.
     return (

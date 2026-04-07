@@ -12,10 +12,11 @@ import {
 } from "./ThreeSyncedProperty";
 import { MapCallbacks } from "./MapCallbacks";
 import { getLastInsertedKey } from "../utils/Operations";
-import { changePositionCoordinateSystem, V3SUB } from "../utils";
+import { changePositionCoordinateSystem, V3ADD, V3SUB } from "../utils";
 import { JugglerModel } from "./JugglerModel";
 import { ballVelocityAtCatch, ballVelocityAtToss } from "./BallPhysics";
 import { BallEvent } from "./timelines/BallTimeline";
+import { areColinear, vecEquals, zeroVector } from "../utils/three/FloatingPoint";
 
 //TODO : Change the fact that all methods have get in front of them
 //TODO : Change instanceof to string type as it is faster ?
@@ -232,9 +233,10 @@ export class HandModel {
     //TODO / Document that we don't check if the time is the correct one for the event in the hand's timeline.
     // "Given an event and the time it occurs in the timeline"
     // evTime is asked only to have consistent method call with BallModel.
-    localPositionAndRotationAtEvent(
-        ev: HandEvent[] | HandEvent | null
-    ): { position: Vector3; rotation: Euler } {
+    localPositionAndRotationAtEvent(ev: HandEvent[] | HandEvent | null): {
+        position: Vector3;
+        rotation: Euler;
+    } {
         // TODO : ball scale should be a NUMBER, not a VECTOR
         if (ev === null) {
             return {
@@ -403,25 +405,68 @@ export class HandModel {
             return cache;
         }
 
-         // We want to construct the control points of the Cubic Bezier Curve.
-        
+        // We want to construct the control points of the Cubic Bezier Curve.
+
+        // We want to construct the control points of the Cubic Bezier Curve.
+
+        // First, we define the amplitude of the trajectory (ie TODO)
+        // In order to do so, we look at the projection of the nextVel vector on the
+        // up vector of the scene (the one of gravity), but in local coordinates.
+        const upVec = this.getJugglerModel()
+            ._object.worldToLocal(new Vector3(0, 1, 0))
+            .normalize();
+        const velProj = nextVel.clone().projectOnVector(upVec).length();
+        // Describes the ideal radius the hand would have if it made a half circle between the catch and toss spot.
+        // TODO : Fallback when toss spot = catch spot...
+        const idealRadius =
+            V3SUB(this.tossSpot.position.getLocal(), this.catchSpot.position.getLocal()).length() /
+            2;
+        // We would like for that radius to be reached when the nextVelProj is the following value
+        // obtained by flying a ball for 1 sec :
+        // const velProjIdealRadius = ballVelocityAtToss(new Vector3(0, 0, 0), 0, new Vector3(0, 0, 0), 1).y
+        const velProjIdealRadius = 4.905;
+        const ratio = velProj / velProjIdealRadius;
+        const amplitude = idealRadius * (ratio <= 1 ? ratio : 1 + expLimit(1, 1.5, ratio - 1));
+
+        const mappedPrevVel = vecEquals(prevVel, zeroVector)
+            ? prevVel
+            : prevVel.clone().multiplyScalar(amplitude / prevVel.length());
+        const mappedNextVel = vecEquals(nextVel, zeroVector)
+            ? nextVel
+            : nextVel.clone().multiplyScalar(amplitude / nextVel.length());
+
+        // TODO : Explain the 4/3 ratio for control points.
+        const spline = new CubicBezierCurve3(
+            prevPos,
+            V3ADD(prevPos, mappedPrevVel),
+            V3SUB(nextPos, mappedNextVel),
+            nextPos
+        );
+
+        // Add the result to the cache.
+        this._cachedSplines.set(hash, spline);
+        return spline;
+
+        // Other idea : Cap the prevVel at 4/3(radius)
+        // And Have the other vector not exceed in x the first, but scale
+        // But having both prev and next pos at the same place implies there are two splines if we want a circular motion.
+        //2 problems : In 3D, hard to place that point + What velocity at the middle point ?
+
+        //TODO : Same kind of amplitude for x, y and z. for both control vectors or only for one ???
+
+        // This amplitude gives us
+
         // To do so, we first use the next action to compute the amplitude of the trajectory.
         // (in the plane defined by the nextVel vector at position nextPos, and the line joining prev to next pos).
         // if they are coplanar, TODO (use the juggler's plane ???)
-        
-        const line1 = V3SUB(nextPos, prevPos);
-        const line2 = nextVel;
-        if ()
-        const normalPlaneVec = line1.clone().cross(line2)
-        if ()
-        const plane = new Plane()
-        
-
-
-        const v0 = prevPos;
-        const v1 = prevPos;
-        const v2 = nextPos;
-        const v3 = nextPos;
+        // const line1 = V3SUB(nextPos, prevPos);
+        // const line2 = nextVel;
+        // if (areColinear(line1, line2)) {
+        //     throw Error("TODO");
+        // }
+        // const normalPlaneVec = line1.clone().cross(line2)
+        // if ()
+        // const plane = new Plane()
 
         // const points: Vector3[] = [prevPos, nextPos];
         // const dpoints: Vector3[] = [prevVel, nextVel];
@@ -437,12 +482,6 @@ export class HandModel {
         // } else {
         //     knots = [prevTime, nextTime];
         // }
-
-        const spline = new CubicBezierCurve3(v0, v1, v2, v3);
-
-        // Add the result to the cache.
-        this._cachedSplines.set(hash, spline);
-        return spline;
     }
 
     private _createCachedSplineKey(
@@ -509,16 +548,18 @@ export class HandModel {
         // velocity of spline at time t0 = spline(f(0)) = v0
         // velocity of spline at time t1 = spline(f(1)) = v1
         // This allows us to determine the derivative f should have at 0 and 1.
-        const wantedVel0 = prevVel; //TODO : Change ?
-        const wantedVel1 = nextVel; //TODO : Change ?
-        const d0 =
-            (wantedVel0.length() * (nextTime - prevTime)) /
-            (3 * new Vector3(...spline.v3).sub(spline.v2).length());
-        const d1 =
-            (wantedVel1.length() * (nextTime - prevTime)) /
-            (3 * new Vector3(...spline.v1).sub(spline.v0).length());
-        const mappedTime = remapTime(d0, d1, time - prevTime / prevTime - nextTime);
-        const position = spline.getPoint(mappedTime);
+
+        // const wantedVel0 = prevVel; //TODO : Change ?
+        // const wantedVel1 = nextVel; //TODO : Change ?
+        // const d0 =
+        //     (wantedVel0.length() * (nextTime - prevTime)) /
+        //     (3 * new Vector3(...spline.v3).sub(spline.v2).length());
+        // const d1 =
+        //     (wantedVel1.length() * (nextTime - prevTime)) /
+        //     (3 * new Vector3(...spline.v1).sub(spline.v0).length());
+        // const mappedTime = remapTime(d0, d1, time - prevTime / prevTime - nextTime);
+        // const position = spline.getPoint(mappedTime);
+        const position = spline.getPoint(time - prevTime / prevTime - nextTime);
         const rotation = this.interpolateRotation(prevTime, prevRot, nextTime, nextRot, time); // TODO : CHANGE OR MODIFY (currently unused).
         return { position, rotation };
     }
@@ -540,7 +581,6 @@ function remapTime(d0: number, d1: number, t: number, recursiveDepth = 0): numbe
         // If the start or end derivatives are negative, we can't map [0, 1] to [0, 1].
         throw Error("TODO");
     } else if ((d0 < 1 && 1 < d1) || (1 < d0 && d1 < 1) || recursiveDepth >= 2) {
-        //TODO : < or <= ???
         // We can use a quartic Bezier curve to join (0, 0) to (1, 1), where the middle control point C is given
         // by the intersection of the two tangents at 0 and 1.
         // The conditions on d0 and d1 guarantee we can build a function f whose graph is this curve.
@@ -575,11 +615,12 @@ function remapTime(d0: number, d1: number, t: number, recursiveDepth = 0): numbe
         // The following value of d has been arbitrarily chosen.
         // But you can try changing those 3 values to see in what graphs it results.
         const pX = 0.5;
-        const pY = 0.5;
+        const pY = d0 * pX + d1 * (pX - 1) + 1;
         const dP = 1.5;
 
         if (t < pX) {
             const scaleFactor = pX / pY;
+            // Note : if d0 or d1 is 1, they will be scaled down by these calls.
             return pY * remapTime(d0 * scaleFactor, dP * scaleFactor, t, recursiveDepth + 1);
         } else {
             const scaleFactor = (1 - pX) / (1 - pY);
@@ -590,13 +631,12 @@ function remapTime(d0: number, d1: number, t: number, recursiveDepth = 0): numbe
     }
 }
 
+// Function similar to 1 - exp(-x), adapted so that its limit at +inf is lim
+// and its derivative at 0 is d0
+function expLimit(d0: number, lim: number, x: number) {
+    return lim * (1 - Math.exp((-x * d0) / lim));
+}
+
 // function tmp(d0: number, d1: number): (t: number) => number {
 //     return (t: number) => remapTime(d0, d1, t);
 // }
-
-function vecEquals(vec1: Vector3, vec2: Vector3, eps = 1e-6) {}
-
-function floatEquals(x: number, y: number, eps = Number.EPSILON): boolean {
-    const diff = Math.abs(x - y);
-    return x === y || diff < eps || diff <= eps * Math.min(Math.abs(x), Math.abs(y));
-}

@@ -42,10 +42,10 @@ function CanvasContents({ clock }: { clock: Clock }) {
         // cubic Bézier
         const radius = 2;
         const curve = new THREE.CubicBezierCurve3(
-            new THREE.Vector3(1, 0, radius * 2), // start
-            new THREE.Vector3(1 + (6 / 3) * radius, 0, radius * 2), // control‑1
-            new THREE.Vector3(1 + (6 / 3) * radius, 0, 0), // control‑2
-            new THREE.Vector3(1, 0, 0) // end
+            new THREE.Vector3(1, 2, radius * 2), // start
+            new THREE.Vector3(1, 2 - (4 / 3) * radius, radius * 2 - 3), // control‑1
+            new THREE.Vector3(-3, 2 - (4 / 3) * radius, 0), // control‑2
+            new THREE.Vector3(1, 2, 0) // end
         );
         const points = curve.getPoints(50);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
