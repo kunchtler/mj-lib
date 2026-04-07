@@ -99,6 +99,7 @@ export class HandModel {
     performance: PerformanceModelRef;
 
     scale: ThreeSyncedScale;
+    private _cachedSplines = new Map<string, CubicHermiteSpline<Vector3>>();
 
     readonly _dummyObject = new ThreeDummyObject(new Object3D());
 
@@ -374,6 +375,7 @@ export class HandModel {
 
     // TODO : Add a little bit of impact based on speed after throw / catch. Ou quand la ball sonne et qu'on la claque dans la main. Rather clamp position ?
     // TODO : Precompute all event positions / velocities... It will make this code muuuuch simpler and efficient.
+    // TODO : Cache reset ?
     /**
      * Returns the hand's trajectory (spline) in between two consecutive events).
      * @param prevEvent the previous event.
@@ -388,6 +390,20 @@ export class HandModel {
         nextPos: Vector3,
         nextVel: Vector3
     ): CubicHermiteSpline<Vector3> {
+        // First check if the spline isn't cached.
+        const hash = this._createCachedSplineKey(
+            prevTime,
+            prevPos,
+            prevVel,
+            nextTime,
+            nextPos,
+            nextVel
+        );
+        const cache = this._cachedSplines.get(hash);
+        if (cache !== undefined) {
+            return cache;
+        }
+
         const points: Vector3[] = [prevPos, nextPos];
         const dpoints: Vector3[] = [prevVel, nextVel];
         let knots: number[];
@@ -420,7 +436,22 @@ export class HandModel {
         //         knots[1] - HAND_MAX_TIME_FOR_ACTION
         //     );
         // }
-        return new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+        const spline = new CubicHermiteSpline(VECTOR3_STRUCTURE, points, dpoints, knots);
+
+        // Add the result to the cache.
+        this._cachedSplines.set(hash, spline);
+        return spline;
+    }
+
+    private _createCachedSplineKey(
+        prevTime: number | null,
+        prevPos: Vector3,
+        prevVel: Vector3,
+        nextTime: number | null,
+        nextPos: Vector3,
+        nextVel: Vector3
+    ): string {
+        return `${prevTime} ${stringifyVector(prevPos)} ${stringifyVector(prevVel)} ${nextTime} ${stringifyVector(nextPos)} ${stringifyVector(nextVel)}`;
     }
 
     interpolateRotation(
@@ -467,4 +498,8 @@ export class HandModel {
         const rotation = this.interpolateRotation(prevTime, prevRot, nextTime, nextRot, time);
         return { position, rotation };
     }
+}
+
+function stringifyVector(vec: Vector3): string {
+    return `(${vec.x}, ${vec.y}, ${vec.z})`;
 }
