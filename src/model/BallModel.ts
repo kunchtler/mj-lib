@@ -128,7 +128,7 @@ export class BallModel {
                 if (handEv === undefined) {
                     return null;
                 }
-                handPosRot = handModel.localPositionAndRotationAtEvent(evTime, handEv);
+                handPosRot = handModel.localPositionAndRotationAtEvent(handEv);
             } else {
                 // We need to ask for the hand position at that event.
                 handPosRot = handModel.localPositionAndRotationAtTime(evTime);

@@ -40,7 +40,8 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
-    // const x = model!.balls.getSurely();
+    const x = model!.jugglers.getSurely("Kylian").leftHand.timeline.toArray();
+    console.log(JSON.stringify(x));
     // console.log(x.positionAtTime(0.8));
     // const x = model!.jugglers.get("Kylian")!.hands[1];
     // console.log(x.localPositionAndRotationAtTime(0.9));
@@ -111,6 +112,7 @@ export function Performance({
         >()
     ); // TODO : Figure how to use lazyRefs without ESLint complaining in UseEffects ?
     // const performanceRef = useRef<THREE.Object3D>(null!);
+
 
     // TODO : This assumes first the positional audio are created and that then they are added.
     // Work on a version that adds them (with ref).

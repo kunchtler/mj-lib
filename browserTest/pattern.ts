@@ -30,7 +30,7 @@ export const pattern1: PerformanceDescriptionHelper = {
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: 0 },
-                    pattern: "L1"
+                    pattern: "L33333"
                 }
             ]
         }

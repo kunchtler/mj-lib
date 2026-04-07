@@ -401,13 +401,17 @@ export class HandModel {
             nextVel
         );
         const cache = this._cachedSplines.get(hash);
-        if (cache !== undefined) {
-            return cache;
-        }
+        // if (cache !== undefined) {
+        //     return cache;
+        // } //TODO : Fix
 
         // We want to construct the control points of the Cubic Bezier Curve.
 
         // We want to construct the control points of the Cubic Bezier Curve.
+
+        // The movement is always constrained (by order of definition):
+        // - within the plane made by both velocities.
+        // - if velocities are coplanar (whihc encompasses when one is null) :
 
         // First, we define the amplitude of the trajectory (ie TODO)
         // In order to do so, we look at the projection of the nextVel vector on the
@@ -415,6 +419,14 @@ export class HandModel {
         const upVec = this.getJugglerModel()
             ._object.worldToLocal(new Vector3(0, 1, 0))
             .normalize();
+
+        const midPoint = prevPos
+            .clone()
+            .add(nextPos)
+            .multiplyScalar(1 / 2);
+
+        // We want the trajectory to reach its lowest point on the surface / line / point defined at that point by both velocities.
+
         const velProj = nextVel.clone().projectOnVector(upVec).length();
         // Describes the ideal radius the hand would have if it made a half circle between the catch and toss spot.
         // TODO : Fallback when toss spot = catch spot...
@@ -438,13 +450,13 @@ export class HandModel {
         // TODO : Explain the 4/3 ratio for control points.
         const spline = new CubicBezierCurve3(
             prevPos,
-            V3ADD(prevPos, mappedPrevVel),
-            V3SUB(nextPos, mappedNextVel),
+            V3ADD(prevPos, mappedPrevVel.multiplyScalar(4)),
+            V3SUB(nextPos, mappedNextVel.multiplyScalar(4)),
             nextPos
         );
 
         // Add the result to the cache.
-        this._cachedSplines.set(hash, spline);
+        // this._cachedSplines.set(hash, spline);
         return spline;
 
         // Other idea : Cap the prevVel at 4/3(radius)
@@ -559,7 +571,7 @@ export class HandModel {
         //     (3 * new Vector3(...spline.v1).sub(spline.v0).length());
         // const mappedTime = remapTime(d0, d1, time - prevTime / prevTime - nextTime);
         // const position = spline.getPoint(mappedTime);
-        const position = spline.getPoint(time - prevTime / prevTime - nextTime);
+        const position = spline.getPointAt((time - prevTime) / (nextTime - prevTime));
         const rotation = this.interpolateRotation(prevTime, prevRot, nextTime, nextRot, time); // TODO : CHANGE OR MODIFY (currently unused).
         return { position, rotation };
     }
