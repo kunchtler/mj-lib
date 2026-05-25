@@ -116,7 +116,7 @@ export function createLayoutAndMeshesDescriptionFromHelper(
 
         // Complete transform information
         // Used for the position and rotation.
-        const newJugglerPosition = juggler.position ?? [i, 0, 0];
+        const newJugglerPosition = juggler.position ?? [0, 0, i - (helper.jugglers.length - 1) / 2];
         const newJugglerRotation = juggler.rotation ?? [0, 0, 0];
         // const alpha = i / (helper.jugglers.length - 1);
         // const angle = (((1 - alpha) * 9) / 10) * Math.PI + ((alpha * 11) / 10) * Math.PI;
