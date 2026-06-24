@@ -48,7 +48,7 @@ export class GlobalBeatConverter {
             timeInSeconds: new Fraction(description.beatReference.timeInSeconds),
             barBeat: {
                 bar: description.beatReference.barBeat.bar,
-                beat: new Fraction(description.beatReference.barBeat.beat)
+                beat: new Fraction(description.beatReference.barBeat.beatInBar ?? 0)
             }
         };
 
@@ -87,7 +87,7 @@ export class GlobalBeatConverter {
                 }
                 const res = barBeatNoOverflow(
                     startTime.bar,
-                    new Fraction(startTime.beatInBar),
+                    new Fraction(startTime.beatInBar ?? 0),
                     prevSignature
                 );
                 if (res.overflow) {
@@ -152,7 +152,7 @@ export class GlobalBeatConverter {
                 );
                 if (
                     time.bar > res.bar ||
-                    (time.bar === res.bar && time.beatInBar.gt(res.beatInBar))
+                    (time.bar === res.bar && (time.beatInBar ?? new Fraction(0)).gt(res.beatInBar))
                 ) {
                     if (res.overflow) {
                         // Warn for an overflow.
@@ -421,7 +421,7 @@ export class GlobalBeatConverter {
                 }
                 const currentBarBeat = {
                     bar: currentStartTime.bar,
-                    beat: currentStartTime.beatInBar
+                    beat: currentStartTime.beatInBar ?? new Fraction(0)
                 };
                 currentSignature = { barBeat: currentBarBeat, beatsInBar: currentBeatsInBar };
                 currentBeat = computeBeatFromPrevBarBeatInfo(

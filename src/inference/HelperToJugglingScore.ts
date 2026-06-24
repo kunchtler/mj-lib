@@ -27,7 +27,7 @@ export function createJugglingScoreFromHelper(
     let newGlobalBeat: JugglingScore["globalBeat"];
     if (score.globalBeat === undefined) {
         newGlobalBeat = {
-            beatReference: { beat: 0, barBeat: { bar: 0, beat: 0 }, timeInSeconds: 0 },
+            beatReference: { beat: 0, barBeat: { bar: 0, beatInBar: 0 }, timeInSeconds: 0 },
             // Count the seconds.
             changes: [{ startTime: { type: "byBeat", beat: 0 }, beatsPerMinute: 60 }]
         };
@@ -35,7 +35,7 @@ export function createJugglingScoreFromHelper(
         newGlobalBeat = {
             beatReference: {
                 beat: score.globalBeat.beatReference?.beat ?? 0,
-                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beat: 0 },
+                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beatInBar: 0 },
                 timeInSeconds: score.globalBeat.beatReference?.timeInSeconds ?? 0
             },
             // Count the beats.
@@ -51,7 +51,7 @@ export function createJugglingScoreFromHelper(
         newGlobalBeat = {
             beatReference: {
                 beat: score.globalBeat.beatReference?.beat ?? 0,
-                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beat: 0 },
+                barBeat: score.globalBeat.beatReference?.barBeat ?? { bar: 0, beatInBar: 0 },
                 timeInSeconds: score.globalBeat.beatReference?.timeInSeconds ?? 0
             },
             changes: score.globalBeat.changes ?? []

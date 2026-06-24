@@ -244,16 +244,16 @@ export type PhraseSetup = {
 //     haveBalls?: [TakeBall[], TakeBall[]];
 // };
 
+export type BarBeat<FractionType> = { bar: number; beatInBar?: FractionType };
+
 export type JugglerBeatReference = {
     jugglerBeat: FractionDescription;
     globalTime:
         | { type: "byTime"; seconds: FractionDescription }
         | { type: "byGlobalBeat"; beat: FractionDescription }
-        | {
+        | ({
               type: "byGlobalBarBeat";
-              bar: number;
-              beatInBar: FractionDescription;
-          };
+          } & BarBeat<FractionDescription>);
 };
 
 export type BallDescription = {
@@ -267,11 +267,8 @@ export type LocalBeatStartTime =
     | { type: "byTime"; seconds: FractionDescription }
     | { type: "byLocalBeat"; beat: FractionDescription } // Specify toss number.
     | { type: "byGlobalBeat"; beat: FractionDescription } // Specify beat counts since start.
-    | {
-          type: "byGlobalBarBeat";
-          bar: number;
-          beatInBar: FractionDescription;
-      }; // Specify bar and beat in bar.
+    | ({
+          type: "byGlobalBarBeat"} & BarBeat<FractionDescription>); // Specify bar and beat in bar.
 
 export type LocalTempo<FractionType> =
     | { type: "perGlobalBeat"; beatsPerGlobalBeat: FractionType }
@@ -290,7 +287,7 @@ export type GlobalBeatStartTime<FractionType = FractionDescription> =
           type: "byBeat";
           beat: FractionType;
       }
-    | { type: "byBarBeat"; bar: number; beatInBar: FractionType }
+    | ({ type: "byBarBeat" } & BarBeat<FractionType>)
     | { type: "byTime"; seconds: FractionType };
 
 export type GlobalBeatDescription<FractionType = FractionDescription> = {
@@ -306,7 +303,7 @@ export type GlobalBeatDescription<FractionType = FractionDescription> = {
 export type GlobalBeatReference<FractionType = FractionDescription> = {
     beat: FractionType;
     timeInSeconds: FractionType;
-    barBeat: { bar: number; beat: FractionType };
+    barBeat: BarBeat<FractionType>;
 };
 // TODO : Unify with scheduler LocType ?
 
@@ -317,87 +314,6 @@ export type BallSoundDescription = {
      */
     loop?: boolean;
 };
-
-// export type JugglingScore2 = {
-//     // ballTemplates: {
-//     //     name: string;
-//     // }[];
-//     jugglers: {
-//         name: string;
-//         initialState: {
-//             hands: [
-//                 (Required<BallDescription> | undefined)[],
-//                 (Required<BallDescription> | undefined)[]
-//             ];
-//             table?: {
-//                 id: string;
-//                 spots: {
-//                     spot: string;
-//                     ball?: Required<BallDescription>;
-//                     templateName: string; // TODO : differentiate template name from sound category ?
-//                 }[];
-//                 unknownSpots: Required<BallDescription>[];
-//             };
-//         };
-//         // events: {
-//         //     beat: FractionType;
-//         //     tossesPerBeat: FractionType;
-//         //     setupHands?: HandsInstructions;
-//         //     pattern?: string;
-//         // }[];
-//     }[];
-//     scoreRhythm?: {
-//         bar: number;
-//         timeSignature?: {
-//             beatDuration: FractionType;
-//             beatsPerBar: FractionType;
-//         };
-//         tempo?: {
-//             noteDuration: FractionType;
-//             notesPerMinute: number;
-//         };
-//     }[];
-// };
-
-// TOCONTINUE : Faire la version exhaustive (à pattern près) de JugglingScore.
-
-// export type PerformanceView = {
-//     ballTemplates: {
-//         name: string;
-//         color: ColorDescription;
-//         radius: number;
-//         soundOnCatch?: BallSound;
-//         soundOnToss?: BallSound;
-//     }[];
-//     jugglers: {
-//         name: string;
-//         leftHand: DeepRequired<HandDescription>;
-//         rightHand: DeepRequired<HandDescription>;
-//         body: DeepRequired<BodyDescription>;
-//         table?: {
-//             id: string;
-//             height: number;
-//             width: number;
-//             depth: number;
-//             visible: boolean;
-//             position: [number, number, number];
-//             rotation: [number, number, number];
-//             scale: [number, number, number];
-//             color: ColorDescription;
-//             spots: {
-//                 name: string;
-//                 position: [number, number, number];
-//                 rotation: [number, number, number];
-//             }[];
-//             unknownSpot: {
-//                 position: [number, number, number];
-//                 rotation: [number, number, number];
-//             };
-//         };
-//     }[];
-// };
-
-// export type PerformanceViewHelper = {};
 
 // Uncomment to see if typescript complains about incompatible types.
 
