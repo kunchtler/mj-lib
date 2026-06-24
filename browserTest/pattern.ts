@@ -64,13 +64,13 @@ export const patternRhythm: PerformanceDescriptionHelper = {
             jugglingPhrases: [
                 {
                     startTime: { type: "byGlobalBeat", beat: -3 },
-                    localBaseTempo: { type: "perGlobalBeat", beatsPerGlobalBeat: 1 },
+                    localTempoMultiplier: 0.5,
                     // pattern: "(([35], 1)!R0413300)"
                     pattern: "L333333"
                 },
                 {
-                    startTime: { type: "byGlobalBeat", beat: 3 },
-                    localBaseTempo: { type: "perGlobalBeat", beatsPerGlobalBeat: 2 }
+                    startTime: { type: "byLocalBeat", beat: 3 },
+                    localTempoMultiplier: 1
                     // pattern: "(([35], 1)!R0413300)"
                 }
                 // {

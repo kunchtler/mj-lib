@@ -40,8 +40,9 @@ export function Wrapper({
     const description = descriptionFromHelper(descriptionHelper, errorLogger);
     const model = performanceDescriptionToModel(description, description, errorLogger);
     errorLogger.printErrorsInConsole();
-    const x = model!.jugglers.getSurely("Kylian").leftHand.timeline.toArray();
-    console.log(JSON.stringify(x));
+
+    // const x = model!.jugglers.getSurely("Kylian").leftHand.timeline.toArray();
+    // console.log(JSON.stringify(x));
     // console.log(x.positionAtTime(0.8));
     // const x = model!.jugglers.get("Kylian")!.hands[1];
     // console.log(x.localPositionAndRotationAtTime(0.9));

@@ -7,7 +7,7 @@ import styles from "./simulator.module.css";
 import { LineMaterial } from "three/examples/jsm/Addons.js";
 import { Wrapper } from "../src/react/Performance";
 import { BodyMesh, Clock } from "../src";
-import { pattern1 as pattern } from "./pattern";
+import { patternRhythm as pattern } from "./pattern";
 extend(LineMaterial);
 //TODO : styles ?
 //TODO : clock optional for performance ?

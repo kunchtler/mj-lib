@@ -400,64 +400,91 @@ export class HandModel {
             nextPos,
             nextVel
         );
-        const cache = this._cachedSplines.get(hash);
-        // if (cache !== undefined) {
-        //     return cache;
-        // } //TODO : Fix
 
-        // We want to construct the control points of the Cubic Bezier Curve.
+        const prevControl = prevVel.multiplyScalar((nextTime - prevTime) / 3);
+        const nextControl = nextVel.multiplyScalar((nextTime - prevTime) / 3);
+        if (prevControl.length() >= (4 / 3) * Math.PI) {
+            prevControl.normalize().multiplyScalar((4 / 3) * Math.PI);
+        }
+        if (nextControl.length() >= (4 / 3) * Math.PI) {
+            nextControl.normalize().multiplyScalar((4 / 3) * Math.PI);
+        }
 
-        // We want to construct the control points of the Cubic Bezier Curve.
-
-        // The movement is always constrained (by order of definition):
-        // - within the plane made by both velocities.
-        // - if velocities are coplanar (whihc encompasses when one is null) :
-
-        // First, we define the amplitude of the trajectory (ie TODO)
-        // In order to do so, we look at the projection of the nextVel vector on the
-        // up vector of the scene (the one of gravity), but in local coordinates.
-        const upVec = this.getJugglerModel()
-            ._object.worldToLocal(new Vector3(0, 1, 0))
-            .normalize();
-
-        const midPoint = prevPos
-            .clone()
-            .add(nextPos)
-            .multiplyScalar(1 / 2);
-
-        // We want the trajectory to reach its lowest point on the surface / line / point defined at that point by both velocities.
-
-        const velProj = nextVel.clone().projectOnVector(upVec).length();
-        // Describes the ideal radius the hand would have if it made a half circle between the catch and toss spot.
-        // TODO : Fallback when toss spot = catch spot...
-        const idealRadius =
-            V3SUB(this.tossSpot.position.getLocal(), this.catchSpot.position.getLocal()).length() /
-            2;
-        // We would like for that radius to be reached when the nextVelProj is the following value
-        // obtained by flying a ball for 1 sec :
-        // const velProjIdealRadius = ballVelocityAtToss(new Vector3(0, 0, 0), 0, new Vector3(0, 0, 0), 1).y
-        const velProjIdealRadius = 4.905;
-        const ratio = velProj / velProjIdealRadius;
-        const amplitude = idealRadius * (ratio <= 1 ? ratio : 1 + expLimit(1, 1.5, ratio - 1));
-
-        const mappedPrevVel = vecEquals(prevVel, zeroVector)
-            ? prevVel
-            : prevVel.clone().multiplyScalar(amplitude / prevVel.length());
-        const mappedNextVel = vecEquals(nextVel, zeroVector)
-            ? nextVel
-            : nextVel.clone().multiplyScalar(amplitude / nextVel.length());
-
-        // TODO : Explain the 4/3 ratio for control points.
         const spline = new CubicBezierCurve3(
             prevPos,
-            V3ADD(prevPos, mappedPrevVel.multiplyScalar(4)),
-            V3SUB(nextPos, mappedNextVel.multiplyScalar(4)),
+            V3ADD(prevPos, prevControl),
+            V3SUB(nextPos, nextControl),
             nextPos
         );
 
-        // Add the result to the cache.
-        // this._cachedSplines.set(hash, spline);
         return spline;
+
+        // 1. Compute a third point, which is the bottom of the trajectory.
+        // Its bottom
+
+        // const cache = this._cachedSplines.get(hash);
+        // // if (cache !== undefined) {
+        // //     return cache;
+        // // } //TODO : Fix
+
+        // // We want to construct the control points of the Cubic Bezier Curve.
+
+        // // The movement is always constrained (by order of definition):
+        // // - within the plane made by both velocities.
+        // // - if velocities are coplanar (whihc encompasses when one is null) :
+
+        // // First, we define the amplitude of the trajectory (ie TODO)
+        // // In order to do so, we look at the projection of the nextVel vector on the
+        // // up vector of the scene (the one of gravity), but in local coordinates.
+        // const upVec = this.getJugglerModel()
+        //     ._object.worldToLocal(new Vector3(0, 1, 0))
+        //     .normalize();
+
+        // const midPoint = prevPos
+        //     .clone()
+        //     .add(nextPos)
+        //     .multiplyScalar(1 / 2);
+
+        // // We want the trajectory to reach its lowest point on the surface / line / point defined at that point by both velocities.
+
+        // const velProj = nextVel.clone().projectOnVector(upVec).length();
+        // // Describes the ideal radius the hand would have if it made a half circle between the catch and toss spot.
+        // // TODO : Fallback when toss spot = catch spot...
+        // const idealRadius =
+        //     V3SUB(this.tossSpot.position.getLocal(), this.catchSpot.position.getLocal()).length() /
+        //     2;
+        // // We would like for that radius to be reached when the nextVelProj is the following value
+        // // obtained by flying a ball for 1 sec :
+        // // const velProjIdealRadius = ballVelocityAtToss(new Vector3(0, 0, 0), 0, new Vector3(0, 0, 0), 1).y
+        // const velProjIdealRadius = 4.905;
+        // const ratio = velProj / velProjIdealRadius;
+        // const amplitude = idealRadius * (ratio <= 1 ? ratio : 1 + expLimit(1, 1.5, ratio - 1));
+
+        // // const mappedPrevVel = vecEquals(prevVel, zeroVector)
+        // //     ? prevVel
+        // //     : prevVel.clone().multiplyScalar(amplitude / prevVel.length());
+        // // const mappedNextVel = vecEquals(nextVel, zeroVector)
+        // //     ? nextVel
+        // //     : nextVel.clone().multiplyScalar(amplitude / nextVel.length());
+        // // // TODO : Explain the 4/3 ratio for control points.
+        // // const spline = new CubicBezierCurve3(
+        // //     prevPos,
+        // //     V3ADD(prevPos, mappedPrevVel.multiplyScalar(4)),
+        // //     V3SUB(nextPos, mappedNextVel.multiplyScalar(4)),
+        // //     nextPos
+        // // );
+        // const mappedPrevVel = prevVel;
+        // const mappedNextVel = nextVel;
+        // const spline = new CubicBezierCurve3(
+        //     prevPos,
+        //     V3ADD(prevPos, mappedPrevVel.multiplyScalar((nextTime - prevTime) / 3)),
+        //     V3SUB(nextPos, mappedNextVel.multiplyScalar((nextTime - prevTime) / 3)),
+        //     nextPos
+        // );
+
+        // // Add the result to the cache.
+        // // this._cachedSplines.set(hash, spline);
+        // return spline;
 
         // Other idea : Cap the prevVel at 4/3(radius)
         // And Have the other vector not exceed in x the first, but scale

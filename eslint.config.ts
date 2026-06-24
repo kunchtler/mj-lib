@@ -63,6 +63,7 @@ export default defineConfig([
                 "error",
                 { allowConstantLoopConditions: "only-allowed-literals" }
             ]
+            // "react-hooks/exhaustive-deps": ["warn", { additionalHooks: "(useLazyRef)" }]
         }
     }
 ]);

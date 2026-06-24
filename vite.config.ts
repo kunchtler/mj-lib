@@ -17,6 +17,16 @@ export default defineConfig((config) => {
     return {
         base: "",
         // server: { https: { key: "./musjugvr.key", cert: "./musjugvr.crt" } },
+        // test: {
+        //     coverage: {
+        //         exclude: ["**/build/**"]
+        //     },
+        //     resolve: {
+        //         alias: {
+        //             "@tabler/icons-react": "@tabler/icons-react/dist/esm/icons/index.mjs"
+        //         }
+        //     }
+        // },
         build: {
             lib: {
                 entry: "./src/index.ts",
